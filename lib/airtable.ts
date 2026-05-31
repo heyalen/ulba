@@ -13,19 +13,7 @@ export interface Product {
 }
 
 function extractImages(record: any): string[] {
-  const fields = record.fields;
-  const lookup = fields['Bild_System_Lookup'];
-  if (lookup?.valuesByLinkedRecordId) {
-    const urls: string[] = [];
-    for (const recId of Object.keys(lookup.valuesByLinkedRecordId)) {
-      const attachments = lookup.valuesByLinkedRecordId[recId];
-      if (Array.isArray(attachments)) {
-        attachments.forEach((a: any) => { if (a?.url) urls.push(a.url); });
-      }
-    }
-    if (urls.length) return urls;
-  }
-  const raw = fields['Bild_Roh'];
+  const raw = record.fields['Bild_Roh'];
   if (Array.isArray(raw)) return raw.map((a: any) => a.url).filter(Boolean);
   return [];
 }
@@ -62,11 +50,11 @@ function extractVector(fields: any): number[] {
 export async function getProducts(): Promise<Product[]> {
   const fields = [
     'Page Titel', 'Unternehmen', 'S_P0_System_Typ',
-    'Bild_Roh', 'Bild_System_Lookup', 'Cached_Vector',
+    'Bild_Roh', 'Cached_Vector',
     'Dim_01_Emotion','Dim_02_Ritual','Dim_03_Aesthetik','Dim_04_Zielgruppe',
     'Dim_05_Prestige','Dim_06a_Feminin','Dim_06b_Maskulin','Dim_07_Archetyp',
     'Dim_08_Sensorik','Dim_09_Werte','Dim_10_Produkt_Fit','Dim_11_Kultur',
-    'Dim_12_Psychografik','Dim_13_Zeitgeist','Dim_14_Persona','URL'
+    'Dim_12_Psychografik','Dim_13_Zeitgeist','Dim_14_Persona','Link'
   ];
 
   const params = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
@@ -85,15 +73,13 @@ export async function getProducts(): Promise<Product[]> {
     .map((rec: any) => ({
       id: rec.id,
       name: rec.fields['Page Titel'] || 'Unbekannt',
-      supplier: Array.isArray(rec.fields['Unternehmen'])
-        ? rec.fields['Unternehmen'][0]
-        : rec.fields['Unternehmen'] || '',
+      supplier: rec.fields['Unternehmen'] || '',
       type: Array.isArray(rec.fields['S_P0_System_Typ'])
         ? rec.fields['S_P0_System_Typ'][0]
         : rec.fields['S_P0_System_Typ'] || '',
       images: extractImages(rec),
       vector: extractVector(rec.fields),
-      url: rec.fields['URL'] || '',
+      url: rec.fields['Link'] || '',
     }))
     .filter((p: Product) => p.vector.some(v => v > 0));
 }
