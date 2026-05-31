@@ -11,21 +11,7 @@ const EXAMPLES = [
   { label: 'Premium ritual', q: 'Premium anti-aging ceremonial glass luxe' },
 ];
 
-const HEIGHTS = [300, 200, 250, 280, 180, 320, 240, 220, 260, 200, 290, 230];
-
-interface Product {
-  id: string;
-  name: string;
-  supplier: string;
-  type: string;
-  images: string[];
-  vector: number[];
-  url?: string;
-}
-
-interface Result extends Product {
-  score: number;
-}
+const HEIGHTS = [240, 160, 200, 220, 140, 260, 200, 180, 220, 160, 240, 200];
 
 const TYPE_LABELS: Record<string, string> = {
   Jar_ScrewCap: 'Jar · Screw',
@@ -40,6 +26,17 @@ const TYPE_LABELS: Record<string, string> = {
   Tube_ScrewCap: 'Tube · Screw',
   Bottle_TriggerPump: 'Bottle · Trigger',
 };
+
+interface Product {
+  id: string;
+  name: string;
+  supplier: string;
+  type: string;
+  images: string[];
+  vector: number[];
+  url?: string;
+}
+interface Result extends Product { score: number; }
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -121,11 +118,15 @@ export default function Home() {
         }
         input::placeholder{color:#aaa !important;opacity:1 !important}
         .chips-bar::-webkit-scrollbar{display:none}
+        .masonry-grid{columns:4;column-gap:14px}
+        @media (max-width: 900px){.masonry-grid{columns:3}}
+        @media (max-width: 640px){.masonry-grid{columns:2}}
       `}</style>
 
-      {showResults && (
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 20px', height: 56, borderBottom: '1px solid #f0f0f0', background: '#fff', gap: 16, position: 'sticky', top: 0, zIndex: 40 }}>
-          <span onClick={goHome} style={{ fontSize: 14, fontWeight: 600, color: '#111', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>ulba.ai</span>
+      {/* TOPBAR — always visible */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', height: 56, borderBottom: '1px solid #f0f0f0', background: '#fff', gap: 16, position: 'sticky', top: 0, zIndex: 40 }}>
+        <span onClick={goHome} style={{ fontSize: 14, fontWeight: 600, color: '#111', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>ulba.ai</span>
+        {showResults && (
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f2f2f2', borderRadius: 999, padding: '9px 16px', width: '100%', maxWidth: 440 }}>
               <span style={{ color: '#888', fontSize: 14 }}>⌕</span>
@@ -139,9 +140,10 @@ export default function Home() {
               />
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* HERO */}
       {!showResults && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '84px 24px 40px' }}>
           <div style={{ fontSize: 28, fontWeight: 500, color: '#111', marginBottom: 6, textAlign: 'center', letterSpacing: '-0.02em' }}>
@@ -172,9 +174,10 @@ export default function Home() {
         </div>
       )}
 
+      {/* RESULTS — centered container with more whitespace */}
       {showResults && (
-        <>
-          <div className="chips-bar" style={{ display: 'flex', gap: 8, padding: '12px 20px', borderBottom: '1px solid #f0f0f0', overflowX: 'auto', flexWrap: 'nowrap' }}>
+        <div style={{ maxWidth: 880, margin: '0 auto', padding: '0 24px' }}>
+          <div className="chips-bar" style={{ display: 'flex', gap: 8, padding: '12px 0', overflowX: 'auto', flexWrap: 'nowrap' }}>
             {EXAMPLES.map((ex, i) => (
               <button key={i} onClick={() => useExample(ex.q)} style={{ background: currentQuery === ex.q ? '#111' : '#f2f2f2', color: currentQuery === ex.q ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '8px 16px', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>
                 {ex.label}
@@ -182,7 +185,7 @@ export default function Home() {
             ))}
           </div>
 
-          <div style={{ padding: '16px 20px 12px', fontSize: 13, color: '#999', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ padding: '8px 0 16px', fontSize: 13, color: '#999', display: 'flex', alignItems: 'baseline', gap: 8, borderBottom: '1px solid #f5f5f5', marginBottom: 20 }}>
             {status === 'loading' && <span>Searching...</span>}
             {status === 'error' && <span style={{ color: '#dc2626' }}>Error — please try again</span>}
             {results && status === 'done' && (
@@ -195,30 +198,31 @@ export default function Home() {
           </div>
 
           {results && (
-            <div style={{ columns: 3, columnGap: 16, padding: '0 20px 40px' }}>
+            <div className="masonry-grid" style={{ paddingBottom: 40 }}>
               {results.map((r, i) => (
-                <div key={r.id} onClick={() => setSelected(r)} style={{ breakInside: 'avoid', marginBottom: 20, cursor: 'pointer' }}>
-                  <div style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f0f0f0', position: 'relative', borderRadius: 18, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div key={r.id} onClick={() => setSelected(r)} style={{ breakInside: 'avoid', marginBottom: 18, cursor: 'pointer' }}>
+                  <div style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f0f0f0', position: 'relative', borderRadius: 16, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {r.images?.[0] ? (
                       <img src={r.images[0]} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover', minHeight: HEIGHTS[i % HEIGHTS.length] }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     ) : (
-                      <span style={{ fontSize: 32, color: '#ccc' }}>◇</span>
+                      <span style={{ fontSize: 28, color: '#ccc' }}>◇</span>
                     )}
-                    <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#111', backdropFilter: 'blur(10px)' }}>
+                    <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '3px 9px', fontSize: 10.5, fontWeight: 600, color: '#111', backdropFilter: 'blur(10px)' }}>
                       {Math.round(r.score * 100)}%
                     </div>
                   </div>
-                  <div style={{ padding: '10px 4px 0' }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111', lineHeight: 1.3, marginBottom: 2 }}>{r.name}</div>
-                    <div style={{ fontSize: 12, color: '#999' }}>{r.supplier}</div>
+                  <div style={{ padding: '8px 3px 0' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 500, color: '#111', lineHeight: 1.3, marginBottom: 2 }}>{r.name}</div>
+                    <div style={{ fontSize: 11.5, color: '#999' }}>{r.supplier}</div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
+      {/* PANEL */}
       {selected && (
         <>
           <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 50 }} />
