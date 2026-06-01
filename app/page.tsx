@@ -326,14 +326,18 @@ export default function Home() {
     setFavorites(loadFavorites());
   }, []);
 
-  // Handle ?product= URL param
+  // Handle ?product= URL param — wait for products to load, then open panel
   useEffect(() => {
     if (!products.length) return;
     const params = new URLSearchParams(window.location.search);
     const pid = params.get('product');
     if (pid) {
       const found = products.find(p => p.id === pid);
-      if (found) setSelected({ ...found, score: 1 });
+      if (found) {
+        // Show hero (not search results) so background looks clean
+        setShowResults(false);
+        setSelected({ ...found, score: 1 });
+      }
     }
   }, [products]);
 
