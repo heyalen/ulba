@@ -6,21 +6,15 @@ const TABLE_ID = "tblIZnKIrr81MYSzr";
 
 export async function POST(req: NextRequest) {
   const { productId, productName, supplier, brandName, brandEmail, brief } = await req.json();
-
   if (!brandEmail || !productId) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-
+  const today = new Date().toISOString().split("T")[0];
   const res = await fetch(
     `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${TABLE_ID}`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         fields: {
           fldGNGNcdTP37umjZ: brandName || brandEmail,
@@ -34,12 +28,6 @@ export async function POST(req: NextRequest) {
       }),
     }
   );
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error("Airtable error:", err);
-    return NextResponse.json({ error: "Failed to save request" }, { status: 500 });
-  }
-
+  if (!res.ok) return NextResponse.json({ error: "Failed" }, { status: 500 });
   return NextResponse.json({ success: true });
 }
