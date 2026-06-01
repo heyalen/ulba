@@ -38,6 +38,137 @@ interface Product {
 }
 interface Result extends Product { score: number; }
 
+interface SampleModalProps {
+  product: Result;
+  onClose: () => void;
+}
+
+function SampleModal({ product, onClose }: SampleModalProps) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [firm, setFirm] = useState('');
+  const [brief, setBrief] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+
+  const submit = async () => {
+    if (!email.trim()) return;
+    setStatus('sending');
+    try {
+      const res = await fetch('/api/sample-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          supplier: product.supplier,
+          brandName: firm || name,
+          brandEmail: email,
+          brief,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setStatus('done');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 480, maxWidth: 'calc(100vw - 48px)', background: '#fff', borderRadius: 28, padding: '44px 44px 40px', zIndex: 101, boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+        {status === 'done' ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>✓</div>
+            <div style={{ fontSize: 22, fontWeight: 600, color: '#111', marginBottom: 10 }}>Request sent</div>
+            <div style={{ fontSize: 14, color: '#999', marginBottom: 32, lineHeight: 1.6 }}>
+              We'll get back to you within 3–5 business days<br />with samples and pricing from {product.supplier}.
+            </div>
+            <button onClick={onClose} style={{ background: '#111', color: '#fff', border: 0, borderRadius: 999, padding: '14px 36px', fontSize: 15, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 600, color: '#111', marginBottom: 4 }}>Request a sample</div>
+                <div style={{ fontSize: 13, color: '#999' }}>{product.name} · {product.supplier}</div>
+              </div>
+              <button onClick={onClose} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', color: '#555', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Name</div>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Your name"
+                    style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brand / Company</div>
+                  <input
+                    type="text"
+                    value={firm}
+                    onChange={e => setFirm(e.target.value)}
+                    placeholder="Brand name"
+                    style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Email *</div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@brand.com"
+                  style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brief <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></div>
+                <textarea
+                  value={brief}
+                  onChange={e => setBrief(e.target.value)}
+                  placeholder="Volume, quantity, finish, timeline..."
+                  rows={3}
+                  style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none', lineHeight: 1.5 }}
+                />
+              </div>
+            </div>
+
+            {status === 'error' && (
+              <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Something went wrong — please try again.</div>
+            )}
+
+            <button
+              onClick={submit}
+              disabled={!email.trim() || status === 'sending'}
+              style={{ width: '100%', marginTop: 20, padding: '16px', background: email.trim() ? '#111' : '#e5e5e5', color: email.trim() ? '#fff' : '#aaa', border: 0, borderRadius: 999, fontSize: 15, fontWeight: 500, cursor: email.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
+            >
+              {status === 'sending' ? 'Sending...' : 'Send request →'}
+            </button>
+
+            <div style={{ fontSize: 12, color: '#bbb', textAlign: 'center', marginTop: 14 }}>
+              We'll respond within 3–5 business days with samples and pricing.
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [input, setInput] = useState('');
@@ -48,16 +179,22 @@ export default function Home() {
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [currentQuery, setCurrentQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
 
   useEffect(() => {
     fetch('/api/products').then(r => r.json()).then(setProducts).catch(console.error);
   }, []);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelected(null); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (sampleProduct) setSampleProduct(null);
+        else setSelected(null);
+      }
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, []);
+  }, [sampleProduct]);
 
   const search = useCallback(async (text: string) => {
     if (!text.trim() || !products.length) return;
@@ -103,7 +240,7 @@ export default function Home() {
   return (
     <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#111' }}>
       <style>{`
-        input[type="text"]{
+        input[type="text"], input[type="email"] {
           -webkit-appearance:none !important;
           appearance:none !important;
           border:0 !important;
@@ -116,14 +253,20 @@ export default function Home() {
           color:#111 !important;
           font-family:inherit !important;
         }
+        input[type="text"].modal-input, input[type="email"].modal-input {
+          background:#f7f7f7 !important;
+          padding:12px 16px !important;
+        }
         input::placeholder{color:#aaa !important;opacity:1 !important}
+        textarea::placeholder{color:#aaa;opacity:1}
+        textarea{outline:none}
         .chips-bar::-webkit-scrollbar{display:none}
         .masonry-grid{columns:3;column-gap:24px}
         @media (max-width: 900px){.masonry-grid{columns:2}}
         @media (max-width: 600px){.masonry-grid{columns:1}}
       `}</style>
 
-      {/* TOPBAR — always visible */}
+      {/* TOPBAR */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 32px', height: 60, borderBottom: '1px solid #f0f0f0', background: '#fff', gap: 24, position: 'sticky', top: 0, zIndex: 40 }}>
         <span onClick={goHome} style={{ fontSize: 15, fontWeight: 600, color: '#111', cursor: 'pointer', flexShrink: 0 }}>ulba.ai</span>
         {showResults && (
@@ -222,7 +365,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* PANEL — 680px wide */}
+      {/* DETAIL PANEL */}
       {selected && (
         <>
           <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 50 }} />
@@ -280,7 +423,10 @@ export default function Home() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
-                <button style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button
+                  onClick={() => setSampleProduct(selected)}
+                  style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
                   Request sample →
                 </button>
                 {selected.url && (
@@ -292,6 +438,11 @@ export default function Home() {
             </div>
           </div>
         </>
+      )}
+
+      {/* SAMPLE REQUEST MODAL */}
+      {sampleProduct && (
+        <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />
       )}
     </div>
   );
