@@ -319,6 +319,7 @@ export default function Home() {
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [saveModal, setSaveModal] = useState<Product | null>(null);
   const [copied, setCopied] = useState(false);
+  const [imgIndex, setImgIndex] = useState(0);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -351,6 +352,9 @@ export default function Home() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [sampleProduct, saveModal]);
+
+  // Reset image index when product changes
+  useEffect(() => { setImgIndex(0); }, [selected?.id]);
 
   // Update URL when panel opens/closes
   useEffect(() => {
@@ -577,6 +581,14 @@ export default function Home() {
                     <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111', backdropFilter: 'blur(10px)' }}>
                       {Math.round(r.score * 100)}%
                     </div>
+                    {/* Multi-image dot indicator */}
+                    {r.images?.length > 1 && (
+                      <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
+                        {r.images.slice(0, 4).map((_, di) => (
+                          <div key={di} style={{ width: 5, height: 5, borderRadius: 999, background: di === 0 ? '#fff' : 'rgba(255,255,255,0.5)' }} />
+                        ))}
+                      </div>
+                    )}
                     {/* Heart button on card */}
                     <button
                       onClick={e => { e.stopPropagation(); setSaveModal(r); }}
@@ -623,11 +635,29 @@ export default function Home() {
                 <button onClick={() => setSelected(null)} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 40, height: 40, cursor: 'pointer', color: '#555', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
               </div>
 
-              <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, overflow: 'hidden' }}>
-                {selected.images?.[0] ? (
-                  <img src={selected.images[0]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <span style={{ fontSize: 88, color: '#ddd' }}>◇</span>
+              {/* Image gallery */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                  {selected.images?.length > 0 ? (
+                    <img src={selected.images[imgIndex]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: 88, color: '#ddd' }}>◇</span>
+                  )}
+                  {selected.images?.length > 1 && (
+                    <>
+                      <button onClick={() => setImgIndex(i => (i - 1 + selected.images.length) % selected.images.length)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.92)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', color: '#111' }}>‹</button>
+                      <button onClick={() => setImgIndex(i => (i + 1) % selected.images.length)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.92)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', color: '#111' }}>›</button>
+                    </>
+                  )}
+                </div>
+                {selected.images?.length > 1 && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
+                    {selected.images.map((img, i) => (
+                      <div key={i} onClick={() => setImgIndex(i)} style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: imgIndex === i ? '2px solid #111' : '2px solid transparent', background: '#f5f5f5' }}>
+                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
