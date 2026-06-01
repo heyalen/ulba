@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
           fldcxIabIhWs2vwse: brandEmail,
           fld1C7W9B95YxQGPo: brandName || "",
           fldz4eI0w86Nd2XgW: [productId],
-          fldlVebHyqiN3yMXI: "New",
+          fldlVebHyqiN3yMXI: "Neu",
           fldfd6b4zxhnI68F2: today,
           fldapwhmIssHbYCd1: brief || "",
         },
