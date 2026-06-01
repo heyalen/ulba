@@ -326,23 +326,18 @@ export default function Home() {
     setFavorites(loadFavorites());
   }, []);
 
-  // Handle ?product= URL param — wait for products to load, then open panel
   useEffect(() => {
-    if (!products.length) return;
-    const params = new URLSearchParams(window.location.search);
-    const pid = params.get('product');
-    if (pid) {
-      const found = products.find(p => p.id === pid);
-      if (found) {
-        // Show hero (not search results) so background looks clean
-        setShowResults(false);
-        setSelected({ ...found, score: 1 });
-      }
-    }
-  }, [products]);
-
-  useEffect(() => {
-    fetch('/api/products').then(r => r.json()).then(setProducts).catch(console.error);
+    const pid = new URLSearchParams(window.location.search).get('product');
+    fetch('/api/products')
+      .then(r => r.json())
+      .then((data: Product[]) => {
+        setProducts(data);
+        if (pid) {
+          const found = data.find((p: Product) => p.id === pid);
+          if (found) setSelected({ ...found, score: 1 });
+        }
+      })
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
