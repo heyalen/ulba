@@ -8,12 +8,12 @@ export interface Product {
   supplier: string;
   type: string;
   images: string[];
+  harmonisedImage?: string;
   vector: number[];
   url?: string;
 }
 
 function extractImages(record: any): string[] {
-  // 1. Bild_System_Lookup (multipleLookupValues — nur verfügbar wenn kein fields[] Filter)
   const lookup = record.fields['Bild_System_Lookup'];
   if (Array.isArray(lookup) && lookup.length > 0) {
     const urls = lookup.flatMap((a: any) =>
@@ -22,10 +22,15 @@ function extractImages(record: any): string[] {
     );
     if (urls.length > 0) return urls;
   }
-  // 2. Bild_Roh als Fallback
   const raw = record.fields['Bild_Roh'];
   if (Array.isArray(raw)) return raw.map((a: any) => a.url).filter(Boolean);
   return [];
+}
+
+function extractHarmonisedImage(record: any): string | undefined {
+  const field = record.fields['Bild_Harmonisiert'];
+  if (Array.isArray(field) && field.length > 0) return field[0].url;
+  return undefined;
 }
 
 function extractVector(fields: any): number[] {
@@ -51,17 +56,14 @@ function extractVector(fields: any): number[] {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  // Kein fields[] Filter → Airtable liefert auch multipleLookupValues wie Bild_System_Lookup
   const filterFormula = encodeURIComponent('{Dim_01_Emotion}>0');
   const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv?filterByFormula=${filterFormula}&pageSize=100`;
-
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
     next: { revalidate: 300 },
   });
   if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
   const data = await res.json();
-
   return data.records
     .map((rec: any) => ({
       id: rec.id,
@@ -71,6 +73,7 @@ export async function getProducts(): Promise<Product[]> {
         ? rec.fields['S_P0_System_Typ'][0]
         : rec.fields['S_P0_System_Typ'] || '',
       images: extractImages(rec),
+      harmonisedImage: extractHarmonisedImage(rec),
       vector: extractVector(rec.fields),
       url: rec.fields['Link'] || '',
     }))
