@@ -14,14 +14,12 @@ export interface Product {
 }
 
 function extractImages(record: any): string[] {
-  const lookup = record.fields['Bild_System_Lookup'];
-  if (Array.isArray(lookup) && lookup.length > 0) {
-    const urls = lookup.flatMap((a: any) =>
-      Array.isArray(a) ? a.map((x: any) => x?.url).filter(Boolean)
-                       : a?.url ? [a.url] : []
-    );
-    if (urls.length > 0) return urls;
+  // 1. Bild_Harmonisiert bevorzugen
+  const harmonised = record.fields['Bild_Harmonisiert'];
+  if (Array.isArray(harmonised) && harmonised.length > 0) {
+    return harmonised.map((a: any) => a.url).filter(Boolean);
   }
+  // 2. Bild_Roh als Fallback
   const raw = record.fields['Bild_Roh'];
   if (Array.isArray(raw)) return raw.map((a: any) => a.url).filter(Boolean);
   return [];
