@@ -14,12 +14,10 @@ export interface Product {
 }
 
 function extractImages(record: any): string[] {
-  // 1. Bild_Harmonisiert bevorzugen
   const harmonised = record.fields['Bild_Harmonisiert'];
   if (Array.isArray(harmonised) && harmonised.length > 0) {
     return harmonised.map((a: any) => a.url).filter(Boolean);
   }
-  // 2. Bild_Roh als Fallback
   const raw = record.fields['Bild_Roh'];
   if (Array.isArray(raw)) return raw.map((a: any) => a.url).filter(Boolean);
   return [];
@@ -58,7 +56,7 @@ export async function getProducts(): Promise<Product[]> {
   const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv?filterByFormula=${filterFormula}&pageSize=100`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
-    next: { revalidate: 300 },
+    next: { revalidate: 60 },
   });
   if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
   const data = await res.json();
