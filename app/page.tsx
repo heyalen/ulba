@@ -30,7 +30,7 @@ interface Product {
 interface Result extends Product { score: number; }
 interface Project { id: string; name: string; createdAt: number; }
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
-interface DetectedFilter { key: string; label: string; }
+interface DetectedFilter { key: string; value: any; label: string; }
 
 const LS_PROJECTS = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
@@ -48,15 +48,12 @@ function loadFavorites(): FavoriteEntry[] {
 }
 function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
 
-// ─── Cap Slider ───────────────────────────────────────────────────────────────
 function CapSlider({ caps }: { caps: string[] }) {
   const [active, setActive] = useState(0);
   if (!caps.length) return null;
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-        Passende Verschlüsse · {caps.length}
-      </div>
+      <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Passende Verschlüsse · {caps.length}</div>
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' as const }}>
         {caps.map((url, i) => (
           <div key={i} onClick={() => setActive(i)} style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: active === i ? '2px solid #111' : '1.5px solid #e5e5e5', background: '#f7f7f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -71,20 +68,15 @@ function CapSlider({ caps }: { caps: string[] }) {
   );
 }
 
-// ─── SampleModal ──────────────────────────────────────────────────────────────
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [firm, setFirm] = useState('');
-  const [brief, setBrief] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+  const [name, setName] = useState(''); const [email, setEmail] = useState('');
+  const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
+  const [status, setStatus] = useState<'idle'|'sending'|'done'|'error'>('idle');
   const submit = async () => {
-    if (!email.trim()) return;
-    setStatus('sending');
+    if (!email.trim()) return; setStatus('sending');
     try {
-      const res = await fetch('/api/sample-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier, brandName: firm || name, brandEmail: email, brief }) });
-      if (!res.ok) throw new Error();
-      setStatus('done');
+      const res = await fetch('/api/sample-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier, brandName: firm||name, brandEmail: email, brief }) });
+      if (!res.ok) throw new Error(); setStatus('done');
     } catch { setStatus('error'); }
   };
   return (
@@ -101,36 +93,19 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 600, color: '#111', marginBottom: 4 }}>Request a sample</div>
-                <div style={{ fontSize: 13, color: '#999' }}>{product.name} · {product.supplier}</div>
-              </div>
+              <div><div style={{ fontSize: 20, fontWeight: 600, color: '#111', marginBottom: 4 }}>Request a sample</div><div style={{ fontSize: 13, color: '#999' }}>{product.name} · {product.supplier}</div></div>
               <button onClick={onClose} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', color: '#555', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Name</div>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brand</div>
-                  <input type="text" value={firm} onChange={e => setFirm(e.target.value)} placeholder="Brand name" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
-                </div>
+                <div><div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Name</div><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} /></div>
+                <div><div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brand</div><input type="text" value={firm} onChange={e => setFirm(e.target.value)} placeholder="Brand name" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} /></div>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Email *</div>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@brand.com" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brief <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(optional)</span></div>
-                <textarea value={brief} onChange={e => setBrief(e.target.value)} placeholder="Volume, quantity, finish, timeline..." rows={3} style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const, resize: 'none', lineHeight: 1.5, outline: 'none' }} />
-              </div>
+              <div><div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Email *</div><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@brand.com" style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const }} /></div>
+              <div><div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Brief <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(optional)</span></div><textarea value={brief} onChange={e => setBrief(e.target.value)} placeholder="Volume, quantity, finish, timeline..." rows={3} style={{ width: '100%', background: '#f7f7f7', border: 0, borderRadius: 12, padding: '12px 16px', fontSize: 14, color: '#111', fontFamily: 'inherit', boxSizing: 'border-box' as const, resize: 'none', lineHeight: 1.5, outline: 'none' }} /></div>
             </div>
             {status === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Something went wrong — please try again.</div>}
-            <button onClick={submit} disabled={!email.trim() || status === 'sending'} style={{ width: '100%', marginTop: 20, padding: '16px', background: email.trim() ? '#111' : '#e5e5e5', color: email.trim() ? '#fff' : '#aaa', border: 0, borderRadius: 999, fontSize: 15, fontWeight: 500, cursor: email.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-              {status === 'sending' ? 'Sending...' : 'Send request →'}
-            </button>
+            <button onClick={submit} disabled={!email.trim()||status==='sending'} style={{ width: '100%', marginTop: 20, padding: '16px', background: email.trim()?'#111':'#e5e5e5', color: email.trim()?'#fff':'#aaa', border: 0, borderRadius: 999, fontSize: 15, fontWeight: 500, cursor: email.trim()?'pointer':'default', fontFamily: 'inherit' }}>{status==='sending'?'Sending...':'Send request →'}</button>
             <div style={{ fontSize: 12, color: '#bbb', textAlign: 'center', marginTop: 14 }}>We'll respond within 3–5 business days with samples and pricing.</div>
           </>
         )}
@@ -139,10 +114,8 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
-// ─── SaveToProjectModal ───────────────────────────────────────────────────────
 function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Product; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
-  const [newName, setNewName] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState(''); const [creating, setCreating] = useState(false);
   const savedProjectIds = favorites.filter(f => f.productId === product.id).map(f => f.projectId);
   return (
     <>
@@ -153,20 +126,16 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
           <button onClick={onClose} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 32, height: 32, cursor: 'pointer', color: '#555', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {projects.map(p => {
-            const isSaved = savedProjectIds.includes(p.id);
-            return (
-              <button key={p.id} onClick={() => onSave(p.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isSaved ? '#f0f7f0' : '#f7f7f7', border: isSaved ? '1px solid #86c986' : '1px solid transparent', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: '#111', textAlign: 'left' }}>
-                <span>{p.name}</span>
-                {isSaved && <span style={{ fontSize: 16 }}>♥</span>}
-              </button>
-            );
-          })}
+          {projects.map(p => { const isSaved = savedProjectIds.includes(p.id); return (
+            <button key={p.id} onClick={() => onSave(p.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isSaved?'#f0f7f0':'#f7f7f7', border: isSaved?'1px solid #86c986':'1px solid transparent', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: '#111', textAlign: 'left' }}>
+              <span>{p.name}</span>{isSaved && <span style={{ fontSize: 16 }}>♥</span>}
+            </button>
+          ); })}
         </div>
         {creating ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } if (e.key === 'Escape') setCreating(false); }} placeholder="Project name..." style={{ flex: 1, background: '#f7f7f7', border: 0, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', fontFamily: 'inherit', outline: 'none' }} />
-            <button onClick={() => { if (newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } }} style={{ background: '#111', color: '#fff', border: 0, borderRadius: 12, padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+            <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key==='Enter'&&newName.trim()){onSave('__new__:'+newName.trim());setCreating(false);setNewName('');} if(e.key==='Escape')setCreating(false); }} placeholder="Project name..." style={{ flex: 1, background: '#f7f7f7', border: 0, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', fontFamily: 'inherit', outline: 'none' }} />
+            <button onClick={() => { if(newName.trim()){onSave('__new__:'+newName.trim());setCreating(false);setNewName('');} }} style={{ background: '#111', color: '#fff', border: 0, borderRadius: 12, padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
           </div>
         ) : (
           <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '11px', background: '#fff', color: '#555', border: '1px dashed #ddd', borderRadius: 14, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>+ New project</button>
@@ -176,57 +145,41 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
   );
 }
 
-// ─── FavoritesView ────────────────────────────────────────────────────────────
 function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Product) => void; }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [activeProject, setActiveProject] = useState<string>('all');
-  const filtered = activeProject === 'all' ? favorites : favorites.filter(f => f.projectId === activeProject);
-  const uniqueProducts = filtered.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i);
+  const [editingId, setEditingId] = useState<string|null>(null); const [editName, setEditName] = useState(''); const [activeProject, setActiveProject] = useState<string>('all');
+  const filtered = activeProject==='all' ? favorites : favorites.filter(f => f.projectId===activeProject);
+  const uniqueProducts = filtered.filter((f,i,arr) => arr.findIndex(x => x.productId===f.productId)===i);
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px 60px' }}>
       <div style={{ display: 'flex', gap: 8, padding: '20px 0 24px', overflowX: 'auto', flexWrap: 'nowrap' }}>
-        <button onClick={() => setActiveProject('all')} style={{ background: activeProject === 'all' ? '#111' : '#f2f2f2', color: activeProject === 'all' ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>
-          All ({favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length})
-        </button>
-        {projects.map(p => {
-          const count = favorites.filter(f => f.projectId === p.id).length;
-          return (
-            <div key={p.id} style={{ position: 'relative', flexShrink: 0 }}>
-              {editingId === p.id ? (
-                <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); }} onKeyDown={e => { if (e.key === 'Enter') { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); } }} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140 }} />
-              ) : (
-                <button onClick={() => setActiveProject(p.id)} onDoubleClick={() => { setEditingId(p.id); setEditName(p.name); }} style={{ background: activeProject === p.id ? '#111' : '#f2f2f2', color: activeProject === p.id ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
-                  {p.name} ({count})
-                </button>
-              )}
-            </div>
-          );
-        })}
+        <button onClick={() => setActiveProject('all')} style={{ background: activeProject==='all'?'#111':'#f2f2f2', color: activeProject==='all'?'#fff':'#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>All ({favorites.filter((f,i,arr)=>arr.findIndex(x=>x.productId===f.productId)===i).length})</button>
+        {projects.map(p => { const count = favorites.filter(f=>f.projectId===p.id).length; return (
+          <div key={p.id} style={{ position: 'relative', flexShrink: 0 }}>
+            {editingId===p.id ? (
+              <input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} onBlur={()=>{if(editName.trim())onRenameProject(p.id,editName.trim());setEditingId(null);}} onKeyDown={e=>{if(e.key==='Enter'){if(editName.trim())onRenameProject(p.id,editName.trim());setEditingId(null);}}} style={{ background:'#f2f2f2',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,fontFamily:'inherit',outline:'none',width:140 }} />
+            ) : (
+              <button onClick={()=>setActiveProject(p.id)} onDoubleClick={()=>{setEditingId(p.id);setEditName(p.name);}} style={{ background:activeProject===p.id?'#111':'#f2f2f2',color:activeProject===p.id?'#fff':'#555',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit' }}>{p.name} ({count})</button>
+            )}
+          </div>
+        ); })}
       </div>
-      {activeProject !== 'all' && (
+      {activeProject!=='all' && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-          <button onClick={() => { const p = projects.find(x => x.id === activeProject); if (p) { setEditingId(p.id); setEditName(p.name); } }} style={{ background: '#f7f7f7', border: 0, borderRadius: 999, padding: '8px 16px', fontSize: 12, cursor: 'pointer', color: '#666', fontFamily: 'inherit' }}>Rename</button>
-          <button onClick={() => { onDeleteProject(activeProject); setActiveProject('all'); }} style={{ background: '#fff0f0', border: 0, borderRadius: 999, padding: '8px 16px', fontSize: 12, cursor: 'pointer', color: '#dc2626', fontFamily: 'inherit' }}>Delete project</button>
+          <button onClick={()=>{const p=projects.find(x=>x.id===activeProject);if(p){setEditingId(p.id);setEditName(p.name);}}} style={{ background:'#f7f7f7',border:0,borderRadius:999,padding:'8px 16px',fontSize:12,cursor:'pointer',color:'#666',fontFamily:'inherit' }}>Rename</button>
+          <button onClick={()=>{onDeleteProject(activeProject);setActiveProject('all');}} style={{ background:'#fff0f0',border:0,borderRadius:999,padding:'8px 16px',fontSize:12,cursor:'pointer',color:'#dc2626',fontFamily:'inherit' }}>Delete project</button>
         </div>
       )}
-      {uniqueProducts.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '80px 0', color: '#bbb' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>♡</div>
-          <div style={{ fontSize: 16 }}>No saved packagings yet</div>
-        </div>
+      {uniqueProducts.length===0 ? (
+        <div style={{ textAlign:'center',padding:'80px 0',color:'#bbb' }}><div style={{ fontSize:48,marginBottom:16 }}>♡</div><div style={{ fontSize:16 }}>No saved packagings yet</div></div>
       ) : (
         <div className="masonry-grid">
-          {uniqueProducts.map((f, i) => (
-            <div key={f.productId + f.projectId} style={{ breakInside: 'avoid', marginBottom: 28 }}>
-              <div onClick={() => onProductClick(f.product)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f5f5f5', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                {f.product.images?.[0] ? <img src={f.product.images[0]} alt={f.product.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 12, minHeight: HEIGHTS[i % HEIGHTS.length] }} /> : <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>}
-                <button onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>♥</button>
+          {uniqueProducts.map((f,i) => (
+            <div key={f.productId+f.projectId} style={{ breakInside:'avoid',marginBottom:28 }}>
+              <div onClick={()=>onProductClick(f.product)} style={{ width:'100%',minHeight:HEIGHTS[i%HEIGHTS.length],background:'#f5f5f5',position:'relative',borderRadius:20,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
+                {f.product.images?.[0]?<img src={f.product.images[0]} alt={f.product.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:12,minHeight:HEIGHTS[i%HEIGHTS.length] }} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
+                <button onClick={e=>{e.stopPropagation();onRemove(f.productId,f.projectId);}} style={{ position:'absolute',top:12,right:12,background:'rgba(255,255,255,0.95)',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center' }}>♥</button>
               </div>
-              <div style={{ padding: '14px 4px 0' }}>
-                <div style={{ fontSize: 15, fontWeight: 500, color: '#111', lineHeight: 1.3, marginBottom: 3 }}>{f.product.name}</div>
-                <div style={{ fontSize: 13, color: '#999' }}>{f.product.supplier}</div>
-              </div>
+              <div style={{ padding:'14px 4px 0' }}><div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{f.product.name}</div><div style={{ fontSize:13,color:'#999' }}>{f.product.supplier}</div></div>
             </div>
           ))}
         </div>
@@ -239,158 +192,117 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState('');
-  const [queryVector, setQueryVector] = useState<number[] | null>(null);
-  const [results, setResults] = useState<Result[] | null>(null);
+  const [queryVector, setQueryVector] = useState<number[]|null>(null);
+  const [results, setResults] = useState<Result[]|null>(null);
   const [detectedFilters, setDetectedFilters] = useState<DetectedFilter[]>([]);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [selected, setSelected] = useState<Result | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Record<string,any>>({});
+  const [status, setStatus] = useState<'idle'|'loading'|'done'|'error'>('idle');
+  const [selected, setSelected] = useState<Result|null>(null);
   const [currentQuery, setCurrentQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
-  const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
-  const [view, setView] = useState<'search' | 'saved'>('search');
+  const [sampleProduct, setSampleProduct] = useState<Result|null>(null);
+  const [view, setView] = useState<'search'|'saved'>('search');
   const [projects, setProjects] = useState<Project[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
-  const [saveModal, setSaveModal] = useState<Product | null>(null);
+  const [saveModal, setSaveModal] = useState<Product|null>(null);
   const [copied, setCopied] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
 
-  useEffect(() => {
-    setMounted(true);
-    setProjects(loadProjects());
-    setFavorites(loadFavorites());
-  }, []);
-
+  useEffect(() => { setMounted(true); setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
   useEffect(() => {
     if (!mounted) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (sampleProduct) { setSampleProduct(null); return; }
-        if (saveModal) { setSaveModal(null); return; }
-        setSelected(null);
-      }
-    };
+    const handler = (e: KeyboardEvent) => { if(e.key==='Escape'){if(sampleProduct){setSampleProduct(null);return;}if(saveModal){setSaveModal(null);return;}setSelected(null);} };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [mounted, sampleProduct, saveModal]);
-
   useEffect(() => { setImgIndex(0); }, [selected?.id]);
-
   useEffect(() => {
     if (!mounted) return;
-    if (selected) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('product', selected.id);
-      window.history.replaceState(null, '', url.toString());
-    } else {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('product');
-      window.history.replaceState(null, '', url.toString());
-    }
+    if (selected) { const url = new URL(window.location.href); url.searchParams.set('product', selected.id); window.history.replaceState(null,'',url.toString()); }
+    else { const url = new URL(window.location.href); url.searchParams.delete('product'); window.history.replaceState(null,'',url.toString()); }
   }, [mounted, selected]);
 
-  const isFavorited = (productId: string) => favorites.some(f => f.productId === productId);
+  const isFavorited = (productId: string) => favorites.some(f => f.productId===productId);
 
   const handleSave = (product: Product, projectIdOrNew: string) => {
-    let finalProjectId = projectIdOrNew;
-    let updatedProjects = projects;
+    let finalProjectId = projectIdOrNew; let updatedProjects = projects;
     if (projectIdOrNew.startsWith('__new__:')) {
-      const name = projectIdOrNew.replace('__new__:', '');
+      const name = projectIdOrNew.replace('__new__:','');
       const newProject: Project = { id: Date.now().toString(), name, createdAt: Date.now() };
-      updatedProjects = [...projects, newProject];
-      setProjects(updatedProjects);
-      saveProjects(updatedProjects);
-      finalProjectId = newProject.id;
+      updatedProjects = [...projects, newProject]; setProjects(updatedProjects); saveProjects(updatedProjects); finalProjectId = newProject.id;
     }
-    const alreadySaved = favorites.some(f => f.productId === product.id && f.projectId === finalProjectId);
-    const updated = alreadySaved
-      ? favorites.filter(f => !(f.productId === product.id && f.projectId === finalProjectId))
-      : [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
-    setFavorites(updated);
-    saveFavorites(updated);
-    setSaveModal(null);
+    const alreadySaved = favorites.some(f => f.productId===product.id && f.projectId===finalProjectId);
+    const updated = alreadySaved ? favorites.filter(f => !(f.productId===product.id && f.projectId===finalProjectId)) : [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
+    setFavorites(updated); saveFavorites(updated); setSaveModal(null);
   };
-
-  const removeFavorite = (productId: string, projectId: string) => {
-    const updated = favorites.filter(f => !(f.productId === productId && f.projectId === projectId));
-    setFavorites(updated); saveFavorites(updated);
-  };
-  const renameProject = (id: string, name: string) => {
-    const updated = projects.map(p => p.id === id ? { ...p, name } : p);
-    setProjects(updated); saveProjects(updated);
-  };
+  const removeFavorite = (productId: string, projectId: string) => { const updated = favorites.filter(f => !(f.productId===productId && f.projectId===projectId)); setFavorites(updated); saveFavorites(updated); };
+  const renameProject = (id: string, name: string) => { const updated = projects.map(p => p.id===id?{...p,name}:p); setProjects(updated); saveProjects(updated); };
   const deleteProject = (id: string) => {
-    const updatedP = projects.filter(p => p.id !== id);
-    const updatedF = favorites.filter(f => f.projectId !== id);
-    if (updatedP.length === 0) { const def = [{ id: 'default', name: 'My Collection', createdAt: Date.now() }]; setProjects(def); saveProjects(def); }
-    else { setProjects(updatedP); saveProjects(updatedP); }
+    const updatedP = projects.filter(p => p.id!==id); const updatedF = favorites.filter(f => f.projectId!==id);
+    if(updatedP.length===0){const def=[{id:'default',name:'My Collection',createdAt:Date.now()}];setProjects(def);saveProjects(def);}else{setProjects(updatedP);saveProjects(updatedP);}
     setFavorites(updatedF); saveFavorites(updatedF);
   };
-  const copyLink = () => {
-    if (!selected || !mounted) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('product', selected.id);
-    navigator.clipboard.writeText(url.toString());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const copyLink = () => { if(!selected||!mounted)return; const url=new URL(window.location.href); url.searchParams.set('product',selected.id); navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(()=>setCopied(false),2000); };
 
-  const search = useCallback(async (text: string) => {
+  // ── Core search — akzeptiert optionale active_filters Überschreibung ──
+  const doSearch = useCallback(async (text: string, overrideFilters?: Record<string,any>) => {
     if (!text.trim()) return;
     setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search');
     try {
-      const res = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text }),
-      });
+      const body: any = { query: text };
+      if (overrideFilters !== undefined) body.active_filters = overrideFilters;
+      const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setQueryVector(data.vector || null);
       setDetectedFilters(data.detected_filters || []);
+      // Baue activeFilters aus detected_filters auf
+      const newActive: Record<string,any> = {};
+      for (const f of (data.detected_filters || [])) { newActive[f.key] = f.value; }
+      setActiveFilters(newActive);
       setResults(data.results || []);
       setStatus('done');
       if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch { setStatus('error'); }
   }, [mounted]);
 
+  const search = (text: string) => { setActiveFilters({}); doSearch(text); };
   const submit = () => search(input);
   const useExample = (q: string) => { setInput(q); search(q); };
+
+  // ── Filter entfernen → neue Suche ohne diesen Filter ──
   const removeFilter = (key: string) => {
-    setDetectedFilters(prev => prev.filter(f => f.key !== key));
-    // Re-search ohne diesen Filter — einfach neu suchen
-    search(input);
+    const newActive = { ...activeFilters };
+    delete newActive[key];
+    setActiveFilters(newActive);
+    doSearch(currentQuery, newActive);
   };
+
   const goHome = () => {
     setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null);
-    setQueryVector(null); setDetectedFilters([]); setSelected(null); setView('search');
+    setQueryVector(null); setDetectedFilters([]); setActiveFilters({}); setSelected(null); setView('search');
     if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const favCount = favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length;
+  const favCount = favorites.filter((f,i,arr) => arr.findIndex(x => x.productId===f.productId)===i).length;
 
   if (!mounted) return (
-    <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0 32px', height: 60, borderBottom: '1px solid #f0f0f0' }}>
-        <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>ulba.ai</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '96px 24px 48px' }}>
-        <div style={{ fontSize: 32, fontWeight: 500, color: '#111', marginBottom: 8, textAlign: 'center' }}>Find your perfect packaging.</div>
-        <div style={{ fontSize: 15, color: '#999', marginBottom: 36, textAlign: 'center' }}>Describe your brand — we'll find the right packaging.</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f2f2f2', borderRadius: 999, padding: '16px 24px', width: '100%', maxWidth: 640 }}>
-          <span style={{ color: '#888', fontSize: 18 }}>⌕</span>
-          <input type="text" placeholder="e.g. feminine luxury glass serum..." style={{ fontSize: 16, flex: 1, border: 0, background: 'transparent', outline: 'none', color: '#111', fontFamily: 'inherit' }} />
-        </div>
+    <div style={{ minHeight:'100vh',background:'#fff',fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
+      <div style={{ display:'flex',alignItems:'center',padding:'0 32px',height:60,borderBottom:'1px solid #f0f0f0' }}><span style={{ fontSize:15,fontWeight:600,color:'#111' }}>ulba.ai</span></div>
+      <div style={{ display:'flex',flexDirection:'column',alignItems:'center',padding:'96px 24px 48px' }}>
+        <div style={{ fontSize:32,fontWeight:500,color:'#111',marginBottom:8,textAlign:'center' }}>Find your perfect packaging.</div>
+        <div style={{ fontSize:15,color:'#999',marginBottom:36,textAlign:'center' }}>Describe your brand — we'll find the right packaging.</div>
+        <div style={{ display:'flex',alignItems:'center',gap:12,background:'#f2f2f2',borderRadius:999,padding:'16px 24px',width:'100%',maxWidth:640 }}><span style={{ color:'#888',fontSize:18 }}>⌕</span><input type="text" placeholder="e.g. feminine luxury glass serum..." style={{ fontSize:16,flex:1,border:0,background:'transparent',outline:'none',color:'#111',fontFamily:'inherit' }} /></div>
       </div>
     </div>
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#111' }}>
+    <div style={{ minHeight:'100vh',background:'#fff',fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",color:'#111' }}>
       <style>{`
         input[type="text"],input[type="email"]{-webkit-appearance:none!important;appearance:none!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;margin:0!important;width:100%!important;color:#111!important;font-family:inherit!important}
         input::placeholder{color:#aaa!important;opacity:1!important}
-        textarea::placeholder{color:#aaa;opacity:1}
-        textarea{outline:none}
+        textarea::placeholder{color:#aaa;opacity:1} textarea{outline:none}
         .chips-bar::-webkit-scrollbar{display:none}
         .masonry-grid{columns:3;column-gap:24px}
         @media(max-width:900px){.masonry-grid{columns:2}}
@@ -398,100 +310,82 @@ export default function Home() {
       `}</style>
 
       {/* TOPBAR */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0 32px', height: 60, borderBottom: '1px solid #f0f0f0', background: '#fff', gap: 20, position: 'sticky', top: 0, zIndex: 40 }}>
-        <span onClick={goHome} style={{ fontSize: 15, fontWeight: 600, color: '#111', cursor: 'pointer', flexShrink: 0 }}>ulba.ai</span>
-        {(showResults || view === 'saved') && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-            {view === 'search' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f2f2f2', borderRadius: 999, padding: '10px 20px', width: '100%', maxWidth: 720 }}>
-                <span style={{ color: '#888', fontSize: 15 }}>⌕</span>
-                <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Search packaging..." style={{ fontSize: 14 }} />
+      <div style={{ display:'flex',alignItems:'center',padding:'0 32px',height:60,borderBottom:'1px solid #f0f0f0',background:'#fff',gap:20,position:'sticky',top:0,zIndex:40 }}>
+        <span onClick={goHome} style={{ fontSize:15,fontWeight:600,color:'#111',cursor:'pointer',flexShrink:0 }}>ulba.ai</span>
+        {(showResults||view==='saved') && (
+          <div style={{ flex:1,display:'flex',justifyContent:'center' }}>
+            {view==='search' && (
+              <div style={{ display:'flex',alignItems:'center',gap:10,background:'#f2f2f2',borderRadius:999,padding:'10px 20px',width:'100%',maxWidth:720 }}>
+                <span style={{ color:'#888',fontSize:15 }}>⌕</span>
+                <input type="text" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Search packaging..." style={{ fontSize:14 }} />
               </div>
             )}
           </div>
         )}
-        <button onClick={() => setView(v => v === 'saved' ? 'search' : 'saved')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: view === 'saved' ? '#111' : '#f2f2f2', color: view === 'saved' ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-          <span style={{ fontSize: 14 }}>{view === 'saved' ? '♥' : '♡'}</span>
-          <span>Saved{favCount > 0 ? ` (${favCount})` : ''}</span>
+        <button onClick={()=>setView(v=>v==='saved'?'search':'saved')} style={{ display:'flex',alignItems:'center',gap:6,background:view==='saved'?'#111':'#f2f2f2',color:view==='saved'?'#fff':'#555',border:0,borderRadius:999,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit',flexShrink:0 }}>
+          <span style={{ fontSize:14 }}>{view==='saved'?'♥':'♡'}</span><span>Saved{favCount>0?` (${favCount})`:''}</span>
         </button>
       </div>
 
       {/* HERO */}
-      {!showResults && view === 'search' && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 24px 48px' }}>
-          <div style={{ fontSize: 32, fontWeight: 500, color: '#111', marginBottom: 8, textAlign: 'center', letterSpacing: '-0.02em' }}>Find your perfect packaging.</div>
-          <div style={{ fontSize: 15, color: '#999', marginBottom: 36, textAlign: 'center' }}>Describe your brand — we'll find the right packaging.</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f2f2f2', borderRadius: 999, padding: '16px 24px', width: '100%', maxWidth: 640 }}>
-            <span style={{ color: '#888', fontSize: 18 }}>⌕</span>
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="e.g. feminine luxury glass serum..." style={{ fontSize: 16 }} autoFocus />
+      {!showResults&&view==='search' && (
+        <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'96px 24px 48px' }}>
+          <div style={{ fontSize:32,fontWeight:500,color:'#111',marginBottom:8,textAlign:'center',letterSpacing:'-0.02em' }}>Find your perfect packaging.</div>
+          <div style={{ fontSize:15,color:'#999',marginBottom:36,textAlign:'center' }}>Describe your brand — we'll find the right packaging.</div>
+          <div style={{ display:'flex',alignItems:'center',gap:12,background:'#f2f2f2',borderRadius:999,padding:'16px 24px',width:'100%',maxWidth:640 }}>
+            <span style={{ color:'#888',fontSize:18 }}>⌕</span>
+            <input type="text" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="e.g. feminine luxury glass serum..." style={{ fontSize:16 }} autoFocus />
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 24, maxWidth: 600 }}>
-            {EXAMPLES.map((ex, i) => (
-              <button key={i} onClick={() => useExample(ex.q)} style={{ background: '#f2f2f2', color: '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>{ex.label}</button>
-            ))}
+          <div style={{ display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',marginTop:24,maxWidth:600 }}>
+            {EXAMPLES.map((ex,i) => <button key={i} onClick={()=>useExample(ex.q)} style={{ background:'#f2f2f2',color:'#555',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit' }}>{ex.label}</button>)}
           </div>
         </div>
       )}
 
-      {/* SAVED VIEW */}
-      {view === 'saved' && <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p => setSelected({ ...p, score: 1 })} />}
+      {view==='saved' && <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p=>setSelected({...p,score:1})} />}
 
       {/* RESULTS */}
-      {showResults && view === 'search' && (
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
-
-          {/* Example chips */}
-          <div className="chips-bar" style={{ display: 'flex', gap: 8, padding: '16px 0 8px', overflowX: 'auto', flexWrap: 'nowrap' }}>
-            {EXAMPLES.map((ex, i) => (
-              <button key={i} onClick={() => useExample(ex.q)} style={{ background: currentQuery === ex.q ? '#111' : '#f2f2f2', color: currentQuery === ex.q ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>{ex.label}</button>
-            ))}
+      {showResults&&view==='search' && (
+        <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px' }}>
+          <div className="chips-bar" style={{ display:'flex',gap:8,padding:'16px 0 8px',overflowX:'auto',flexWrap:'nowrap' }}>
+            {EXAMPLES.map((ex,i) => <button key={i} onClick={()=>useExample(ex.q)} style={{ background:currentQuery===ex.q?'#111':'#f2f2f2',color:currentQuery===ex.q?'#fff':'#555',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',flexShrink:0 }}>{ex.label}</button>)}
           </div>
 
-          {/* Detected filter chips */}
-          {detectedFilters.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '8px 0' }}>
+          {/* Filter Chips */}
+          {detectedFilters.length>0 && (
+            <div style={{ display:'flex',gap:6,flexWrap:'wrap',padding:'4px 0 8px' }}>
               {detectedFilters.map(f => (
-                <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#111', color: '#fff', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 500 }}>
+                <div key={f.key} style={{ display:'flex',alignItems:'center',gap:6,background:'#111',color:'#fff',borderRadius:999,padding:'6px 12px',fontSize:12,fontWeight:500 }}>
                   <span>{f.label}</span>
-                  <span onClick={() => removeFilter(f.key)} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 14, lineHeight: 1 }}>×</span>
+                  <span onClick={()=>removeFilter(f.key)} style={{ cursor:'pointer',opacity:0.7,fontSize:16,lineHeight:1,marginLeft:2 }}>×</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Status */}
-          <div style={{ padding: '8px 0 24px', fontSize: 14, color: '#999', display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            {status === 'loading' && <span>Searching...</span>}
-            {status === 'error' && <span style={{ color: '#dc2626' }}>Error — please try again</span>}
-            {results && status === 'done' && (
-              <><b style={{ color: '#111', fontWeight: 500, fontSize: 15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb' }}>Sorted by relevance</span></>
-            )}
-            {results && status === 'done' && results.length === 0 && (
-              <span style={{ color: '#dc2626' }}>No results — try a broader search</span>
-            )}
+          <div style={{ padding:'8px 0 24px',fontSize:14,color:'#999',display:'flex',alignItems:'baseline',gap:10 }}>
+            {status==='loading' && <span>Searching...</span>}
+            {status==='error' && <span style={{ color:'#dc2626' }}>Error — please try again</span>}
+            {results&&status==='done' && <><b style={{ color:'#111',fontWeight:500,fontSize:15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft:'auto',fontSize:12,color:'#bbb' }}>Sorted by relevance</span></>}
+            {results&&status==='done'&&results.length===0 && <span style={{ color:'#aaa' }}>No results — try a broader search</span>}
           </div>
 
-          {/* Grid */}
-          {results && results.length > 0 && (
-            <div className="masonry-grid" style={{ paddingBottom: 60 }}>
-              {results.map((r, i) => {
-                const cardImage = r.harmonisedImage || r.images?.[0] || null;
+          {results&&results.length>0 && (
+            <div className="masonry-grid" style={{ paddingBottom:60 }}>
+              {results.map((r,i) => {
+                const cardImage = r.harmonisedImage||r.images?.[0]||null;
                 return (
-                  <div key={r.id} style={{ breakInside: 'avoid', marginBottom: 28 }}>
-                    <div onClick={() => setSelected(r)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f5f5f5', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                      {cardImage ? (
-                        <img src={cardImage} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'contain', minHeight: HEIGHTS[i % HEIGHTS.length], padding: 12 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
-                      )}
-                      <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111' }}>{Math.round(r.score * 100)}%</div>
-                      <button onClick={e => { e.stopPropagation(); setSaveModal(r); }} style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isFavorited(r.id) ? '#e11d48' : '#999' }}>
-                        {isFavorited(r.id) ? '♥' : '♡'}
+                  <div key={r.id} style={{ breakInside:'avoid',marginBottom:28 }}>
+                    <div onClick={()=>setSelected(r)} style={{ width:'100%',minHeight:HEIGHTS[i%HEIGHTS.length],background:'#f5f5f5',position:'relative',borderRadius:20,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
+                      {cardImage?<img src={cardImage} alt={r.name} style={{ width:'100%',height:'100%',objectFit:'contain',minHeight:HEIGHTS[i%HEIGHTS.length],padding:12 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
+                      <div style={{ position:'absolute',top:14,right:14,background:'rgba(255,255,255,0.95)',borderRadius:999,padding:'5px 13px',fontSize:12,fontWeight:600,color:'#111' }}>{Math.round(r.score*100)}%</div>
+                      <button onClick={e=>{e.stopPropagation();setSaveModal(r);}} style={{ position:'absolute',bottom:12,right:12,background:'rgba(255,255,255,0.95)',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',color:isFavorited(r.id)?'#e11d48':'#999' }}>
+                        {isFavorited(r.id)?'♥':'♡'}
                       </button>
                     </div>
-                    <div style={{ padding: '14px 4px 0' }}>
-                      <div style={{ fontSize: 15, fontWeight: 500, color: '#111', lineHeight: 1.3, marginBottom: 3 }}>{r.name}</div>
-                      <div style={{ fontSize: 13, color: '#999' }}>{r.supplier}</div>
+                    <div style={{ padding:'14px 4px 0' }}>
+                      <div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{r.name}</div>
+                      <div style={{ fontSize:13,color:'#999' }}>{r.supplier}</div>
                     </div>
                   </div>
                 );
@@ -504,84 +398,68 @@ export default function Home() {
       {/* DETAIL PANEL */}
       {selected && (
         <>
-          <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 50 }} />
-          <div style={{ position: 'fixed', top: 0, right: 0, width: 680, maxWidth: '100vw', height: '100%', background: '#fff', zIndex: 51, overflowY: 'auto', boxShadow: '-2px 0 30px rgba(0,0,0,0.08)' }}>
-            <div style={{ padding: '36px 44px 52px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 10 }}>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setSaveModal(selected)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: isFavorited(selected.id) ? '#fff0f4' : '#f2f2f2', color: isFavorited(selected.id) ? '#e11d48' : '#555', border: isFavorited(selected.id) ? '1px solid #fecdd3' : '1px solid transparent', borderRadius: 999, padding: '10px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <span>{isFavorited(selected.id) ? '♥' : '♡'}</span>
-                    <span>{isFavorited(selected.id) ? 'Saved' : 'Save'}</span>
+          <div onClick={()=>setSelected(null)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',zIndex:50 }} />
+          <div style={{ position:'fixed',top:0,right:0,width:680,maxWidth:'100vw',height:'100%',background:'#fff',zIndex:51,overflowY:'auto',boxShadow:'-2px 0 30px rgba(0,0,0,0.08)' }}>
+            <div style={{ padding:'36px 44px 52px' }}>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,gap:10 }}>
+                <div style={{ display:'flex',gap:10 }}>
+                  <button onClick={()=>setSaveModal(selected)} style={{ display:'flex',alignItems:'center',gap:6,background:isFavorited(selected.id)?'#fff0f4':'#f2f2f2',color:isFavorited(selected.id)?'#e11d48':'#555',border:isFavorited(selected.id)?'1px solid #fecdd3':'1px solid transparent',borderRadius:999,padding:'10px 20px',fontSize:14,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>
+                    <span>{isFavorited(selected.id)?'♥':'♡'}</span><span>{isFavorited(selected.id)?'Saved':'Save'}</span>
                   </button>
-                  <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 6, background: copied ? '#f0fdf4' : '#f2f2f2', color: copied ? '#16a34a' : '#555', border: copied ? '1px solid #bbf7d0' : '1px solid transparent', borderRadius: 999, padding: '10px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <span style={{ fontSize: 13 }}>{copied ? '✓' : '↗'}</span>
-                    <span>{copied ? 'Copied!' : 'Share'}</span>
+                  <button onClick={copyLink} style={{ display:'flex',alignItems:'center',gap:6,background:copied?'#f0fdf4':'#f2f2f2',color:copied?'#16a34a':'#555',border:copied?'1px solid #bbf7d0':'1px solid transparent',borderRadius:999,padding:'10px 20px',fontSize:14,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>
+                    <span style={{ fontSize:13 }}>{copied?'✓':'↗'}</span><span>{copied?'Copied!':'Share'}</span>
                   </button>
                 </div>
-                <button onClick={() => setSelected(null)} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 40, height: 40, cursor: 'pointer', color: '#555', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+                <button onClick={()=>setSelected(null)} style={{ background:'#f2f2f2',border:0,borderRadius:999,width:40,height:40,cursor:'pointer',color:'#555',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
               </div>
 
-              {/* Cap Slider */}
-              {selected.capImages && selected.capImages.length > 0 && <CapSlider caps={selected.capImages} />}
+              {selected.capImages&&selected.capImages.length>0 && <CapSlider caps={selected.capImages} />}
 
-              {/* Hauptbild */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                  {selected.harmonisedImage ? (
-                    <img src={selected.harmonisedImage} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 24 }} />
-                  ) : selected.images?.length > 0 ? (
-                    <img src={selected.images[imgIndex]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <span style={{ fontSize: 88, color: '#ddd' }}>◇</span>
-                  )}
+              <div style={{ marginBottom:20 }}>
+                <div style={{ width:'100%',aspectRatio:'1',background:'#f5f5f5',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',position:'relative' }}>
+                  {selected.harmonisedImage?<img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:selected.images?.length>0?<img src={selected.images[imgIndex]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 12 }}>
-                <b style={{ fontSize: 44, fontWeight: 600, color: '#111', letterSpacing: '-0.02em' }}>{Math.round(selected.score * 100)}%</b>
-                <span style={{ fontSize: 14, color: '#999' }}>match</span>
+              <div style={{ display:'flex',alignItems:'baseline',gap:16,marginBottom:12 }}>
+                <b style={{ fontSize:44,fontWeight:600,color:'#111',letterSpacing:'-0.02em' }}>{Math.round(selected.score*100)}%</b>
+                <span style={{ fontSize:14,color:'#999' }}>match</span>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 500, color: '#111', lineHeight: 1.25, marginBottom: 6, letterSpacing: '-0.01em' }}>{selected.name}</div>
-              <div style={{ fontSize: 15, color: '#999', marginBottom: 28 }}>{selected.supplier}</div>
+              <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:6,letterSpacing:'-0.01em' }}>{selected.name}</div>
+              <div style={{ fontSize:15,color:'#999',marginBottom:28 }}>{selected.supplier}</div>
 
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Specifications</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: '#f7f7f7', borderRadius: 16, padding: '16px 20px' }}>
-                    <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>Type</div>
-                    <div style={{ fontSize: 16, fontWeight: 500, color: '#111' }}>{TYPE_LABELS[selected.type] || selected.type || '—'}</div>
-                  </div>
-                  <div style={{ background: '#f7f7f7', borderRadius: 16, padding: '16px 20px' }}>
-                    <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>Supplier</div>
-                    <div style={{ fontSize: 16, fontWeight: 500, color: '#111' }}>{selected.supplier}</div>
-                  </div>
+              <div style={{ marginBottom:32 }}>
+                <div style={{ fontSize:12,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:16 }}>Specifications</div>
+                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
+                  <div style={{ background:'#f7f7f7',borderRadius:16,padding:'16px 20px' }}><div style={{ fontSize:12,color:'#aaa',marginBottom:5 }}>Type</div><div style={{ fontSize:16,fontWeight:500,color:'#111' }}>{TYPE_LABELS[selected.type]||selected.type||'—'}</div></div>
+                  <div style={{ background:'#f7f7f7',borderRadius:16,padding:'16px 20px' }}><div style={{ fontSize:12,color:'#aaa',marginBottom:5 }}>Supplier</div><div style={{ fontSize:16,fontWeight:500,color:'#111' }}>{selected.supplier}</div></div>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Brand profile</div>
-                {selected.vector.map((v, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 9 }}>
-                    <span style={{ width: 110, fontSize: 13, color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{DIMS[i]}</span>
-                    <div style={{ flex: 1, height: 4, background: '#f0f0f0', borderRadius: 2 }}>
-                      <div style={{ height: '100%', width: `${(v / 5) * 100}%`, background: queryVector && Math.abs(queryVector[i] - v) <= 1 ? '#111' : '#ccc', borderRadius: 2 }} />
+              <div style={{ marginBottom:32 }}>
+                <div style={{ fontSize:12,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:16 }}>Brand profile</div>
+                {selected.vector.map((v,i) => (
+                  <div key={i} style={{ display:'flex',alignItems:'center',gap:14,marginBottom:9 }}>
+                    <span style={{ width:110,fontSize:13,color:'#aaa',textAlign:'right',flexShrink:0 }}>{DIMS[i]}</span>
+                    <div style={{ flex:1,height:4,background:'#f0f0f0',borderRadius:2 }}>
+                      <div style={{ height:'100%',width:`${(v/5)*100}%`,background:queryVector&&Math.abs(queryVector[i]-v)<=1?'#111':'#ccc',borderRadius:2 }} />
                     </div>
-                    <span style={{ width: 18, fontSize: 12.5, color: '#bbb', textAlign: 'right' }}>{v}</span>
+                    <span style={{ width:18,fontSize:12.5,color:'#bbb',textAlign:'right' }}>{v}</span>
                   </div>
                 ))}
               </div>
 
-              <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
-                <button onClick={() => setSampleProduct(selected)} style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Request sample →</button>
-                {selected.url && <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding: '18px 32px', background: '#fff', color: '#111', border: '1px solid #e5e5e5', borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}>Supplier</a>}
+              <div style={{ display:'flex',gap:12,marginTop:40 }}>
+                <button onClick={()=>setSampleProduct(selected)} style={{ flex:1,padding:18,background:'#111',color:'#fff',border:0,borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>Request sample →</button>
+                {selected.url&&<a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding:'18px 32px',background:'#fff',color:'#111',border:'1px solid #e5e5e5',borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit',textDecoration:'none' }}>Supplier</a>}
               </div>
             </div>
           </div>
         </>
       )}
 
-      {sampleProduct && <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />}
-      {saveModal && <SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(projectId) => handleSave(saveModal, projectId)} onClose={() => setSaveModal(null)} />}
+      {sampleProduct&&<SampleModal product={sampleProduct} onClose={()=>setSampleProduct(null)} />}
+      {saveModal&&<SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(projectId)=>handleSave(saveModal,projectId)} onClose={()=>setSaveModal(null)} />}
     </div>
   );
 }
