@@ -9,6 +9,8 @@ export interface Product {
   type: string;
   images: string[];
   harmonisedImage?: string;
+  capImages: string[]; // Bild_Roh_Cap Attachments → Cap-Slider
+  bildTyp?: string;    // 'system' | 'base+cap_separat' | 'base_only'
   vector: number[];
   url?: string;
 }
@@ -18,7 +20,7 @@ function extractImages(record: any): string[] {
   if (Array.isArray(harmonised) && harmonised.length > 0) {
     return harmonised.map((a: any) => a.url).filter(Boolean);
   }
-  const raw = record.fields['Bild_Roh'];
+  const raw = record.fields['Bild_System'] || record.fields['Bild_Roh_Base'];
   if (Array.isArray(raw)) return raw.map((a: any) => a.url).filter(Boolean);
   return [];
 }
@@ -27,6 +29,14 @@ function extractHarmonisedImage(record: any): string | undefined {
   const field = record.fields['Bild_Harmonisiert'];
   if (Array.isArray(field) && field.length > 0) return field[0].url;
   return undefined;
+}
+
+function extractCapImages(record: any): string[] {
+  const field = record.fields['Bild_Roh_Cap'];
+  if (Array.isArray(field) && field.length > 0) {
+    return field.map((a: any) => a.url).filter(Boolean);
+  }
+  return [];
 }
 
 function extractVector(fields: any): number[] {
@@ -70,6 +80,8 @@ export async function getProducts(): Promise<Product[]> {
         : rec.fields['S_P0_System_Typ'] || '',
       images: extractImages(rec),
       harmonisedImage: extractHarmonisedImage(rec),
+      capImages: extractCapImages(rec),
+      bildTyp: rec.fields['Bild_Typ'] || '',
       vector: extractVector(rec.fields),
       url: rec.fields['Link'] || '',
     }))
