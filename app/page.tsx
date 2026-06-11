@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { cosine, DIMS } from '@/lib/search';
-
-const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
+import { DIMS } from '@/lib/search';
 
 const EXAMPLES = [
   { label: 'Feminine luxury', q: 'Feminine luxury glass serum, premium' },
@@ -16,34 +14,23 @@ const EXAMPLES = [
 const HEIGHTS = [440, 300, 380, 400, 280, 460, 380, 320, 400];
 
 const TYPE_LABELS: Record<string, string> = {
-  Jar_ScrewCap: 'Jar · Screw',
-  Bottle_ScrewCap: 'Bottle · Screw',
-  Bottle_DispenserPump: 'Bottle · Pump',
-  Airless_Bottle: 'Airless',
-  Airless_Jar: 'Airless Jar',
-  Bottle_FlipTop: 'Bottle · Flip',
-  Bottle_Dropper: 'Bottle · Dropper',
-  Bottle_Spray: 'Bottle · Spray',
-  Tube_FlipTop: 'Tube · Flip',
-  Tube_ScrewCap: 'Tube · Screw',
+  Jar_ScrewCap: 'Jar · Screw', Bottle_ScrewCap: 'Bottle · Screw',
+  Bottle_DispenserPump: 'Bottle · Pump', Airless_Bottle: 'Airless',
+  Airless_Jar: 'Airless Jar', Bottle_FlipTop: 'Bottle · Flip',
+  Bottle_Dropper: 'Bottle · Dropper', Bottle_Spray: 'Bottle · Spray',
+  Tube_FlipTop: 'Tube · Flip', Tube_ScrewCap: 'Tube · Screw',
   Bottle_TriggerPump: 'Bottle · Trigger',
 };
 
 interface Product {
-  id: string;
-  name: string;
-  supplier: string;
-  type: string;
-  images: string[];
-  harmonisedImage?: string;
-  capImages: string[];
-  bildTyp?: string;
-  vector: number[];
-  url?: string;
+  id: string; name: string; supplier: string; type: string;
+  images: string[]; harmonisedImage?: string; capImages: string[];
+  bildTyp?: string; vector: number[]; url?: string;
 }
 interface Result extends Product { score: number; }
 interface Project { id: string; name: string; createdAt: number; }
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
+interface DetectedFilter { key: string; label: string; }
 
 const LS_PROJECTS = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
@@ -64,7 +51,7 @@ function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, 
 // ─── Cap Slider ───────────────────────────────────────────────────────────────
 function CapSlider({ caps }: { caps: string[] }) {
   const [active, setActive] = useState(0);
-  if (caps.length === 0) return null;
+  if (!caps.length) return null;
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
@@ -91,7 +78,6 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   const [firm, setFirm] = useState('');
   const [brief, setBrief] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
-
   const submit = async () => {
     if (!email.trim()) return;
     setStatus('sending');
@@ -101,7 +87,6 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
       setStatus('done');
     } catch { setStatus('error'); }
   };
-
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100 }} />
@@ -198,7 +183,6 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
   const [activeProject, setActiveProject] = useState<string>('all');
   const filtered = activeProject === 'all' ? favorites : favorites.filter(f => f.projectId === activeProject);
   const uniqueProducts = filtered.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i);
-
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px 60px' }}>
       <div style={{ display: 'flex', gap: 8, padding: '20px 0 24px', overflowX: 'auto', flexWrap: 'nowrap' }}>
@@ -235,8 +219,8 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
         <div className="masonry-grid">
           {uniqueProducts.map((f, i) => (
             <div key={f.productId + f.projectId} style={{ breakInside: 'avoid', marginBottom: 28 }}>
-              <div onClick={() => onProductClick(f.product)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f0f0f0', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                {f.product.images?.[0] ? <img src={f.product.images[0]} alt={f.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', minHeight: HEIGHTS[i % HEIGHTS.length] }} /> : <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>}
+              <div onClick={() => onProductClick(f.product)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f5f5f5', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                {f.product.images?.[0] ? <img src={f.product.images[0]} alt={f.product.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 12, minHeight: HEIGHTS[i % HEIGHTS.length] }} /> : <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>}
                 <button onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>♥</button>
               </div>
               <div style={{ padding: '14px 4px 0' }}>
@@ -254,42 +238,27 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
   const [input, setInput] = useState('');
   const [queryVector, setQueryVector] = useState<number[] | null>(null);
   const [results, setResults] = useState<Result[] | null>(null);
+  const [detectedFilters, setDetectedFilters] = useState<DetectedFilter[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [selected, setSelected] = useState<Result | null>(null);
   const [currentQuery, setCurrentQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
   const [view, setView] = useState<'search' | 'saved'>('search');
-  const [renderedImages, setRenderedImages] = useState<Record<string, string>>({});
-  const [renderingIds, setRenderingIds] = useState<Set<string>>(new Set());
   const [projects, setProjects] = useState<Project[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [saveModal, setSaveModal] = useState<Product | null>(null);
   const [copied, setCopied] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
 
-  // ── Mount guard — verhindert Hydration-Fehler ──
   useEffect(() => {
     setMounted(true);
     setProjects(loadProjects());
     setFavorites(loadFavorites());
   }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const pid = new URLSearchParams(window.location.search).get('product');
-    fetch('/api/products')
-      .then(r => r.json())
-      .then((data: Product[]) => {
-        setProducts(data);
-        if (pid) { const found = data.find((p: Product) => p.id === pid); if (found) setSelected({ ...found, score: 1 }); }
-      })
-      .catch(console.error);
-  }, [mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -318,19 +287,6 @@ export default function Home() {
       window.history.replaceState(null, '', url.toString());
     }
   }, [mounted, selected]);
-
-  const triggerRendering = useCallback(async (top5: Result[], query: string) => {
-    for (const result of top5) {
-      if (!result.harmonisedImage) continue;
-      if (renderingIds.has(result.id)) continue;
-      setRenderingIds(prev => new Set(prev).add(result.id));
-      try {
-        const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemId: result.id, query, imageUrl: result.harmonisedImage }) });
-        const data = await res.json();
-        if (data.renderingUrl) setRenderedImages(prev => ({ ...prev, [result.id]: data.renderingUrl }));
-      } catch (e) { console.error('Render failed', result.id, e); }
-    }
-  }, [renderingIds]);
 
   const isFavorited = (productId: string) => favorites.some(f => f.productId === productId);
 
@@ -379,44 +335,46 @@ export default function Home() {
   };
 
   const search = useCallback(async (text: string) => {
-    if (!text.trim() || !products.length) return;
+    if (!text.trim()) return;
     setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search');
-    setRenderedImages({}); setRenderingIds(new Set());
     try {
-      const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: text }) });
-      const { vector, error } = await res.json();
-      if (error) throw new Error(error);
-      setQueryVector(vector);
-      const scored = products.map(p => ({ ...p, score: cosine(vector, p.vector) })).sort((a, b) => b.score - a.score).slice(0, 12);
-      setResults(scored);
+      const res = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: text }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setQueryVector(data.vector || null);
+      setDetectedFilters(data.detected_filters || []);
+      setResults(data.results || []);
       setStatus('done');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      const top5 = scored.filter(r => r.harmonisedImage).slice(0, 5);
-      triggerRendering(top5, text);
+      if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch { setStatus('error'); }
-  }, [products, triggerRendering]);
+  }, [mounted]);
 
   const submit = () => search(input);
   const useExample = (q: string) => { setInput(q); search(q); };
+  const removeFilter = (key: string) => {
+    setDetectedFilters(prev => prev.filter(f => f.key !== key));
+    // Re-search ohne diesen Filter — einfach neu suchen
+    search(input);
+  };
   const goHome = () => {
     setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null);
-    setQueryVector(null); setSelected(null); setView('search');
-    setRenderedImages({}); setRenderingIds(new Set());
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setQueryVector(null); setDetectedFilters([]); setSelected(null); setView('search');
+    if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const favCount = favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length;
-  const getCardImage = (r: Result) => renderedImages[r.id] || r.harmonisedImage || r.images?.[0] || null;
-  const isRendering = (r: Result) => renderingIds.has(r.id) && !renderedImages[r.id];
 
-  // Vor mount: nur statisches Skeleton rendern — kein localStorage, kein window
   if (!mounted) return (
     <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 32px', height: 60, borderBottom: '1px solid #f0f0f0' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>ulba.ai</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 24px 48px' }}>
-        <div style={{ fontSize: 32, fontWeight: 500, color: '#111', marginBottom: 8, textAlign: 'center', letterSpacing: '-0.02em' }}>Find your perfect packaging.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '96px 24px 48px' }}>
+        <div style={{ fontSize: 32, fontWeight: 500, color: '#111', marginBottom: 8, textAlign: 'center' }}>Find your perfect packaging.</div>
         <div style={{ fontSize: 15, color: '#999', marginBottom: 36, textAlign: 'center' }}>Describe your brand — we'll find the right packaging.</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f2f2f2', borderRadius: 999, padding: '16px 24px', width: '100%', maxWidth: 640 }}>
           <span style={{ color: '#888', fontSize: 18 }}>⌕</span>
@@ -437,8 +395,6 @@ export default function Home() {
         .masonry-grid{columns:3;column-gap:24px}
         @media(max-width:900px){.masonry-grid{columns:2}}
         @media(max-width:600px){.masonry-grid{columns:1}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-        .rendering-pulse{animation:pulse 1.5s ease-in-out infinite}
       `}</style>
 
       {/* TOPBAR */}
@@ -483,35 +439,52 @@ export default function Home() {
       {/* RESULTS */}
       {showResults && view === 'search' && (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
-          <div className="chips-bar" style={{ display: 'flex', gap: 8, padding: '16px 0', overflowX: 'auto', flexWrap: 'nowrap' }}>
+
+          {/* Example chips */}
+          <div className="chips-bar" style={{ display: 'flex', gap: 8, padding: '16px 0 8px', overflowX: 'auto', flexWrap: 'nowrap' }}>
             {EXAMPLES.map((ex, i) => (
               <button key={i} onClick={() => useExample(ex.q)} style={{ background: currentQuery === ex.q ? '#111' : '#f2f2f2', color: currentQuery === ex.q ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>{ex.label}</button>
             ))}
           </div>
+
+          {/* Detected filter chips */}
+          {detectedFilters.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '8px 0' }}>
+              {detectedFilters.map(f => (
+                <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#111', color: '#fff', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 500 }}>
+                  <span>{f.label}</span>
+                  <span onClick={() => removeFilter(f.key)} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 14, lineHeight: 1 }}>×</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Status */}
           <div style={{ padding: '8px 0 24px', fontSize: 14, color: '#999', display: 'flex', alignItems: 'baseline', gap: 10 }}>
             {status === 'loading' && <span>Searching...</span>}
             {status === 'error' && <span style={{ color: '#dc2626' }}>Error — please try again</span>}
             {results && status === 'done' && (
               <><b style={{ color: '#111', fontWeight: 500, fontSize: 15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb' }}>Sorted by relevance</span></>
             )}
+            {results && status === 'done' && results.length === 0 && (
+              <span style={{ color: '#dc2626' }}>No results — try a broader search</span>
+            )}
           </div>
-          {results && (
+
+          {/* Grid */}
+          {results && results.length > 0 && (
             <div className="masonry-grid" style={{ paddingBottom: 60 }}>
               {results.map((r, i) => {
-                const cardImage = getCardImage(r);
-                const rendering = isRendering(r);
-                const isRendered = !!renderedImages[r.id];
+                const cardImage = r.harmonisedImage || r.images?.[0] || null;
                 return (
                   <div key={r.id} style={{ breakInside: 'avoid', marginBottom: 28 }}>
                     <div onClick={() => setSelected(r)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f5f5f5', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                       {cardImage ? (
-                        <img src={cardImage} alt={r.name} className={rendering ? 'rendering-pulse' : ''} style={{ width: '100%', height: '100%', objectFit: 'contain', minHeight: HEIGHTS[i % HEIGHTS.length], padding: 12 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <img src={cardImage} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'contain', minHeight: HEIGHTS[i % HEIGHTS.length], padding: 12 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       ) : (
                         <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
                       )}
                       <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111' }}>{Math.round(r.score * 100)}%</div>
-                      {rendering && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>}
-                      {isRendered && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div>}
                       <button onClick={e => { e.stopPropagation(); setSaveModal(r); }} style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isFavorited(r.id) ? '#e11d48' : '#999' }}>
                         {isFavorited(r.id) ? '♥' : '♡'}
                       </button>
@@ -554,16 +527,13 @@ export default function Home() {
               {/* Hauptbild */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                  {renderedImages[selected.id] ? (
-                    <><img src={renderedImages[selected.id]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /><div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div></>
-                  ) : selected.harmonisedImage ? (
+                  {selected.harmonisedImage ? (
                     <img src={selected.harmonisedImage} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 24 }} />
                   ) : selected.images?.length > 0 ? (
                     <img src={selected.images[imgIndex]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
                     <span style={{ fontSize: 88, color: '#ddd' }}>◇</span>
                   )}
-                  {isRendering(selected) && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>}
                 </div>
               </div>
 
@@ -579,7 +549,7 @@ export default function Home() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ background: '#f7f7f7', borderRadius: 16, padding: '16px 20px' }}>
                     <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>Type</div>
-                    <div style={{ fontSize: 16, fontWeight: 500, color: '#111' }}>{TYPE_LABELS[selected.type] || selected.type.replace(/_/g, ' ')}</div>
+                    <div style={{ fontSize: 16, fontWeight: 500, color: '#111' }}>{TYPE_LABELS[selected.type] || selected.type || '—'}</div>
                   </div>
                   <div style={{ background: '#f7f7f7', borderRadius: 16, padding: '16px 20px' }}>
                     <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>Supplier</div>
