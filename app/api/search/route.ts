@@ -36,29 +36,13 @@ function cosine(a: number[], b: number[]): number {
 
 function buildAirtableFormula(filters: Record<string, any>): string {
   const conditions: string[] = ['{Dim_01_Emotion}>0'];
-
-  if (filters.type) {
-    conditions.push(`FIND("${filters.type}", {Type})`);
-  }
-  if (filters.material) {
-    conditions.push(`FIND("${filters.material}", {Material})`);
-  }
-  if (filters.volume_min !== null && filters.volume_min !== undefined) {
-    conditions.push(`{Volume_ml}>=${filters.volume_min}`);
-  }
-  if (filters.volume_max !== null && filters.volume_max !== undefined) {
-    conditions.push(`{Volume_ml}<=${filters.volume_max}`);
-  }
-  if (filters.closure) {
-    conditions.push(`FIND("${filters.closure}", {Closure})`);
-  }
-  if (filters.supplier) {
-    conditions.push(`FIND("${filters.supplier}", {Unternehmen})`);
-  }
-
-  return conditions.length > 1
-    ? `AND(${conditions.join(',')})`
-    : conditions[0];
+  if (filters.type) conditions.push(`FIND("${filters.type}", {Type})`);
+  if (filters.material) conditions.push(`FIND("${filters.material}", {Material})`);
+  if (filters.volume_min != null) conditions.push(`{Volume_ml}>=${filters.volume_min}`);
+  if (filters.volume_max != null) conditions.push(`{Volume_ml}<=${filters.volume_max}`);
+  if (filters.closure) conditions.push(`FIND("${filters.closure}", {Closure})`);
+  if (filters.supplier) conditions.push(`FIND("${filters.supplier}", {Unternehmen})`);
+  return conditions.length > 1 ? `AND(${conditions.join(',')})` : conditions[0];
 }
 
 function extractVector(fields: any): number[] {
@@ -72,20 +56,24 @@ function extractVector(fields: any): number[] {
     } catch {}
   }
   return [
-    fields['Dim_01_Emotion'] || 0, fields['Dim_02_Ritual'] || 0,
-    fields['Dim_03_Aesthetik'] || 0, fields['Dim_04_Zielgruppe'] || 0,
-    fields['Dim_05_Prestige'] || 0, fields['Dim_06a_Feminin'] || 0,
-    fields['Dim_06b_Maskulin'] || 0, fields['Dim_07_Archetyp'] || 0,
-    fields['Dim_08_Sensorik'] || 0, fields['Dim_09_Werte'] || 0,
-    fields['Dim_10_Produkt_Fit'] || 0, fields['Dim_11_Kultur'] || 0,
-    fields['Dim_12_Psychografik'] || 0, fields['Dim_13_Zeitgeist'] || 0,
-    fields['Dim_14_Persona'] || 0,
+    fields['Dim_01_Emotion']||0, fields['Dim_02_Ritual']||0,
+    fields['Dim_03_Aesthetik']||0, fields['Dim_04_Zielgruppe']||0,
+    fields['Dim_05_Prestige']||0, fields['Dim_06a_Feminin']||0,
+    fields['Dim_06b_Maskulin']||0, fields['Dim_07_Archetyp']||0,
+    fields['Dim_08_Sensorik']||0, fields['Dim_09_Werte']||0,
+    fields['Dim_10_Produkt_Fit']||0, fields['Dim_11_Kultur']||0,
+    fields['Dim_12_Psychografik']||0, fields['Dim_13_Zeitgeist']||0,
+    fields['Dim_14_Persona']||0,
   ];
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { query } = await req.json();
+    const body = await req.json();
+    const { query, active_filters } = body;
+    // active_filters: wenn gesetzt, überschreibt Claude's Erkennung
+    // (wird beim Entfernen eines Chips gesetzt)
+
     if (!query?.trim()) return NextResponse.json({ error: 'No query' }, { status: 400 });
 
     // 1. Claude Haiku: Hard Filters + Emotional Vector
@@ -98,14 +86,28 @@ export async function POST(req: NextRequest) {
 
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '';
     const parsed = JSON.parse(text.replace(/```json|```/g, ''));
-    const { hard_filters, vector } = parsed;
+    const { vector } = parsed;
+    let hard_filters = parsed.hard_filters;
+
+    // 2. Wenn active_filters vom Frontend kommen → überschreibe Claude's Erkennung
+    // active_filters ist ein Objekt mit nur den noch aktiven Filtern
+    if (active_filters) {
+      hard_filters = {
+        type: active_filters.type ?? null,
+        material: active_filters.material ?? null,
+        volume_min: active_filters.volume_min ?? null,
+        volume_max: active_filters.volume_max ?? null,
+        closure: active_filters.closure ?? null,
+        supplier: active_filters.supplier ?? null,
+      };
+    }
 
     if (!Array.isArray(vector) || vector.length !== 15) {
       return NextResponse.json({ error: 'Invalid vector' }, { status: 500 });
     }
 
-    // 2. Airtable Query mit Hard Filters
-    const formula = buildAirtableFormula(hard_filters || {});
+    // 3. Airtable Query mit Hard Filters
+    const formula = buildAirtableFormula(hard_filters);
     const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv?filterByFormula=${encodeURIComponent(formula)}&pageSize=100`;
 
     const res = await fetch(url, {
@@ -115,11 +117,10 @@ export async function POST(req: NextRequest) {
     if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
     const data = await res.json();
 
-    // 3. Cosine Similarity auf gefiltertem Set
+    // 4. Cosine Similarity
     const scored = data.records
       .map((rec: any) => {
         const recVector = extractVector(rec.fields);
-        const score = cosine(vector, recVector);
         return {
           id: rec.id,
           name: rec.fields['Page Titel'] || 'Unbekannt',
@@ -148,36 +149,23 @@ export async function POST(req: NextRequest) {
           })(),
           vector: recVector,
           url: rec.fields['Link'] || '',
-          score,
+          score: cosine(vector, recVector),
         };
       })
       .filter((r: any) => r.vector.some((v: number) => v > 0))
       .sort((a: any, b: any) => b.score - a.score)
       .slice(0, 12);
 
-    // 4. Detected filters für Frontend-Chips
-    const detected_filters = Object.entries(hard_filters || {})
+    // 5. Detected filters für Chips — nur aktive zurückgeben
+    const detected_filters = Object.entries(hard_filters)
       .filter(([, v]) => v !== null && v !== undefined)
-      .map(([k, v]) => {
-        const labels: Record<string, string> = {
-          type: String(v),
-          material: String(v),
-          closure: String(v),
-          supplier: String(v),
-          volume_min: `≥${v}ml`,
-          volume_max: `≤${v}ml`,
-        };
-        return { key: k, label: labels[k] || String(v) };
-      });
+      .map(([k, v]) => ({
+        key: k,
+        value: v, // Rohwert für active_filters beim Entfernen
+        label: k === 'volume_min' ? `≥${v}ml` : k === 'volume_max' ? `≤${v}ml` : String(v),
+      }));
 
-    return NextResponse.json({
-      query,
-      vector,
-      hard_filters,
-      detected_filters,
-      total: scored.length,
-      results: scored,
-    });
+    return NextResponse.json({ query, vector, hard_filters, detected_filters, total: scored.length, results: scored });
 
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
