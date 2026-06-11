@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cosine, DIMS } from '@/lib/search';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
@@ -36,45 +36,83 @@ interface Product {
   type: string;
   images: string[];
   harmonisedImage?: string;
+  capImages: string[];
+  bildTyp?: string;
   vector: number[];
   url?: string;
 }
 interface Result extends Product { score: number; }
 
-interface Project {
-  id: string;
-  name: string;
-  createdAt: number;
-}
+interface Project { id: string; name: string; createdAt: number; }
+interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
 
-interface FavoriteEntry {
-  productId: string;
-  projectId: string;
-  savedAt: number;
-  product: Product;
-}
-
-// ─── localStorage helpers ────────────────────────────────────────────────────
 const LS_PROJECTS = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
 
 function loadProjects(): Project[] {
-  try {
-    const raw = localStorage.getItem(LS_PROJECTS);
-    if (raw) return JSON.parse(raw);
-  } catch {}
+  try { const raw = localStorage.getItem(LS_PROJECTS); if (raw) return JSON.parse(raw); } catch {}
   const def: Project[] = [{ id: 'default', name: 'My Collection', createdAt: Date.now() }];
   localStorage.setItem(LS_PROJECTS, JSON.stringify(def));
   return def;
 }
-function saveProjects(projects: Project[]) { localStorage.setItem(LS_PROJECTS, JSON.stringify(projects)); }
+function saveProjects(p: Project[]) { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); }
 function loadFavorites(): FavoriteEntry[] {
   try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return JSON.parse(raw); } catch {}
   return [];
 }
-function saveFavorites(favs: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(favs)); }
+function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
 
-// ─── SampleModal ─────────────────────────────────────────────────────────────
+// ─── Cap Slider ───────────────────────────────────────────────────────────────
+function CapSlider({ caps }: { caps: string[] }) {
+  const [active, setActive] = useState(0);
+  if (caps.length === 0) return (
+    <div style={{ padding: '12px 0 8px', fontSize: 13, color: '#bbb', fontStyle: 'italic' }}>
+      Kein separater Verschluss — System komplett
+    </div>
+  );
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+        Passende Verschlüsse · {caps.length}
+      </div>
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
+        {caps.map((url, i) => (
+          <div
+            key={i}
+            onClick={() => setActive(i)}
+            style={{
+              flexShrink: 0,
+              width: 64, height: 64,
+              borderRadius: 12,
+              overflow: 'hidden',
+              cursor: 'pointer',
+              border: active === i ? '2px solid #111' : '1.5px solid #e5e5e5',
+              background: '#f7f7f7',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <img
+              src={url}
+              alt={`Cap ${i + 1}`}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+            />
+          </div>
+        ))}
+      </div>
+      {/* Großes Bild des aktiven Cap */}
+      <div style={{ marginTop: 12, width: '100%', height: 160, background: '#f7f7f7', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <img
+          src={caps[active]}
+          alt="Verschluss"
+          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: 16 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── SampleModal ──────────────────────────────────────────────────────────────
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -150,16 +188,12 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
 
 // ─── SaveToProjectModal ───────────────────────────────────────────────────────
 function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
-  product: Product;
-  projects: Project[];
-  favorites: FavoriteEntry[];
-  onSave: (projectId: string) => void;
-  onClose: () => void;
+  product: Product; projects: Project[]; favorites: FavoriteEntry[];
+  onSave: (projectId: string) => void; onClose: () => void;
 }) {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const savedProjectIds = favorites.filter(f => f.productId === product.id).map(f => f.projectId);
-
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} />
@@ -196,8 +230,7 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
 
 // ─── FavoritesView ────────────────────────────────────────────────────────────
 function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: {
-  projects: Project[];
-  favorites: FavoriteEntry[];
+  projects: Project[]; favorites: FavoriteEntry[];
   onRemove: (productId: string, projectId: string) => void;
   onRenameProject: (id: string, name: string) => void;
   onDeleteProject: (id: string) => void;
@@ -206,7 +239,6 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [activeProject, setActiveProject] = useState<string>('all');
-
   const filtered = activeProject === 'all' ? favorites : favorites.filter(f => f.projectId === activeProject);
   const uniqueProducts = filtered.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i);
 
@@ -256,7 +288,7 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
                 ) : (
                   <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
                 )}
-                <button onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>♥</button>
+                <button onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>♥</button>
               </div>
               <div style={{ padding: '14px 4px 0' }}>
                 <div style={{ fontSize: 15, fontWeight: 500, color: '#111', lineHeight: 1.3, marginBottom: 3 }}>{f.product.name}</div>
@@ -282,21 +314,15 @@ export default function Home() {
   const [showResults, setShowResults] = useState(false);
   const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
   const [view, setView] = useState<'search' | 'saved'>('search');
-
-  // Rendering state: map of productId → rendered image URL
   const [renderedImages, setRenderedImages] = useState<Record<string, string>>({});
   const [renderingIds, setRenderingIds] = useState<Set<string>>(new Set());
-
   const [projects, setProjects] = useState<Project[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [saveModal, setSaveModal] = useState<Product | null>(null);
   const [copied, setCopied] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
 
-  useEffect(() => {
-    setProjects(loadProjects());
-    setFavorites(loadFavorites());
-  }, []);
+  useEffect(() => { setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
 
   useEffect(() => {
     const pid = new URLSearchParams(window.location.search).get('product');
@@ -304,10 +330,7 @@ export default function Home() {
       .then(r => r.json())
       .then((data: Product[]) => {
         setProducts(data);
-        if (pid) {
-          const found = data.find((p: Product) => p.id === pid);
-          if (found) setSelected({ ...found, score: 1 });
-        }
+        if (pid) { const found = data.find((p: Product) => p.id === pid); if (found) setSelected({ ...found, score: 1 }); }
       })
       .catch(console.error);
   }, []);
@@ -338,30 +361,20 @@ export default function Home() {
     }
   }, [selected]);
 
-  // ── Lazy rendering: Top 5 nach Suche ────────────────────────────────────────
   const triggerRendering = useCallback(async (top5: Result[], query: string) => {
     for (const result of top5) {
       if (!result.harmonisedImage) continue;
       if (renderingIds.has(result.id)) continue;
-
       setRenderingIds(prev => new Set(prev).add(result.id));
       try {
         const res = await fetch(RENDER_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemId: result.id,
-            query,
-            imageUrl: result.harmonisedImage,
-          }),
+          body: JSON.stringify({ systemId: result.id, query, imageUrl: result.harmonisedImage }),
         });
         const data = await res.json();
-        if (data.renderingUrl) {
-          setRenderedImages(prev => ({ ...prev, [result.id]: data.renderingUrl }));
-        }
-      } catch (e) {
-        console.error('Render failed for', result.id, e);
-      }
+        if (data.renderingUrl) setRenderedImages(prev => ({ ...prev, [result.id]: data.renderingUrl }));
+      } catch (e) { console.error('Render failed', result.id, e); }
     }
   }, [renderingIds]);
 
@@ -379,50 +392,29 @@ export default function Home() {
       finalProjectId = newProject.id;
     }
     const alreadySaved = favorites.some(f => f.productId === product.id && f.projectId === finalProjectId);
-    let updated: FavoriteEntry[];
-    if (alreadySaved) {
-      updated = favorites.filter(f => !(f.productId === product.id && f.projectId === finalProjectId));
-    } else {
-      updated = [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
-    }
+    const updated = alreadySaved
+      ? favorites.filter(f => !(f.productId === product.id && f.projectId === finalProjectId))
+      : [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
     setFavorites(updated);
     saveFavorites(updated);
     setSaveModal(null);
   };
 
-  const removeFromAll = (productId: string) => {
-    const updated = favorites.filter(f => f.productId !== productId);
-    setFavorites(updated);
-    saveFavorites(updated);
-  };
-
   const removeFavorite = (productId: string, projectId: string) => {
     const updated = favorites.filter(f => !(f.productId === productId && f.projectId === projectId));
-    setFavorites(updated);
-    saveFavorites(updated);
+    setFavorites(updated); saveFavorites(updated);
   };
-
   const renameProject = (id: string, name: string) => {
     const updated = projects.map(p => p.id === id ? { ...p, name } : p);
-    setProjects(updated);
-    saveProjects(updated);
+    setProjects(updated); saveProjects(updated);
   };
-
   const deleteProject = (id: string) => {
     const updatedP = projects.filter(p => p.id !== id);
     const updatedF = favorites.filter(f => f.projectId !== id);
-    if (updatedP.length === 0) {
-      const def: Project[] = [{ id: 'default', name: 'My Collection', createdAt: Date.now() }];
-      setProjects(def);
-      saveProjects(def);
-    } else {
-      setProjects(updatedP);
-      saveProjects(updatedP);
-    }
-    setFavorites(updatedF);
-    saveFavorites(updatedF);
+    if (updatedP.length === 0) { const def = [{ id: 'default', name: 'My Collection', createdAt: Date.now() }]; setProjects(def); saveProjects(def); }
+    else { setProjects(updatedP); saveProjects(updatedP); }
+    setFavorites(updatedF); saveFavorites(updatedF);
   };
-
   const copyLink = () => {
     if (!selected) return;
     const url = new URL(window.location.href);
@@ -434,29 +426,17 @@ export default function Home() {
 
   const search = useCallback(async (text: string) => {
     if (!text.trim() || !products.length) return;
-    setStatus('loading');
-    setCurrentQuery(text);
-    setShowResults(true);
-    setView('search');
-    setRenderedImages({});
-    setRenderingIds(new Set());
+    setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search');
+    setRenderedImages({}); setRenderingIds(new Set());
     try {
-      const res = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text }),
-      });
+      const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: text }) });
       const { vector, error } = await res.json();
       if (error) throw new Error(error);
       setQueryVector(vector);
-      const scored = products
-        .map(p => ({ ...p, score: cosine(vector, p.vector) }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 12);
+      const scored = products.map(p => ({ ...p, score: cosine(vector, p.vector) })).sort((a, b) => b.score - a.score).slice(0, 12);
       setResults(scored);
       setStatus('done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      // Trigger lazy rendering for Top 5 with harmonisedImage
       const top5 = scored.filter(r => r.harmonisedImage).slice(0, 5);
       triggerRendering(top5, text);
     } catch { setStatus('error'); }
@@ -464,39 +444,26 @@ export default function Home() {
 
   const submit = () => search(input);
   const useExample = (q: string) => { setInput(q); search(q); };
-
   const goHome = () => {
-    setShowResults(false);
-    setInput('');
-    setCurrentQuery('');
-    setResults(null);
-    setQueryVector(null);
-    setSelected(null);
-    setView('search');
-    setRenderedImages({});
-    setRenderingIds(new Set());
+    setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null);
+    setQueryVector(null); setSelected(null); setView('search');
+    setRenderedImages({}); setRenderingIds(new Set());
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const favCount = favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length;
-
-  // Helper: welches Bild für eine Card anzeigen
-  const getCardImage = (r: Result) => renderedImages[r.id] || r.images?.[0] || null;
+  const getCardImage = (r: Result) => renderedImages[r.id] || r.harmonisedImage || r.images?.[0] || null;
   const isRendering = (r: Result) => renderingIds.has(r.id) && !renderedImages[r.id];
 
   return (
     <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#111' }}>
       <style>{`
-        input[type="text"], input[type="email"] {
-          -webkit-appearance:none!important; appearance:none!important; border:0!important;
-          outline:0!important; background:transparent!important; box-shadow:none!important;
-          padding:0!important; margin:0!important; width:100%!important;
-          color:#111!important; font-family:inherit!important;
-        }
+        input[type="text"],input[type="email"]{-webkit-appearance:none!important;appearance:none!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;margin:0!important;width:100%!important;color:#111!important;font-family:inherit!important}
         input::placeholder{color:#aaa!important;opacity:1!important}
         textarea::placeholder{color:#aaa;opacity:1}
         textarea{outline:none}
         .chips-bar::-webkit-scrollbar{display:none}
+        .cap-scroll::-webkit-scrollbar{display:none}
         .masonry-grid{columns:3;column-gap:24px}
         @media(max-width:900px){.masonry-grid{columns:2}}
         @media(max-width:600px){.masonry-grid{columns:1}}
@@ -534,16 +501,14 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 24, maxWidth: 600 }}>
             {EXAMPLES.map((ex, i) => (
-              <button key={i} onClick={() => useExample(ex.q)} style={{ background: currentQuery === ex.q ? '#111' : '#f2f2f2', color: currentQuery === ex.q ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>{ex.label}</button>
+              <button key={i} onClick={() => useExample(ex.q)} style={{ background: '#f2f2f2', color: '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>{ex.label}</button>
             ))}
           </div>
         </div>
       )}
 
       {/* SAVED VIEW */}
-      {view === 'saved' && (
-        <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p => setSelected({ ...p, score: 1 })} />
-      )}
+      {view === 'saved' && <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p => setSelected({ ...p, score: 1 })} />}
 
       {/* RESULTS */}
       {showResults && view === 'search' && (
@@ -557,11 +522,7 @@ export default function Home() {
             {status === 'loading' && <span>Searching...</span>}
             {status === 'error' && <span style={{ color: '#dc2626' }}>Error — please try again</span>}
             {results && status === 'done' && (
-              <>
-                <b style={{ color: '#111', fontWeight: 500, fontSize: 15 }}>{results.length} packagings</b>
-                <span>for "{currentQuery}"</span>
-                <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb' }}>Sorted by relevance</span>
-              </>
+              <><b style={{ color: '#111', fontWeight: 500, fontSize: 15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb' }}>Sorted by relevance</span></>
             )}
           </div>
           {results && (
@@ -572,38 +533,18 @@ export default function Home() {
                 const isRendered = !!renderedImages[r.id];
                 return (
                   <div key={r.id} style={{ breakInside: 'avoid', marginBottom: 28 }}>
-                    <div onClick={() => setSelected(r)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f0f0f0', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <div onClick={() => setSelected(r)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f5f5f5', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                       {cardImage ? (
-                        <img src={cardImage} alt={r.name} className={rendering ? 'rendering-pulse' : ''} style={{ width: '100%', height: '100%', objectFit: 'cover', minHeight: HEIGHTS[i % HEIGHTS.length] }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <img src={cardImage} alt={r.name} className={rendering ? 'rendering-pulse' : ''} style={{ width: '100%', height: '100%', objectFit: 'contain', minHeight: HEIGHTS[i % HEIGHTS.length], padding: 12 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       ) : (
                         <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
                       )}
-                      {/* Score badge */}
-                      <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111', backdropFilter: 'blur(10px)' }}>
+                      <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111' }}>
                         {Math.round(r.score * 100)}%
                       </div>
-                      {/* Rendering indicator */}
-                      {rendering && (
-                        <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff', backdropFilter: 'blur(8px)' }}>
-                          Rendering...
-                        </div>
-                      )}
-                      {/* Rendered badge */}
-                      {isRendered && (
-                        <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff', backdropFilter: 'blur(8px)' }}>
-                          ✦ AI rendered
-                        </div>
-                      )}
-                      {/* Multi-image dots */}
-                      {!isRendered && r.images?.length > 1 && (
-                        <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
-                          {r.images.slice(0, 4).map((_, di) => (
-                            <div key={di} style={{ width: 5, height: 5, borderRadius: 999, background: di === 0 ? '#fff' : 'rgba(255,255,255,0.5)' }} />
-                          ))}
-                        </div>
-                      )}
-                      {/* Heart */}
-                      <button onClick={e => { e.stopPropagation(); setSaveModal(r); }} style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', color: isFavorited(r.id) ? '#e11d48' : '#999' }}>
+                      {rendering && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>}
+                      {isRendered && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div>}
+                      <button onClick={e => { e.stopPropagation(); setSaveModal(r); }} style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isFavorited(r.id) ? '#e11d48' : '#999' }}>
                         {isFavorited(r.id) ? '♥' : '♡'}
                       </button>
                     </div>
@@ -625,6 +566,8 @@ export default function Home() {
           <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 50 }} />
           <div style={{ position: 'fixed', top: 0, right: 0, width: 680, maxWidth: '100vw', height: '100%', background: '#fff', zIndex: 51, overflowY: 'auto', boxShadow: '-2px 0 30px rgba(0,0,0,0.08)' }}>
             <div style={{ padding: '36px 44px 52px' }}>
+
+              {/* Header Buttons */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 10 }}>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={() => setSaveModal(selected)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: isFavorited(selected.id) ? '#fff0f4' : '#f2f2f2', color: isFavorited(selected.id) ? '#e11d48' : '#555', border: isFavorited(selected.id) ? '1px solid #fecdd3' : '1px solid transparent', borderRadius: 999, padding: '10px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -639,7 +582,12 @@ export default function Home() {
                 <button onClick={() => setSelected(null)} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 40, height: 40, cursor: 'pointer', color: '#555', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* Image — rendered wenn verfügbar */}
+              {/* ── CAP SLIDER — nur wenn Caps vorhanden ── */}
+              {selected.capImages && selected.capImages.length > 0 && (
+                <CapSlider caps={selected.capImages} />
+              )}
+
+              {/* Hauptbild */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
                   {renderedImages[selected.id] ? (
@@ -647,6 +595,8 @@ export default function Home() {
                       <img src={renderedImages[selected.id]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                       <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div>
                     </>
+                  ) : selected.harmonisedImage ? (
+                    <img src={selected.harmonisedImage} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 24 }} />
                   ) : selected.images?.length > 0 ? (
                     <img src={selected.images[imgIndex]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
@@ -655,24 +605,10 @@ export default function Home() {
                   {isRendering(selected) && (
                     <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>
                   )}
-                  {!renderedImages[selected.id] && selected.images?.length > 1 && (
-                    <>
-                      <button onClick={() => setImgIndex(i => (i - 1 + selected.images.length) % selected.images.length)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.92)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', color: '#111' }}>‹</button>
-                      <button onClick={() => setImgIndex(i => (i + 1) % selected.images.length)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.92)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', color: '#111' }}>›</button>
-                    </>
-                  )}
                 </div>
-                {!renderedImages[selected.id] && selected.images?.length > 1 && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
-                    {selected.images.map((img, i) => (
-                      <div key={i} onClick={() => setImgIndex(i)} style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: imgIndex === i ? '2px solid #111' : '2px solid transparent', background: '#f5f5f5' }}>
-                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
+              {/* Score + Name */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 12 }}>
                 <b style={{ fontSize: 44, fontWeight: 600, color: '#111', letterSpacing: '-0.02em' }}>{Math.round(selected.score * 100)}%</b>
                 <span style={{ fontSize: 14, color: '#999' }}>match</span>
@@ -680,6 +616,7 @@ export default function Home() {
               <div style={{ fontSize: 28, fontWeight: 500, color: '#111', lineHeight: 1.25, marginBottom: 6, letterSpacing: '-0.01em' }}>{selected.name}</div>
               <div style={{ fontSize: 15, color: '#999', marginBottom: 28 }}>{selected.supplier}</div>
 
+              {/* Specs */}
               <div style={{ marginBottom: 32 }}>
                 <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Specifications</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -694,6 +631,7 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Brand profile */}
               <div style={{ marginBottom: 32 }}>
                 <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Brand profile</div>
                 {selected.vector.map((v, i) => (
@@ -707,6 +645,7 @@ export default function Home() {
                 ))}
               </div>
 
+              {/* CTA */}
               <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
                 <button onClick={() => setSampleProduct(selected)} style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Request sample →
@@ -723,9 +662,7 @@ export default function Home() {
       )}
 
       {sampleProduct && <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />}
-      {saveModal && (
-        <SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(projectId) => handleSave(saveModal, projectId)} onClose={() => setSaveModal(null)} />
-      )}
+      {saveModal && <SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(projectId) => handleSave(saveModal, projectId)} onClose={() => setSaveModal(null)} />}
     </div>
   );
 }
