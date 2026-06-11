@@ -42,7 +42,6 @@ interface Product {
   url?: string;
 }
 interface Result extends Product { score: number; }
-
 interface Project { id: string; name: string; createdAt: number; }
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
 
@@ -65,48 +64,21 @@ function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, 
 // ─── Cap Slider ───────────────────────────────────────────────────────────────
 function CapSlider({ caps }: { caps: string[] }) {
   const [active, setActive] = useState(0);
-  if (caps.length === 0) return (
-    <div style={{ padding: '12px 0 8px', fontSize: 13, color: '#bbb', fontStyle: 'italic' }}>
-      Kein separater Verschluss — System komplett
-    </div>
-  );
+  if (caps.length === 0) return null;
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
         Passende Verschlüsse · {caps.length}
       </div>
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' as const }}>
         {caps.map((url, i) => (
-          <div
-            key={i}
-            onClick={() => setActive(i)}
-            style={{
-              flexShrink: 0,
-              width: 64, height: 64,
-              borderRadius: 12,
-              overflow: 'hidden',
-              cursor: 'pointer',
-              border: active === i ? '2px solid #111' : '1.5px solid #e5e5e5',
-              background: '#f7f7f7',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <img
-              src={url}
-              alt={`Cap ${i + 1}`}
-              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }}
-              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
-            />
+          <div key={i} onClick={() => setActive(i)} style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: active === i ? '2px solid #111' : '1.5px solid #e5e5e5', background: '#f7f7f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={url} alt={`Cap ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
           </div>
         ))}
       </div>
-      {/* Großes Bild des aktiven Cap */}
       <div style={{ marginTop: 12, width: '100%', height: 160, background: '#f7f7f7', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <img
-          src={caps[active]}
-          alt="Verschluss"
-          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: 16 }}
-        />
+        <img src={caps[active]} alt="Verschluss" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: 16 }} />
       </div>
     </div>
   );
@@ -124,11 +96,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
     if (!email.trim()) return;
     setStatus('sending');
     try {
-      const res = await fetch('/api/sample-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier, brandName: firm || name, brandEmail: email, brief }),
-      });
+      const res = await fetch('/api/sample-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier, brandName: firm || name, brandEmail: email, brief }) });
       if (!res.ok) throw new Error();
       setStatus('done');
     } catch { setStatus('error'); }
@@ -187,10 +155,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
 }
 
 // ─── SaveToProjectModal ───────────────────────────────────────────────────────
-function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
-  product: Product; projects: Project[]; favorites: FavoriteEntry[];
-  onSave: (projectId: string) => void; onClose: () => void;
-}) {
+function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Product; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const savedProjectIds = favorites.filter(f => f.productId === product.id).map(f => f.projectId);
@@ -215,9 +180,7 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
         </div>
         {creating ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } if (e.key === 'Escape') setCreating(false); }}
-              placeholder="Project name..." style={{ flex: 1, background: '#f7f7f7', border: 0, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', fontFamily: 'inherit', outline: 'none' }} />
+            <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } if (e.key === 'Escape') setCreating(false); }} placeholder="Project name..." style={{ flex: 1, background: '#f7f7f7', border: 0, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', fontFamily: 'inherit', outline: 'none' }} />
             <button onClick={() => { if (newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } }} style={{ background: '#111', color: '#fff', border: 0, borderRadius: 12, padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
           </div>
         ) : (
@@ -229,13 +192,7 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
 }
 
 // ─── FavoritesView ────────────────────────────────────────────────────────────
-function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: {
-  projects: Project[]; favorites: FavoriteEntry[];
-  onRemove: (productId: string, projectId: string) => void;
-  onRenameProject: (id: string, name: string) => void;
-  onDeleteProject: (id: string) => void;
-  onProductClick: (product: Product) => void;
-}) {
+function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Product) => void; }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [activeProject, setActiveProject] = useState<string>('all');
@@ -253,13 +210,9 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
           return (
             <div key={p.id} style={{ position: 'relative', flexShrink: 0 }}>
               {editingId === p.id ? (
-                <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
-                  onBlur={() => { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); }}
-                  onKeyDown={e => { if (e.key === 'Enter') { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); } }}
-                  style={{ background: '#f2f2f2', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140 }} />
+                <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); }} onKeyDown={e => { if (e.key === 'Enter') { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); } }} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140 }} />
               ) : (
-                <button onClick={() => setActiveProject(p.id)} onDoubleClick={() => { setEditingId(p.id); setEditName(p.name); }}
-                  style={{ background: activeProject === p.id ? '#111' : '#f2f2f2', color: activeProject === p.id ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+                <button onClick={() => setActiveProject(p.id)} onDoubleClick={() => { setEditingId(p.id); setEditName(p.name); }} style={{ background: activeProject === p.id ? '#111' : '#f2f2f2', color: activeProject === p.id ? '#fff' : '#555', border: 0, borderRadius: 999, padding: '9px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
                   {p.name} ({count})
                 </button>
               )}
@@ -283,11 +236,7 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
           {uniqueProducts.map((f, i) => (
             <div key={f.productId + f.projectId} style={{ breakInside: 'avoid', marginBottom: 28 }}>
               <div onClick={() => onProductClick(f.product)} style={{ width: '100%', minHeight: HEIGHTS[i % HEIGHTS.length], background: '#f0f0f0', position: 'relative', borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                {f.product.images?.[0] ? (
-                  <img src={f.product.images[0]} alt={f.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', minHeight: HEIGHTS[i % HEIGHTS.length] }} />
-                ) : (
-                  <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
-                )}
+                {f.product.images?.[0] ? <img src={f.product.images[0]} alt={f.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', minHeight: HEIGHTS[i % HEIGHTS.length] }} /> : <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>}
                 <button onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>♥</button>
               </div>
               <div style={{ padding: '14px 4px 0' }}>
@@ -304,6 +253,7 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [input, setInput] = useState('');
   const [queryVector, setQueryVector] = useState<number[] | null>(null);
@@ -322,9 +272,15 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
 
-  useEffect(() => { setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
+  // ── Mount guard — verhindert Hydration-Fehler ──
+  useEffect(() => {
+    setMounted(true);
+    setProjects(loadProjects());
+    setFavorites(loadFavorites());
+  }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     const pid = new URLSearchParams(window.location.search).get('product');
     fetch('/api/products')
       .then(r => r.json())
@@ -333,9 +289,10 @@ export default function Home() {
         if (pid) { const found = data.find((p: Product) => p.id === pid); if (found) setSelected({ ...found, score: 1 }); }
       })
       .catch(console.error);
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (sampleProduct) { setSampleProduct(null); return; }
@@ -345,11 +302,12 @@ export default function Home() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [sampleProduct, saveModal]);
+  }, [mounted, sampleProduct, saveModal]);
 
   useEffect(() => { setImgIndex(0); }, [selected?.id]);
 
   useEffect(() => {
+    if (!mounted) return;
     if (selected) {
       const url = new URL(window.location.href);
       url.searchParams.set('product', selected.id);
@@ -359,7 +317,7 @@ export default function Home() {
       url.searchParams.delete('product');
       window.history.replaceState(null, '', url.toString());
     }
-  }, [selected]);
+  }, [mounted, selected]);
 
   const triggerRendering = useCallback(async (top5: Result[], query: string) => {
     for (const result of top5) {
@@ -367,11 +325,7 @@ export default function Home() {
       if (renderingIds.has(result.id)) continue;
       setRenderingIds(prev => new Set(prev).add(result.id));
       try {
-        const res = await fetch(RENDER_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ systemId: result.id, query, imageUrl: result.harmonisedImage }),
-        });
+        const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemId: result.id, query, imageUrl: result.harmonisedImage }) });
         const data = await res.json();
         if (data.renderingUrl) setRenderedImages(prev => ({ ...prev, [result.id]: data.renderingUrl }));
       } catch (e) { console.error('Render failed', result.id, e); }
@@ -416,7 +370,7 @@ export default function Home() {
     setFavorites(updatedF); saveFavorites(updatedF);
   };
   const copyLink = () => {
-    if (!selected) return;
+    if (!selected || !mounted) return;
     const url = new URL(window.location.href);
     url.searchParams.set('product', selected.id);
     navigator.clipboard.writeText(url.toString());
@@ -455,6 +409,23 @@ export default function Home() {
   const getCardImage = (r: Result) => renderedImages[r.id] || r.harmonisedImage || r.images?.[0] || null;
   const isRendering = (r: Result) => renderingIds.has(r.id) && !renderedImages[r.id];
 
+  // Vor mount: nur statisches Skeleton rendern — kein localStorage, kein window
+  if (!mounted) return (
+    <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 32px', height: 60, borderBottom: '1px solid #f0f0f0' }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>ulba.ai</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 24px 48px' }}>
+        <div style={{ fontSize: 32, fontWeight: 500, color: '#111', marginBottom: 8, textAlign: 'center', letterSpacing: '-0.02em' }}>Find your perfect packaging.</div>
+        <div style={{ fontSize: 15, color: '#999', marginBottom: 36, textAlign: 'center' }}>Describe your brand — we'll find the right packaging.</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f2f2f2', borderRadius: 999, padding: '16px 24px', width: '100%', maxWidth: 640 }}>
+          <span style={{ color: '#888', fontSize: 18 }}>⌕</span>
+          <input type="text" placeholder="e.g. feminine luxury glass serum..." style={{ fontSize: 16, flex: 1, border: 0, background: 'transparent', outline: 'none', color: '#111', fontFamily: 'inherit' }} />
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#111' }}>
       <style>{`
@@ -463,7 +434,6 @@ export default function Home() {
         textarea::placeholder{color:#aaa;opacity:1}
         textarea{outline:none}
         .chips-bar::-webkit-scrollbar{display:none}
-        .cap-scroll::-webkit-scrollbar{display:none}
         .masonry-grid{columns:3;column-gap:24px}
         @media(max-width:900px){.masonry-grid{columns:2}}
         @media(max-width:600px){.masonry-grid{columns:1}}
@@ -539,9 +509,7 @@ export default function Home() {
                       ) : (
                         <span style={{ fontSize: 40, color: '#ccc' }}>◇</span>
                       )}
-                      <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111' }}>
-                        {Math.round(r.score * 100)}%
-                      </div>
+                      <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 600, color: '#111' }}>{Math.round(r.score * 100)}%</div>
                       {rendering && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>}
                       {isRendered && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div>}
                       <button onClick={e => { e.stopPropagation(); setSaveModal(r); }} style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isFavorited(r.id) ? '#e11d48' : '#999' }}>
@@ -566,8 +534,6 @@ export default function Home() {
           <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 50 }} />
           <div style={{ position: 'fixed', top: 0, right: 0, width: 680, maxWidth: '100vw', height: '100%', background: '#fff', zIndex: 51, overflowY: 'auto', boxShadow: '-2px 0 30px rgba(0,0,0,0.08)' }}>
             <div style={{ padding: '36px 44px 52px' }}>
-
-              {/* Header Buttons */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 10 }}>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={() => setSaveModal(selected)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: isFavorited(selected.id) ? '#fff0f4' : '#f2f2f2', color: isFavorited(selected.id) ? '#e11d48' : '#555', border: isFavorited(selected.id) ? '1px solid #fecdd3' : '1px solid transparent', borderRadius: 999, padding: '10px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -582,19 +548,14 @@ export default function Home() {
                 <button onClick={() => setSelected(null)} style={{ background: '#f2f2f2', border: 0, borderRadius: 999, width: 40, height: 40, cursor: 'pointer', color: '#555', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* ── CAP SLIDER — nur wenn Caps vorhanden ── */}
-              {selected.capImages && selected.capImages.length > 0 && (
-                <CapSlider caps={selected.capImages} />
-              )}
+              {/* Cap Slider */}
+              {selected.capImages && selected.capImages.length > 0 && <CapSlider caps={selected.capImages} />}
 
               {/* Hauptbild */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ width: '100%', aspectRatio: '1', background: '#f5f5f5', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
                   {renderedImages[selected.id] ? (
-                    <>
-                      <img src={renderedImages[selected.id]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div>
-                    </>
+                    <><img src={renderedImages[selected.id]} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /><div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>✦ AI rendered</div></>
                   ) : selected.harmonisedImage ? (
                     <img src={selected.harmonisedImage} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 24 }} />
                   ) : selected.images?.length > 0 ? (
@@ -602,13 +563,10 @@ export default function Home() {
                   ) : (
                     <span style={{ fontSize: 88, color: '#ddd' }}>◇</span>
                   )}
-                  {isRendering(selected) && (
-                    <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>
-                  )}
+                  {isRendering(selected) && <div style={{ position: 'absolute', bottom: 14, left: 14, background: 'rgba(0,0,0,0.6)', borderRadius: 999, padding: '4px 12px', fontSize: 11, color: '#fff' }}>Rendering...</div>}
                 </div>
               </div>
 
-              {/* Score + Name */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 12 }}>
                 <b style={{ fontSize: 44, fontWeight: 600, color: '#111', letterSpacing: '-0.02em' }}>{Math.round(selected.score * 100)}%</b>
                 <span style={{ fontSize: 14, color: '#999' }}>match</span>
@@ -616,7 +574,6 @@ export default function Home() {
               <div style={{ fontSize: 28, fontWeight: 500, color: '#111', lineHeight: 1.25, marginBottom: 6, letterSpacing: '-0.01em' }}>{selected.name}</div>
               <div style={{ fontSize: 15, color: '#999', marginBottom: 28 }}>{selected.supplier}</div>
 
-              {/* Specs */}
               <div style={{ marginBottom: 32 }}>
                 <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Specifications</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -631,7 +588,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Brand profile */}
               <div style={{ marginBottom: 32 }}>
                 <div style={{ fontSize: 12, color: '#bbb', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 16 }}>Brand profile</div>
                 {selected.vector.map((v, i) => (
@@ -645,16 +601,9 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* CTA */}
               <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
-                <button onClick={() => setSampleProduct(selected)} style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Request sample →
-                </button>
-                {selected.url && (
-                  <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding: '18px 32px', background: '#fff', color: '#111', border: '1px solid #e5e5e5', borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}>
-                    Supplier
-                  </a>
-                )}
+                <button onClick={() => setSampleProduct(selected)} style={{ flex: 1, padding: 18, background: '#111', color: '#fff', border: 0, borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Request sample →</button>
+                {selected.url && <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding: '18px 32px', background: '#fff', color: '#111', border: '1px solid #e5e5e5', borderRadius: 999, fontSize: 16, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}>Supplier</a>}
               </div>
             </div>
           </div>
