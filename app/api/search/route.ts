@@ -35,7 +35,9 @@ function cosine(a: number[], b: number[]): number {
 }
 
 function buildAirtableFormula(filters: Record<string, any>): string {
-  const conditions: string[] = ['{Dim_01_Emotion}>0'];
+  // FIX: Published=TRUE statt Dim_01_Emotion>0
+  // Records ohne Emotion-Scores sollen trotzdem via Hard Filter gefunden werden
+  const conditions: string[] = ['{Published}=TRUE()'];
   if (filters.type) conditions.push(`FIND("${filters.type}", {Type})`);
   if (filters.material) conditions.push(`FIND("${filters.material}", {Material})`);
   if (filters.volume_min != null) conditions.push(`{Volume_ml}>=${filters.volume_min}`);
@@ -50,11 +52,24 @@ function extractVector(fields: any): number[] {
   if (cached) {
     try {
       const obj = typeof cached === 'string' ? JSON.parse(cached) : cached;
-      const keys = ['emotion','ritual','aesthetik','zielgruppe','prestige','feminin','maskulin','archetyp','sensorik','werte','produkt_fit','kultur','psychografik','zeitgeist','persona'];
-      const vec = keys.map(k => obj[k] || 0);
+      
+      // Unterstütze BEIDE Key-Formate:
+      // Format A (Make 9331667): {"d01":0.5, "d02":0.4, ...}
+      // Format B (legacy):       {"emotion":3, "ritual":2, ...}
+      const keysA = ['d01','d02','d03','d04','d05','d06a','d06b','d07','d08','d09','d10','d11','d12','d13','d14'];
+      const keysB = ['emotion','ritual','aesthetik','zielgruppe','prestige','feminin','maskulin','archetyp','sensorik','werte','produkt_fit','kultur','psychografik','zeitgeist','persona'];
+      
+      // Probiere Format A zuerst (aktuelles Pipeline-Format)
+      let vec = keysA.map(k => obj[k] || 0);
+      if (vec.some(v => v > 0)) return vec;
+      
+      // Fallback auf Format B
+      vec = keysB.map(k => obj[k] || 0);
       if (vec.some(v => v > 0)) return vec;
     } catch {}
   }
+  
+  // Fallback: Dim_01-14 Felder direkt lesen
   return [
     fields['Dim_01_Emotion']||0, fields['Dim_02_Ritual']||0,
     fields['Dim_03_Aesthetik']||0, fields['Dim_04_Zielgruppe']||0,
@@ -71,8 +86,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { query, active_filters } = body;
-    // active_filters: wenn gesetzt, überschreibt Claude's Erkennung
-    // (wird beim Entfernen eines Chips gesetzt)
 
     if (!query?.trim()) return NextResponse.json({ error: 'No query' }, { status: 400 });
 
@@ -89,8 +102,7 @@ export async function POST(req: NextRequest) {
     const { vector } = parsed;
     let hard_filters = parsed.hard_filters;
 
-    // 2. Wenn active_filters vom Frontend kommen → überschreibe Claude's Erkennung
-    // active_filters ist ein Objekt mit nur den noch aktiven Filtern
+    // 2. active_filters Override
     if (active_filters) {
       hard_filters = {
         type: active_filters.type ?? null,
@@ -117,10 +129,11 @@ export async function POST(req: NextRequest) {
     if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
     const data = await res.json();
 
-    // 4. Cosine Similarity
+    // 4. Cosine Similarity — Records OHNE Vector bekommen Score 0 aber bleiben sichtbar
     const scored = data.records
       .map((rec: any) => {
         const recVector = extractVector(rec.fields);
+        const hasVector = recVector.some((v: number) => v > 0);
         return {
           id: rec.id,
           name: rec.fields['Page Titel'] || 'Unbekannt',
@@ -149,19 +162,19 @@ export async function POST(req: NextRequest) {
           })(),
           vector: recVector,
           url: rec.fields['Link'] || '',
-          score: cosine(vector, recVector),
+          score: hasVector ? cosine(vector, recVector) : 0,
         };
       })
-      .filter((r: any) => r.vector.some((v: number) => v > 0))
+      // FIX: Kein Filter mehr auf vector > 0 — Hard Filter allein reicht
       .sort((a: any, b: any) => b.score - a.score)
       .slice(0, 12);
 
-    // 5. Detected filters für Chips — nur aktive zurückgeben
+    // 5. Detected filters für Chips
     const detected_filters = Object.entries(hard_filters)
       .filter(([, v]) => v !== null && v !== undefined)
       .map(([k, v]) => ({
         key: k,
-        value: v, // Rohwert für active_filters beim Entfernen
+        value: v,
         label: k === 'volume_min' ? `≥${v}ml` : k === 'volume_max' ? `≤${v}ml` : String(v),
       }));
 
