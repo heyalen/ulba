@@ -2,183 +2,210 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID!;
+const AIRTABLE_BASE  = process.env.AIRTABLE_BASE_ID!;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN!;
-const AIRTABLE_API = 'https://api.airtable.com/v0';
+const AIRTABLE_API   = 'https://api.airtable.com/v0';
 
-const SYSTEM_PROMPT = `Du bist ein Beauty-Packaging-Experte bei ulba.ai.
-Eine Brand beschreibt ihr Packaging in Freitext. Extrahiere:
+// ── Attribut_Bibliothek Cache (warm-instance reuse, 5 min TTL) ──────────
+let _attrCache: Map<string, string> | null = null;
+let _attrCacheTs = 0;
 
-1. HARD_FILTERS (nur wenn explizit erwähnt, sonst null):
-- type: "Flasche"|"Tiegel"|"Tube"|"Airless"|"Pump"|"Spray"|"Stick"|"Dose" (oder null)
-- material: "Glas"|"PET"|"PP"|"Alu"|"Keramik" (oder null)
-- volume_min: Zahl in ml (oder null)
-- volume_max: Zahl in ml (oder null)
-- closure: "Schraubverschluss"|"Pump"|"Airless"|"Pipette"|"Flip-top"|"Spray" (oder null)
-- supplier: Lieferantenname wenn erwähnt (oder null)
+async function getAttrMap(): Promise<Map<string, string>> {
+  if (_attrCache && Date.now() - _attrCacheTs < 300_000) return _attrCache;
 
-2. EMOTIONAL_VECTOR: Genau 15 Integers (1-5) für:
-Emotion, Ritual, Ästhetik, Zielgruppe, Prestige, Feminin, Maskulin,
-Archetyp, Sensorik, Werte, Produkt-Fit, Kultur, Psychografik, Zeitgeist, Persona
+  const map = new Map<string, string>();
+  let offset = '';
+  do {
+    const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblsWJ0q2sQ7sXwvk`
+      + `?fields[]=fldkhYMbxvAtglzaI&fields[]=fldaRa8uT30LC4h5o`
+      + `&returnFieldsByFieldId=true&pageSize=100`
+      + (offset ? `&offset=${offset}` : '');
+    const res  = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` } });
+    const data = await res.json();
+    for (const rec of data.records ?? []) {
+      const name = rec.fields['fldkhYMbxvAtglzaI'] ?? '';
+      const kat  = rec.fields['fldaRa8uT30LC4h5o'] ?? '';
+      if (name) map.set(rec.id, kat ? `${name} [${kat}]` : name);
+    }
+    offset = data.offset ?? '';
+  } while (offset);
 
-Antworte NUR mit diesem JSON, kein anderer Text:
-{"hard_filters":{"type":null,"material":null,"volume_min":null,"volume_max":null,"closure":null,"supplier":null},"vector":[3,2,4,3,5,4,1,3,3,2,4,2,4,5,4]}`;
-
-function cosine(a: number[], b: number[]): number {
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return normA && normB ? dot / (Math.sqrt(normA) * Math.sqrt(normB)) : 0;
+  _attrCache   = map;
+  _attrCacheTs = Date.now();
+  return map;
 }
 
-function buildAirtableFormula(filters: Record<string, any>): string {
-  // FIX: Published=TRUE statt Dim_01_Emotion>0
-  // Records ohne Emotion-Scores sollen trotzdem via Hard Filter gefunden werden
-  const conditions: string[] = ['{Published}=TRUE()'];
-  if (filters.type) conditions.push(`FIND("${filters.type}", {Type})`);
-  if (filters.material) conditions.push(`FIND("${filters.material}", {Material})`);
-  if (filters.volume_min != null) conditions.push(`{Volume_ml}>=${filters.volume_min}`);
-  if (filters.volume_max != null) conditions.push(`{Volume_ml}<=${filters.volume_max}`);
-  if (filters.closure) conditions.push(`FIND("${filters.closure}", {Closure})`);
-  if (filters.supplier) conditions.push(`FIND("${filters.supplier}", {Unternehmen})`);
-  return conditions.length > 1 ? `AND(${conditions.join(',')})` : conditions[0];
+// ── Haiku: nur Hard Filters ──────────────────────────────────────────────
+const HAIKU_PROMPT = `Beauty-Packaging Suchexperte. Extrahiere Hard Filters aus der Anfrage.
+Antworte NUR mit JSON, kein anderer Text:
+{"type":null,"material":null,"volume_min":null,"volume_max":null,"closure":null,"supplier":null}
+
+type: "Flasche"|"Tiegel"|"Tube"|"Airless"|"Pump"|"Spray"|"Stick"|"Dose"|null
+material: "Glas"|"PET"|"R-PET"|"HDPE"|"PP"|"Aluminium"|"Keramik"|null
+volume_min/max: Zahl in ml oder null
+closure: "Schraubverschluss"|"Pump"|"Airless"|"Pipette"|"Flip-top"|"Spray"|null
+supplier: Lieferantenname oder null
+Nur explizit genannte Infos — keine Interpretation.`;
+
+// ── Sonnet: semantisches Ranking ─────────────────────────────────────────
+const RANKING_PROMPT = `Du bist ulba.ai's Beauty-Packaging-Experte. Ranke ALLE Produkte nach Fit zur Suchanfrage.
+
+Antworte NUR mit JSON-Array, kein Markdown, kein anderer Text:
+[{"id":"recXXX","score":85,"reasoning":"Ein kurzer Satz warum","rendering_brief":"FLUX Prompt","constraints":["Was nicht geht"]}]
+
+- score: 0-100 (semantischer + emotionaler Fit)
+- reasoning: 1 praegnanter Satz
+- rendering_brief: konkreter FLUX-Prompt mit Farben, Finish, Stil, Stimmung — constraint-aware
+  Beispiel: "Gunmetal brushed aluminum bottle, matte black pump, stark minimalist, no label zone"
+- constraints: Material/Technik-Einschraenkungen (z.B. "Aluminium nicht einfaerbbar"). [] wenn keine.`;
+
+// ── Airtable Formula Builder ─────────────────────────────────────────────
+function buildFormula(f: Record<string, any>): string {
+  const cond = ['{Published}=TRUE()'];
+  if (f.type)               cond.push(`{Type}="${f.type}"`);
+  if (f.material)           cond.push(`FIND("${f.material}",ARRAYJOIN({Material}))`);
+  if (f.volume_min != null) cond.push(`{Volume_ml}>=${f.volume_min}`);
+  if (f.volume_max != null) cond.push(`{Volume_ml}<=${f.volume_max}`);
+  if (f.closure)            cond.push(`{Closure}="${f.closure}"`);
+  if (f.supplier)           cond.push(`FIND("${f.supplier}",{Unternehmen})`);
+  return cond.length > 1 ? `AND(${cond.join(',')})` : cond[0];
 }
 
-function extractVector(fields: any): number[] {
-  const cached = fields['Cached_Vector'];
-  if (cached) {
-    try {
-      const obj = typeof cached === 'string' ? JSON.parse(cached) : cached;
-      
-      // Unterstütze BEIDE Key-Formate:
-      // Format A (Make 9331667): {"d01":0.5, "d02":0.4, ...}
-      // Format B (legacy):       {"emotion":3, "ritual":2, ...}
-      const keysA = ['d01','d02','d03','d04','d05','d06a','d06b','d07','d08','d09','d10','d11','d12','d13','d14'];
-      const keysB = ['emotion','ritual','aesthetik','zielgruppe','prestige','feminin','maskulin','archetyp','sensorik','werte','produkt_fit','kultur','psychografik','zeitgeist','persona'];
-      
-      // Probiere Format A zuerst (aktuelles Pipeline-Format)
-      let vec = keysA.map(k => obj[k] || 0);
-      if (vec.some(v => v > 0)) return vec;
-      
-      // Fallback auf Format B
-      vec = keysB.map(k => obj[k] || 0);
-      if (vec.some(v => v > 0)) return vec;
-    } catch {}
-  }
-  
-  // Fallback: Dim_01-14 Felder direkt lesen
+// ── Product -> Text fuer Claude ──────────────────────────────────────────
+function buildProductText(rec: any, attrMap: Map<string, string>): string {
+  const f = rec.fields;
+
+  const attrs = ((f['Attribute'] as string[]) ?? [])
+    .map((id: string) => attrMap.get(id))
+    .filter(Boolean)
+    .join(', ');
+
+  const sf = [
+    f['SF_Einfaerbbar'] && 'Einfaerbbar',
+    f['SF_Siebdruck']   && 'Siebdruck',
+    f['SF_PCR']         && 'PCR-Material',
+    f['SF_Refillable']  && 'Refillable',
+    f['SF_Airless']     && 'Airless',
+    f['SF_Mattierbar']  && 'Mattierbar',
+    f['SF_HotFoil']     && 'Hot-Foil',
+    f['SF_Embossing']   && 'Embossing',
+  ].filter(Boolean).join(', ');
+
+  const colors   = (f['SF_Available_Colors']   as string[] | undefined)?.join(', ');
+  const finishes = (f['SF_Available_Finishes'] as string[] | undefined)?.join(', ');
+
   return [
-    fields['Dim_01_Emotion']||0, fields['Dim_02_Ritual']||0,
-    fields['Dim_03_Aesthetik']||0, fields['Dim_04_Zielgruppe']||0,
-    fields['Dim_05_Prestige']||0, fields['Dim_06a_Feminin']||0,
-    fields['Dim_06b_Maskulin']||0, fields['Dim_07_Archetyp']||0,
-    fields['Dim_08_Sensorik']||0, fields['Dim_09_Werte']||0,
-    fields['Dim_10_Produkt_Fit']||0, fields['Dim_11_Kultur']||0,
-    fields['Dim_12_Psychografik']||0, fields['Dim_13_Zeitgeist']||0,
-    fields['Dim_14_Persona']||0,
-  ];
+    `[${rec.id}] ${f['Page Titel'] ?? '?'} | ${f['Unternehmen'] ?? '?'}`,
+    `Type:${f['Type'] ?? '?'} | Material:${(f['Material'] ?? []).join('+')} | ${f['Volume_ml'] ?? '?'}ml | Closure:${f['Closure'] ?? '?'} | Form:${(f['Form'] ?? []).join('+')}`,
+    attrs    && `Attribute: ${attrs}`,
+    sf       && `Moeglich: ${sf}`,
+    colors   && `Farben: ${colors}`,
+    finishes && `Finishes: ${finishes}`,
+    f['Kurzbeschreibung']   && `Beschreibung: ${f['Kurzbeschreibung']}`,
+    f['Decoration_Profile'] && `Dekoration: ${f['Decoration_Profile']}`,
+  ].filter(Boolean).join('\n');
 }
 
+// ── Bilder aus Record ────────────────────────────────────────────────────
+function getImages(f: any): string[] {
+  const h = f['Bild_Harmonisiert'];
+  if (Array.isArray(h) && h.length) return h.map((a: any) => a.url);
+  const s = f['Bild_System'];
+  if (Array.isArray(s) && s.length) return s.map((a: any) => a.url);
+  return [];
+}
+
+// ── POST Handler ─────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { query, active_filters } = body;
-
+    const { query, active_filters } = await req.json();
     if (!query?.trim()) return NextResponse.json({ error: 'No query' }, { status: 400 });
 
-    // 1. Claude Haiku: Hard Filters + Emotional Vector
-    const message = await client.messages.create({
+    // 1. Haiku: Hard Filters
+    const haikuRes = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      system: SYSTEM_PROMPT,
+      max_tokens: 150,
+      system: HAIKU_PROMPT,
       messages: [{ role: 'user', content: query }],
     });
+    const haikuText = haikuRes.content[0].type === 'text' ? haikuRes.content[0].text.trim() : '{}';
+    let filters = JSON.parse(haikuText.replace(/```json|```/g, ''));
+    if (active_filters) filters = { ...filters, ...active_filters };
 
-    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '';
-    const parsed = JSON.parse(text.replace(/```json|```/g, ''));
-    const { vector } = parsed;
-    let hard_filters = parsed.hard_filters;
+    // 2. Attr Cache + Airtable parallel
+    const [attrMap, atRes] = await Promise.all([
+      getAttrMap(),
+      fetch(
+        `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv`
+          + `?filterByFormula=${encodeURIComponent(buildFormula(filters))}&pageSize=100`,
+        { headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` }, next: { revalidate: 60 } }
+      ),
+    ]);
+    if (!atRes.ok) throw new Error(`Airtable ${atRes.status}`);
+    const { records } = await atRes.json();
 
-    // 2. active_filters Override
-    if (active_filters) {
-      hard_filters = {
-        type: active_filters.type ?? null,
-        material: active_filters.material ?? null,
-        volume_min: active_filters.volume_min ?? null,
-        volume_max: active_filters.volume_max ?? null,
-        closure: active_filters.closure ?? null,
-        supplier: active_filters.supplier ?? null,
-      };
+    if (!records?.length) {
+      return NextResponse.json({ query, hard_filters: filters, detected_filters: [], total: 0, results: [] });
     }
 
-    if (!Array.isArray(vector) || vector.length !== 15) {
-      return NextResponse.json({ error: 'Invalid vector' }, { status: 500 });
-    }
+    // 3. Sonnet: semantisches Ranking
+    const productsCtx = records
+      .map((r: any) => buildProductText(r, attrMap))
+      .join('\n\n---\n\n');
 
-    // 3. Airtable Query mit Hard Filters
-    const formula = buildAirtableFormula(hard_filters);
-    const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv?filterByFormula=${encodeURIComponent(formula)}&pageSize=100`;
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
-      next: { revalidate: 60 },
+    const rankRes = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: RANKING_PROMPT,
+      messages: [{ role: 'user', content: `Suchanfrage: "${query}"\n\nProdukte:\n${productsCtx}` }],
     });
-    if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
-    const data = await res.json();
+    const rankText = rankRes.content[0].type === 'text' ? rankRes.content[0].text.trim() : '[]';
+    const rankings: Array<{
+      id: string;
+      score: number;
+      reasoning: string;
+      rendering_brief: string;
+      constraints: string[];
+    }> = JSON.parse(rankText.replace(/```json|```/g, ''));
 
-    // 4. Cosine Similarity — Records OHNE Vector bekommen Score 0 aber bleiben sichtbar
-    const scored = data.records
-      .map((rec: any) => {
-        const recVector = extractVector(rec.fields);
-        const hasVector = recVector.some((v: number) => v > 0);
+    // 4. Merge + Response
+    const recById = new Map(records.map((r: any) => [r.id, r.fields]));
+    const results = rankings
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12)
+      .map(({ id, score, reasoning, rendering_brief, constraints }) => {
+        const f = recById.get(id) as any;
+        if (!f) return null;
+        const harm = f['Bild_Harmonisiert'];
         return {
-          id: rec.id,
-          name: rec.fields['Page Titel'] || 'Unbekannt',
-          supplier: rec.fields['Unternehmen'] || '',
-          type: rec.fields['Type'] || '',
-          material: rec.fields['Material'] || '',
-          volume: rec.fields['Volume_ml'] || null,
-          closure: rec.fields['Closure'] || '',
-          bildTyp: rec.fields['Bild_Typ'] || '',
-          images: (() => {
-            const h = rec.fields['Bild_Harmonisiert'];
-            if (Array.isArray(h) && h.length > 0) return h.map((a: any) => a.url).filter(Boolean);
-            const s = rec.fields['Bild_System'];
-            if (Array.isArray(s) && s.length > 0) return s.map((a: any) => a.url).filter(Boolean);
-            const b = rec.fields['Bild_Roh_Base'];
-            if (Array.isArray(b) && b.length > 0) return b.map((a: any) => a.url).filter(Boolean);
-            return [];
-          })(),
-          harmonisedImage: (() => {
-            const h = rec.fields['Bild_Harmonisiert'];
-            return Array.isArray(h) && h.length > 0 ? h[0].url : undefined;
-          })(),
-          capImages: (() => {
-            const c = rec.fields['Bild_Roh_Cap'];
-            return Array.isArray(c) ? c.map((a: any) => a.url).filter(Boolean) : [];
-          })(),
-          vector: recVector,
-          url: rec.fields['Link'] || '',
-          score: hasVector ? cosine(vector, recVector) : 0,
+          id,
+          name:            f['Page Titel']  ?? 'Unbekannt',
+          supplier:        f['Unternehmen'] ?? '',
+          type:            f['Type']        ?? '',
+          material:        f['Material']    ?? [],
+          volume:          f['Volume_ml']   ?? null,
+          closure:         f['Closure']     ?? '',
+          form:            f['Form']        ?? [],
+          url:             f['Link']        ?? '',
+          bildTyp:         f['Bild_Typ']    ?? '',
+          images:          getImages(f),
+          harmonisedImage: Array.isArray(harm) && harm.length ? harm[0].url : undefined,
+          score,
+          reasoning,
+          rendering_brief,
+          constraints,
         };
       })
-      // FIX: Kein Filter mehr auf vector > 0 — Hard Filter allein reicht
-      .sort((a: any, b: any) => b.score - a.score)
-      .slice(0, 12);
+      .filter(Boolean);
 
-    // 5. Detected filters für Chips
-    const detected_filters = Object.entries(hard_filters)
-      .filter(([, v]) => v !== null && v !== undefined)
+    const detected_filters = Object.entries(filters)
+      .filter(([, v]) => v !== null)
       .map(([k, v]) => ({
-        key: k,
-        value: v,
-        label: k === 'volume_min' ? `≥${v}ml` : k === 'volume_max' ? `≤${v}ml` : String(v),
+        key: k, value: v,
+        label: k === 'volume_min' ? `>=${v}ml` : k === 'volume_max' ? `<=${v}ml` : String(v),
       }));
 
-    return NextResponse.json({ query, vector, hard_filters, detected_filters, total: scored.length, results: scored });
+    return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results });
 
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
