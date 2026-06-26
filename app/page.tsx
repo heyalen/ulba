@@ -381,13 +381,13 @@ export default function Home() {
                 <button onClick={()=>setSelected(null)} style={{ background:'#f2f2f2',border:0,borderRadius:999,width:40,height:40,cursor:'pointer',color:'#555',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
               </div>
 
+              {selected.capImages&&selected.capImages.length>0&&<CapSlider caps={selected.capImages} />}
+
               <div style={{ marginBottom:28 }}>
                 <div style={{ width:'100%',aspectRatio:'1',background:'#f5f5f5',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
                   {selected.harmonisedImage?<img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:selected.images?.length>0?<img src={selected.images[0]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
                 </div>
               </div>
-
-              {selected.capImages&&selected.capImages.length>0&&<CapSlider caps={selected.capImages} />}
 
               <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:4,letterSpacing:'-0.01em' }}>{selected.name}</div>
               <div style={{ fontSize:15,color:'#999',marginBottom:24 }}>{selected.supplier}</div>
