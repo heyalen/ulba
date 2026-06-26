@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { DIMS } from '@/lib/search';
 
 const EXAMPLES = [
   { label: 'Feminine luxury', q: 'Feminine luxury glass serum, premium' },
@@ -23,16 +22,32 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 interface Product {
-  id: string; name: string; supplier: string; type: string;
-  images: string[]; harmonisedImage?: string; capImages: string[];
-  bildTyp?: string; vector: number[]; url?: string;
+  id: string;
+  name: string;
+  supplier: string;
+  type: string;
+  images: string[];
+  harmonisedImage?: string;
+  bildTyp?: string;
+  url?: string;
+  material?: string[];
+  volume?: number | null;
+  closure?: string;
+  form?: string[];
 }
-interface Result extends Product { score: number; }
+
+interface Result extends Product {
+  score: number;
+  reasoning: string;
+  rendering_brief: string;
+  constraints: string[];
+}
+
 interface Project { id: string; name: string; createdAt: number; }
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
 interface DetectedFilter { key: string; value: any; label: string; }
 
-const LS_PROJECTS = 'ulba_projects';
+const LS_PROJECTS  = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
 
 function loadProjects(): Project[] {
@@ -48,26 +63,14 @@ function loadFavorites(): FavoriteEntry[] {
 }
 function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
 
-function CapSlider({ caps }: { caps: string[] }) {
-  const [active, setActive] = useState(0);
-  if (!caps.length) return null;
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Passende Verschlüsse · {caps.length}</div>
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' as const }}>
-        {caps.map((url, i) => (
-          <div key={i} onClick={() => setActive(i)} style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: active === i ? '2px solid #111' : '1.5px solid #e5e5e5', background: '#f7f7f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={url} alt={`Cap ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 12, width: '100%', height: 160, background: '#f7f7f7', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <img src={caps[active]} alt="Verschluss" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: 16 }} />
-      </div>
-    </div>
-  );
+// ── Score Badge Farbe ─────────────────────────────────────────────────────
+function scoreBg(score: number) {
+  if (score >= 80) return '#111';
+  if (score >= 60) return '#555';
+  return '#999';
 }
 
+// ── Sample Modal ──────────────────────────────────────────────────────────
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
@@ -114,6 +117,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
+// ── Save to Project Modal ─────────────────────────────────────────────────
 function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Product; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
   const [newName, setNewName] = useState(''); const [creating, setCreating] = useState(false);
   const savedProjectIds = favorites.filter(f => f.productId === product.id).map(f => f.projectId);
@@ -145,6 +149,7 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
   );
 }
 
+// ── Favorites View ────────────────────────────────────────────────────────
 function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Product) => void; }) {
   const [editingId, setEditingId] = useState<string|null>(null); const [editName, setEditName] = useState(''); const [activeProject, setActiveProject] = useState<string>('all');
   const filtered = activeProject==='all' ? favorites : favorites.filter(f => f.projectId===activeProject);
@@ -188,38 +193,37 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
-  const [input, setInput] = useState('');
-  const [queryVector, setQueryVector] = useState<number[]|null>(null);
-  const [results, setResults] = useState<Result[]|null>(null);
+  const [mounted, setMounted]               = useState(false);
+  const [input, setInput]                   = useState('');
+  const [results, setResults]               = useState<Result[]|null>(null);
   const [detectedFilters, setDetectedFilters] = useState<DetectedFilter[]>([]);
-  const [activeFilters, setActiveFilters] = useState<Record<string,any>>({});
-  const [status, setStatus] = useState<'idle'|'loading'|'done'|'error'>('idle');
-  const [selected, setSelected] = useState<Result|null>(null);
-  const [currentQuery, setCurrentQuery] = useState('');
-  const [showResults, setShowResults] = useState(false);
-  const [sampleProduct, setSampleProduct] = useState<Result|null>(null);
-  const [view, setView] = useState<'search'|'saved'>('search');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
-  const [saveModal, setSaveModal] = useState<Product|null>(null);
-  const [copied, setCopied] = useState(false);
-  const [imgIndex, setImgIndex] = useState(0);
+  const [activeFilters, setActiveFilters]   = useState<Record<string,any>>({});
+  const [status, setStatus]                 = useState<'idle'|'loading'|'done'|'error'>('idle');
+  const [selected, setSelected]             = useState<Result|null>(null);
+  const [currentQuery, setCurrentQuery]     = useState('');
+  const [showResults, setShowResults]       = useState(false);
+  const [sampleProduct, setSampleProduct]   = useState<Result|null>(null);
+  const [view, setView]                     = useState<'search'|'saved'>('search');
+  const [projects, setProjects]             = useState<Project[]>([]);
+  const [favorites, setFavorites]           = useState<FavoriteEntry[]>([]);
+  const [saveModal, setSaveModal]           = useState<Product|null>(null);
+  const [copied, setCopied]                 = useState(false);
 
   useEffect(() => { setMounted(true); setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
   useEffect(() => {
     if (!mounted) return;
-    const handler = (e: KeyboardEvent) => { if(e.key==='Escape'){if(sampleProduct){setSampleProduct(null);return;}if(saveModal){setSaveModal(null);return;}setSelected(null);} };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key==='Escape') { if(sampleProduct){setSampleProduct(null);return;} if(saveModal){setSaveModal(null);return;} setSelected(null); }
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [mounted, sampleProduct, saveModal]);
-  useEffect(() => { setImgIndex(0); }, [selected?.id]);
   useEffect(() => {
     if (!mounted) return;
-    if (selected) { const url = new URL(window.location.href); url.searchParams.set('product', selected.id); window.history.replaceState(null,'',url.toString()); }
-    else { const url = new URL(window.location.href); url.searchParams.delete('product'); window.history.replaceState(null,'',url.toString()); }
+    if (selected) { const url=new URL(window.location.href); url.searchParams.set('product',selected.id); window.history.replaceState(null,'',url.toString()); }
+    else { const url=new URL(window.location.href); url.searchParams.delete('product'); window.history.replaceState(null,'',url.toString()); }
   }, [mounted, selected]);
 
   const isFavorited = (productId: string) => favorites.some(f => f.productId===productId);
@@ -232,33 +236,36 @@ export default function Home() {
       updatedProjects = [...projects, newProject]; setProjects(updatedProjects); saveProjects(updatedProjects); finalProjectId = newProject.id;
     }
     const alreadySaved = favorites.some(f => f.productId===product.id && f.projectId===finalProjectId);
-    const updated = alreadySaved ? favorites.filter(f => !(f.productId===product.id && f.projectId===finalProjectId)) : [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
+    const updated = alreadySaved
+      ? favorites.filter(f => !(f.productId===product.id && f.projectId===finalProjectId))
+      : [...favorites, { productId: product.id, projectId: finalProjectId, savedAt: Date.now(), product }];
     setFavorites(updated); saveFavorites(updated); setSaveModal(null);
   };
-  const removeFavorite = (productId: string, projectId: string) => { const updated = favorites.filter(f => !(f.productId===productId && f.projectId===projectId)); setFavorites(updated); saveFavorites(updated); };
-  const renameProject = (id: string, name: string) => { const updated = projects.map(p => p.id===id?{...p,name}:p); setProjects(updated); saveProjects(updated); };
-  const deleteProject = (id: string) => {
-    const updatedP = projects.filter(p => p.id!==id); const updatedF = favorites.filter(f => f.projectId!==id);
-    if(updatedP.length===0){const def=[{id:'default',name:'My Collection',createdAt:Date.now()}];setProjects(def);saveProjects(def);}else{setProjects(updatedP);saveProjects(updatedP);}
-    setFavorites(updatedF); saveFavorites(updatedF);
+  const removeFavorite   = (productId: string, projectId: string) => { const u=favorites.filter(f=>!(f.productId===productId&&f.projectId===projectId)); setFavorites(u); saveFavorites(u); };
+  const renameProject    = (id: string, name: string) => { const u=projects.map(p=>p.id===id?{...p,name}:p); setProjects(u); saveProjects(u); };
+  const deleteProject    = (id: string) => {
+    const updP=projects.filter(p=>p.id!==id); const updF=favorites.filter(f=>f.projectId!==id);
+    if(updP.length===0){const def=[{id:'default',name:'My Collection',createdAt:Date.now()}];setProjects(def);saveProjects(def);}else{setProjects(updP);saveProjects(updP);}
+    setFavorites(updF); saveFavorites(updF);
   };
-  const copyLink = () => { if(!selected||!mounted)return; const url=new URL(window.location.href); url.searchParams.set('product',selected.id); navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  const copyLink = () => {
+    if(!selected||!mounted) return;
+    const url=new URL(window.location.href); url.searchParams.set('product',selected.id);
+    navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(()=>setCopied(false),2000);
+  };
 
-  // ── Core search — akzeptiert optionale active_filters Überschreibung ──
   const doSearch = useCallback(async (text: string, overrideFilters?: Record<string,any>) => {
     if (!text.trim()) return;
     setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search');
     try {
       const body: any = { query: text };
       if (overrideFilters !== undefined) body.active_filters = overrideFilters;
-      const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res  = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setQueryVector(data.vector || null);
       setDetectedFilters(data.detected_filters || []);
-      // Baue activeFilters aus detected_filters auf
       const newActive: Record<string,any> = {};
-      for (const f of (data.detected_filters || [])) { newActive[f.key] = f.value; }
+      for (const f of (data.detected_filters || [])) newActive[f.key] = f.value;
       setActiveFilters(newActive);
       setResults(data.results || []);
       setStatus('done');
@@ -266,25 +273,20 @@ export default function Home() {
     } catch { setStatus('error'); }
   }, [mounted]);
 
-  const search = (text: string) => { setActiveFilters({}); doSearch(text); };
-  const submit = () => search(input);
+  const search    = (text: string) => { setActiveFilters({}); doSearch(text); };
+  const submit    = () => search(input);
   const useExample = (q: string) => { setInput(q); search(q); };
-
-  // ── Filter entfernen → neue Suche ohne diesen Filter ──
   const removeFilter = (key: string) => {
-    const newActive = { ...activeFilters };
-    delete newActive[key];
-    setActiveFilters(newActive);
-    doSearch(currentQuery, newActive);
+    const newActive = { ...activeFilters }; delete newActive[key];
+    setActiveFilters(newActive); doSearch(currentQuery, newActive);
   };
-
   const goHome = () => {
     setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null);
-    setQueryVector(null); setDetectedFilters([]); setActiveFilters({}); setSelected(null); setView('search');
+    setDetectedFilters([]); setActiveFilters({}); setSelected(null); setView('search');
     if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const favCount = favorites.filter((f,i,arr) => arr.findIndex(x => x.productId===f.productId)===i).length;
+  const favCount = favorites.filter((f,i,arr) => arr.findIndex(x=>x.productId===f.productId)===i).length;
 
   if (!mounted) return (
     <div style={{ minHeight:'100vh',background:'#fff',fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
@@ -342,7 +344,13 @@ export default function Home() {
         </div>
       )}
 
-      {view==='saved' && <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p=>setSelected({...p,score:1})} />}
+      {view==='saved' && (
+        <FavoritesView
+          projects={projects} favorites={favorites}
+          onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject}
+          onProductClick={p => setSelected({ ...p, score: 0, reasoning: '', rendering_brief: '', constraints: [] })}
+        />
+      )}
 
       {/* RESULTS */}
       {showResults&&view==='search' && (
@@ -351,7 +359,6 @@ export default function Home() {
             {EXAMPLES.map((ex,i) => <button key={i} onClick={()=>useExample(ex.q)} style={{ background:currentQuery===ex.q?'#111':'#f2f2f2',color:currentQuery===ex.q?'#fff':'#555',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',flexShrink:0 }}>{ex.label}</button>)}
           </div>
 
-          {/* Filter Chips */}
           {detectedFilters.length>0 && (
             <div style={{ display:'flex',gap:6,flexWrap:'wrap',padding:'4px 0 8px' }}>
               {detectedFilters.map(f => (
@@ -365,7 +372,7 @@ export default function Home() {
 
           <div style={{ padding:'8px 0 24px',fontSize:14,color:'#999',display:'flex',alignItems:'baseline',gap:10 }}>
             {status==='loading' && <span>Searching...</span>}
-            {status==='error' && <span style={{ color:'#dc2626' }}>Error — please try again</span>}
+            {status==='error'   && <span style={{ color:'#dc2626' }}>Error — please try again</span>}
             {results&&status==='done' && <><b style={{ color:'#111',fontWeight:500,fontSize:15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft:'auto',fontSize:12,color:'#bbb' }}>Sorted by relevance</span></>}
             {results&&status==='done'&&results.length===0 && <span style={{ color:'#aaa' }}>No results — try a broader search</span>}
           </div>
@@ -377,15 +384,20 @@ export default function Home() {
                 return (
                   <div key={r.id} style={{ breakInside:'avoid',marginBottom:28 }}>
                     <div onClick={()=>setSelected(r)} style={{ width:'100%',minHeight:HEIGHTS[i%HEIGHTS.length],background:'#f5f5f5',position:'relative',borderRadius:20,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
-                      {cardImage?<img src={cardImage} alt={r.name} style={{ width:'100%',height:'100%',objectFit:'contain',minHeight:HEIGHTS[i%HEIGHTS.length],padding:12 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
-                      <div style={{ position:'absolute',top:14,right:14,background:'rgba(255,255,255,0.95)',borderRadius:999,padding:'5px 13px',fontSize:12,fontWeight:600,color:'#111' }}>{Math.round(r.score*100)}%</div>
+                      {cardImage
+                        ? <img src={cardImage} alt={r.name} style={{ width:'100%',height:'100%',objectFit:'contain',minHeight:HEIGHTS[i%HEIGHTS.length],padding:12 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
+                        : <span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
+                      {/* Score Badge */}
+                      <div style={{ position:'absolute',top:14,right:14,background:scoreBg(r.score),color:'#fff',borderRadius:999,padding:'5px 13px',fontSize:12,fontWeight:600 }}>{r.score}%</div>
+                      {/* Save Button */}
                       <button onClick={e=>{e.stopPropagation();setSaveModal(r);}} style={{ position:'absolute',bottom:12,right:12,background:'rgba(255,255,255,0.95)',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',color:isFavorited(r.id)?'#e11d48':'#999' }}>
                         {isFavorited(r.id)?'♥':'♡'}
                       </button>
                     </div>
                     <div style={{ padding:'14px 4px 0' }}>
                       <div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{r.name}</div>
-                      <div style={{ fontSize:13,color:'#999' }}>{r.supplier}</div>
+                      <div style={{ fontSize:13,color:'#999',marginBottom: r.reasoning ? 6 : 0 }}>{r.supplier}</div>
+                      {r.reasoning && <div style={{ fontSize:12,color:'#aaa',lineHeight:1.5 }}>{r.reasoning}</div>}
                     </div>
                   </div>
                 );
@@ -401,6 +413,8 @@ export default function Home() {
           <div onClick={()=>setSelected(null)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',zIndex:50 }} />
           <div style={{ position:'fixed',top:0,right:0,width:680,maxWidth:'100vw',height:'100%',background:'#fff',zIndex:51,overflowY:'auto',boxShadow:'-2px 0 30px rgba(0,0,0,0.08)' }}>
             <div style={{ padding:'36px 44px 52px' }}>
+
+              {/* Actions */}
               <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,gap:10 }}>
                 <div style={{ display:'flex',gap:10 }}>
                   <button onClick={()=>setSaveModal(selected)} style={{ display:'flex',alignItems:'center',gap:6,background:isFavorited(selected.id)?'#fff0f4':'#f2f2f2',color:isFavorited(selected.id)?'#e11d48':'#555',border:isFavorited(selected.id)?'1px solid #fecdd3':'1px solid transparent',borderRadius:999,padding:'10px 20px',fontSize:14,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>
@@ -413,53 +427,71 @@ export default function Home() {
                 <button onClick={()=>setSelected(null)} style={{ background:'#f2f2f2',border:0,borderRadius:999,width:40,height:40,cursor:'pointer',color:'#555',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
               </div>
 
-              {selected.capImages&&selected.capImages.length>0 && <CapSlider caps={selected.capImages} />}
-
-              <div style={{ marginBottom:20 }}>
-                <div style={{ width:'100%',aspectRatio:'1',background:'#f5f5f5',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',position:'relative' }}>
-                  {selected.harmonisedImage?<img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:selected.images?.length>0?<img src={selected.images[imgIndex]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
+              {/* Image */}
+              <div style={{ marginBottom:28 }}>
+                <div style={{ width:'100%',aspectRatio:'1',background:'#f5f5f5',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
+                  {selected.harmonisedImage
+                    ? <img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />
+                    : selected.images?.length>0
+                      ? <img src={selected.images[0]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />
+                      : <span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
                 </div>
               </div>
 
-              <div style={{ display:'flex',alignItems:'baseline',gap:16,marginBottom:12 }}>
-                <b style={{ fontSize:44,fontWeight:600,color:'#111',letterSpacing:'-0.02em' }}>{Math.round(selected.score*100)}%</b>
-                <span style={{ fontSize:14,color:'#999' }}>match</span>
-              </div>
-              <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:6,letterSpacing:'-0.01em' }}>{selected.name}</div>
-              <div style={{ fontSize:15,color:'#999',marginBottom:28 }}>{selected.supplier}</div>
+              {/* Header */}
+              <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:4,letterSpacing:'-0.01em' }}>{selected.name}</div>
+              <div style={{ fontSize:15,color:'#999',marginBottom:24 }}>{selected.supplier}</div>
 
-              <div style={{ marginBottom:32 }}>
-                <div style={{ fontSize:12,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:16 }}>Specifications</div>
-                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
-                  <div style={{ background:'#f7f7f7',borderRadius:16,padding:'16px 20px' }}><div style={{ fontSize:12,color:'#aaa',marginBottom:5 }}>Type</div><div style={{ fontSize:16,fontWeight:500,color:'#111' }}>{TYPE_LABELS[selected.type]||selected.type||'—'}</div></div>
-                  <div style={{ background:'#f7f7f7',borderRadius:16,padding:'16px 20px' }}><div style={{ fontSize:12,color:'#aaa',marginBottom:5 }}>Supplier</div><div style={{ fontSize:16,fontWeight:500,color:'#111' }}>{selected.supplier}</div></div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom:32 }}>
-                <div style={{ fontSize:12,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:16 }}>Brand profile</div>
-                {selected.vector.map((v,i) => (
-                  <div key={i} style={{ display:'flex',alignItems:'center',gap:14,marginBottom:9 }}>
-                    <span style={{ width:110,fontSize:13,color:'#aaa',textAlign:'right',flexShrink:0 }}>{DIMS[i]}</span>
-                    <div style={{ flex:1,height:4,background:'#f0f0f0',borderRadius:2 }}>
-                      <div style={{ height:'100%',width:`${(v/5)*100}%`,background:queryVector&&Math.abs(queryVector[i]-v)<=1?'#111':'#ccc',borderRadius:2 }} />
-                    </div>
-                    <span style={{ width:18,fontSize:12.5,color:'#bbb',textAlign:'right' }}>{v}</span>
+              {/* Match Score + Reasoning */}
+              {selected.score > 0 && (
+                <div style={{ background:'#f7f7f7',borderRadius:20,padding:'20px 24px',marginBottom:24 }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom: selected.reasoning ? 10 : 0 }}>
+                    <b style={{ fontSize:32,fontWeight:600,color:'#111' }}>{selected.score}%</b>
+                    <span style={{ fontSize:13,color:'#999' }}>match</span>
                   </div>
-                ))}
+                  {selected.reasoning && (
+                    <p style={{ margin:0,fontSize:14,color:'#555',lineHeight:1.6 }}>{selected.reasoning}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Constraints */}
+              {selected.constraints?.length > 0 && (
+                <div style={{ marginBottom:24 }}>
+                  <div style={{ fontSize:11,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:10 }}>Nicht möglich</div>
+                  {selected.constraints.map((c,i) => (
+                    <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:8,fontSize:13,color:'#666',marginBottom:6,lineHeight:1.5 }}>
+                      <span style={{ color:'#dc2626',flexShrink:0,marginTop:1 }}>✕</span>{c}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Specifications */}
+              <div style={{ marginBottom:28 }}>
+                <div style={{ fontSize:11,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:14 }}>Specifications</div>
+                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:10 }}>
+                  {selected.type && <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Type</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{TYPE_LABELS[selected.type]||selected.type}</div></div>}
+                  {selected.supplier && <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Supplier</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.supplier}</div></div>}
+                  {selected.material?.length ? <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Material</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.material.join(', ')}</div></div> : null}
+                  {selected.volume ? <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Volume</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.volume} ml</div></div> : null}
+                  {selected.closure && <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Closure</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.closure}</div></div>}
+                  {selected.form?.length ? <div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Form</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.form.join(', ')}</div></div> : null}
+                </div>
               </div>
 
-              <div style={{ display:'flex',gap:12,marginTop:40 }}>
+              {/* CTA */}
+              <div style={{ display:'flex',gap:12,marginTop:32 }}>
                 <button onClick={()=>setSampleProduct(selected)} style={{ flex:1,padding:18,background:'#111',color:'#fff',border:0,borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>Request sample →</button>
-                {selected.url&&<a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding:'18px 32px',background:'#fff',color:'#111',border:'1px solid #e5e5e5',borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit',textDecoration:'none' }}>Supplier</a>}
+                {selected.url && <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding:'18px 32px',background:'#fff',color:'#111',border:'1px solid #e5e5e5',borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit',textDecoration:'none' }}>Supplier</a>}
               </div>
             </div>
           </div>
         </>
       )}
 
-      {sampleProduct&&<SampleModal product={sampleProduct} onClose={()=>setSampleProduct(null)} />}
-      {saveModal&&<SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(projectId)=>handleSave(saveModal,projectId)} onClose={()=>setSaveModal(null)} />}
+      {sampleProduct && <SampleModal product={sampleProduct} onClose={()=>setSampleProduct(null)} />}
+      {saveModal    && <SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={(pid)=>handleSave(saveModal,pid)} onClose={()=>setSaveModal(null)} />}
     </div>
   );
 }
