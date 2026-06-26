@@ -196,6 +196,7 @@ export async function POST(req: NextRequest) {
           closure: f['Closure'] ?? '', form: f['Form'] ?? [], url: f['Link'] ?? '',
           bildTyp: f['Bild_Typ'] ?? '', images: getImages(f), matched_kategorie: null,
           harmonisedImage: Array.isArray(harm) && harm.length ? harm[0].url : undefined,
+          capImages: (() => { const c = f['Bild_Roh_Cap']; return Array.isArray(c) ? c.map((a: any) => a.url).filter(Boolean) : []; })(),
         };
       });
       return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results, matched_kategorie: null });
@@ -240,6 +241,7 @@ export async function POST(req: NextRequest) {
           form: f['Form'] ?? [], url: f['Link'] ?? '', bildTyp: f['Bild_Typ'] ?? '',
           images: getImages(f),
           harmonisedImage: Array.isArray(harm) && harm.length ? harm[0].url : undefined,
+          capImages: (() => { const c = f['Bild_Roh_Cap']; return Array.isArray(c) ? c.map((a: any) => a.url).filter(Boolean) : []; })(),
           matched_kategorie: matchedRegel?.kategorie ?? null,
         };
       }).filter(Boolean);
