@@ -8,7 +8,7 @@ const AIRTABLE_BASE  = process.env.AIRTABLE_BASE_ID!;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN!;
 const AIRTABLE_API   = 'https://api.airtable.com/v0';
 
-// Attribut_Bibliothek Cache
+// ── Attribut_Bibliothek Cache ────────────────────────────────────────────
 let _attrCache: Map<string, string> | null = null;
 let _attrCacheTs = 0;
 
@@ -32,20 +32,79 @@ async function getAttrMap(): Promise<Map<string, string>> {
   return map;
 }
 
+// ── Produkt_Regeln Cache ─────────────────────────────────────────────────
+interface ProduktRegel {
+  kategorie: string;
+  keywords: string[];
+  bevorzugt_material: string;
+  nicht_material: string;
+  volume_min: number | null;
+  volume_max: number | null;
+  bevorzugt_closure: string;
+  nicht_closure: string;
+  bevorzugt_type: string;
+}
+
+let _regelCache: ProduktRegel[] | null = null;
+let _regelCacheTs = 0;
+
+async function getRegelCache(): Promise<ProduktRegel[]> {
+  if (_regelCache && Date.now() - _regelCacheTs < 600_000) return _regelCache;
+  const url = `${AIRTABLE_API}/${AIRTABLE_BASE}/tblrL5tEpvvUh6OEj?pageSize=100`;
+  const res  = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` } });
+  const data = await res.json();
+  _regelCache = (data.records ?? []).map((r: any) => ({
+    kategorie:          r.fields['Kategorie']          ?? '',
+    keywords:           (r.fields['Keywords'] ?? '').split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean),
+    bevorzugt_material: r.fields['Bevorzugt_Material'] ?? '',
+    nicht_material:     r.fields['Nicht_Material']     ?? '',
+    volume_min:         r.fields['Volume_Min']         ?? null,
+    volume_max:         r.fields['Volume_Max']         ?? null,
+    bevorzugt_closure:  r.fields['Bevorzugt_Closure']  ?? '',
+    nicht_closure:      r.fields['Nicht_Closure']      ?? '',
+    bevorzugt_type:     r.fields['Bevorzugt_Type']     ?? '',
+  }));
+  _regelCacheTs = Date.now();
+  return _regelCache!;
+}
+
+function matchRegel(query: string, regeln: ProduktRegel[]): ProduktRegel | null {
+  const q = query.toLowerCase();
+  for (const regel of regeln) {
+    if (regel.keywords.some(kw => q.includes(kw))) return regel;
+  }
+  return null;
+}
+
+function buildRegelContext(regel: ProduktRegel): string {
+  const lines = [`PRODUKTKATEGORIE ERKANNT: ${regel.kategorie}`];
+  if (regel.bevorzugt_material) lines.push(`Bevorzugtes Material: ${regel.bevorzugt_material}`);
+  if (regel.nicht_material)     lines.push(`NICHT geeignet (Material): ${regel.nicht_material} → max 35 Punkte`);
+  if (regel.volume_min || regel.volume_max) {
+    const range = [regel.volume_min && `min ${regel.volume_min}ml`, regel.volume_max && `max ${regel.volume_max}ml`].filter(Boolean).join(', ');
+    lines.push(`Typisches Volumen: ${range}`);
+  }
+  if (regel.bevorzugt_closure) lines.push(`Bevorzugter Verschluss: ${regel.bevorzugt_closure}`);
+  if (regel.nicht_closure)     lines.push(`NICHT geeignet (Verschluss): ${regel.nicht_closure} → -15 Punkte`);
+  if (regel.bevorzugt_type)    lines.push(`Bevorzugter Typ: ${regel.bevorzugt_type}`);
+  return lines.join('\n');
+}
+
+// ── Haiku: Hard Filters ──────────────────────────────────────────────────
 const HAIKU_PROMPT = `Beauty-Packaging Suchexperte. Extrahiere Hard Filters.
 Antworte NUR mit JSON:
 {"type":null,"material":null,"volume_min":null,"volume_max":null,"closure":null,"supplier":null}
 type: "Flasche"|"Tiegel"|"Tube"|"Airless"|"Pump"|"Spray"|"Stick"|"Dose"|null
 material: "Glas"|"PET"|"R-PET"|"HDPE"|"PP"|"Aluminium"|"Keramik"|null
-volume_min/max: Zahl in ml oder null
-closure: "Schraubverschluss"|"Pump"|"Airless"|"Pipette"|"Flip-top"|"Spray"|null
+volume_min/max: Zahl in ml oder null. closure: "Schraubverschluss"|"Pump"|"Airless"|"Pipette"|"Flip-top"|"Spray"|null
 supplier: Name oder null. Nur explizit genannte Infos.`;
 
-const RANKING_PROMPT = `Packaging-Experte. Ranke alle Produkte nach Query-Fit.
-NUR JSON-Array ausgeben, kein Markdown:
+const BASE_RANKING_PROMPT = `Beauty-Packaging-Experte. Ranke ALLE Produkte nach Query-Fit.
+NUR JSON-Array, kein Markdown:
 [{"id":"recXXX","score":85,"reasoning":"1 Satz","rendering_brief":"FLUX prompt","constraints":[]}]
 score:0-100, constraints:[] wenn keine.`;
 
+// ── Airtable Formula ─────────────────────────────────────────────────────
 function buildFormula(f: Record<string, any>): string {
   const cond = ['{Published}=TRUE()'];
   if (f.type)               cond.push(`{Type}="${f.type}"`);
@@ -57,27 +116,20 @@ function buildFormula(f: Record<string, any>): string {
   return cond.length > 1 ? `AND(${cond.join(',')})` : cond[0];
 }
 
-// Kompaktes einzeiliges Format pro Produkt
+// ── Produkt → kompakter Text ─────────────────────────────────────────────
 function buildProductText(rec: any, attrMap: Map<string, string>): string {
   const f = rec.fields;
   const attrs = ((f['Attribute'] as string[]) ?? [])
-    .slice(0, 8)
-    .map((id: string) => attrMap.get(id))
-    .filter(Boolean).join(',');
+    .slice(0, 8).map((id: string) => attrMap.get(id)).filter(Boolean).join(',');
   const sf = [
-    f['SF_Einfaerbbar'] && 'einfaerbbar',
-    f['SF_Siebdruck']   && 'siebdruck',
-    f['SF_PCR']         && 'PCR',
-    f['SF_Refillable']  && 'refillable',
-    f['SF_Mattierbar']  && 'mattierbar',
-    f['SF_HotFoil']     && 'hotfoil',
-    f['SF_Embossing']   && 'embossing',
+    f['SF_Einfaerbbar'] && 'einfaerbbar', f['SF_Siebdruck'] && 'siebdruck',
+    f['SF_PCR'] && 'PCR', f['SF_Refillable'] && 'refillable',
+    f['SF_Mattierbar'] && 'mattierbar', f['SF_HotFoil'] && 'hotfoil',
+    f['SF_Embossing'] && 'embossing',
   ].filter(Boolean).join(',');
-  const mat  = (f['Material'] ?? []).join('+');
-  const form = (f['Form']     ?? []).join('+');
   return [
     `[${rec.id}] ${f['Page Titel'] ?? '?'} | ${f['Unternehmen'] ?? '?'}`,
-    `${f['Type'] ?? '?'} ${mat} ${f['Volume_ml'] ?? '?'}ml ${f['Closure'] ?? '?'} ${form}`,
+    `${f['Type'] ?? '?'} ${(f['Material'] ?? []).join('+')} ${f['Volume_ml'] ?? '?'}ml ${f['Closure'] ?? '?'} ${(f['Form'] ?? []).join('+')}`,
     attrs && `attrs:${attrs}`,
     sf    && `sf:${sf}`,
   ].filter(Boolean).join(' | ');
@@ -91,26 +143,28 @@ function getImages(f: any): string[] {
   return [];
 }
 
+// ── POST ─────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const { query, active_filters } = await req.json();
     if (!query?.trim()) return NextResponse.json({ error: 'No query' }, { status: 400 });
 
+    // 1. Haiku: Hard Filters
     console.log('[search] Step 1: Haiku');
     const haikuRes = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 150,
       system: HAIKU_PROMPT,
       messages: [{ role: 'user', content: query }],
     });
     const haikuText = haikuRes.content[0].type === 'text' ? haikuRes.content[0].text.trim() : '{}';
     let filters = JSON.parse(haikuText.replace(/```json|```/g, ''));
     if (active_filters) filters = { ...filters, ...active_filters };
-    console.log('[search] filters:', JSON.stringify(filters));
 
-    console.log('[search] Step 2: Airtable + AttrCache parallel');
-    const [attrMap, atRes] = await Promise.all([
+    // 2. Parallel: AttrMap + RegelCache + Airtable
+    console.log('[search] Step 2: Parallel fetches');
+    const [attrMap, regeln, atRes] = await Promise.all([
       getAttrMap(),
+      getRegelCache(),
       fetch(
         `${AIRTABLE_API}/${AIRTABLE_BASE}/tblB1kWay9TvX3rGv`
           + `?filterByFormula=${encodeURIComponent(buildFormula(filters))}&pageSize=100`,
@@ -125,55 +179,76 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ query, hard_filters: filters, detected_filters: [], total: 0, results: [] });
     }
 
-    console.log('[search] Step 3: Sonnet ranking');
-    const productsCtx = records.map((r: any) => buildProductText(r, attrMap)).join('\n');
-    console.log('[search] context length:', productsCtx.length, 'chars');
+    // Skip Ranking fuer kurze/technische Queries (z.B. "PET", "Tiegel 50ml")
+    const wordCount = query.trim().split(/\s+/).length;
+    if (wordCount <= 2) {
+      console.log('[search] skip ranking (filter-only)');
+      const detected_filters = Object.entries(filters)
+        .filter(([, v]) => v !== null)
+        .map(([k, v]) => ({ key: k, value: v, label: k === 'volume_min' ? `>=${v}ml` : k === 'volume_max' ? `<=${v}ml` : String(v) }));
+      const results = records.slice(0, 12).map((r: any) => {
+        const f = r.fields; const harm = f['Bild_Harmonisiert'];
+        return {
+          id: r.id, score: 100, reasoning: '', rendering_brief: '', constraints: [],
+          name: f['Page Titel'] ?? 'Unbekannt', supplier: f['Unternehmen'] ?? '',
+          type: f['Type'] ?? '', material: f['Material'] ?? [], volume: f['Volume_ml'] ?? null,
+          closure: f['Closure'] ?? '', form: f['Form'] ?? [], url: f['Link'] ?? '',
+          bildTyp: f['Bild_Typ'] ?? '', images: getImages(f), matched_kategorie: null,
+          harmonisedImage: Array.isArray(harm) && harm.length ? harm[0].url : undefined,
+        };
+      });
+      return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results, matched_kategorie: null });
+    }
 
+    // 3. Regel matchen + Ranking Prompt zusammenbauen
+    const matchedRegel = matchRegel(query, regeln);
+    const rankingPrompt = matchedRegel
+      ? `${BASE_RANKING_PROMPT}\n\n${buildRegelContext(matchedRegel)}`
+      : BASE_RANKING_PROMPT;
+    if (matchedRegel) console.log('[search] Regel matched:', matchedRegel.kategorie);
+
+    // 4. Haiku Ranking
+    console.log('[search] Step 3: Ranking');
+    const productsCtx = records.map((r: any) => buildProductText(r, attrMap)).join('\n');
     const rankRes = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      system: RANKING_PROMPT,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 4000,
+      system: rankingPrompt,
       messages: [{ role: 'user', content: `Query:"${query}"\n\n${productsCtx}` }],
     });
     const rankText = rankRes.content[0].type === 'text' ? rankRes.content[0].text.trim() : '[]';
-    console.log('[search] Sonnet stop_reason:', rankRes.stop_reason, 'output:', rankText.length, 'chars');
+    console.log('[search] stop_reason:', rankRes.stop_reason, 'len:', rankText.length);
 
     const jsonMatch = rankText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error(`Sonnet kein JSON: ${rankText.slice(0, 300)}`);
+    if (!jsonMatch) throw new Error(`Kein JSON: ${rankText.slice(0, 200)}`);
     const rankings: Array<{ id: string; score: number; reasoning: string; rendering_brief: string; constraints: string[] }>
       = JSON.parse(jsonMatch[0]);
 
+    // 5. Merge
     const recById = new Map(records.map((r: any) => [r.id, r.fields]));
     const results = rankings
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 12)
+      .sort((a, b) => b.score - a.score).slice(0, 12)
       .map(({ id, score, reasoning, rendering_brief, constraints }) => {
         const f = recById.get(id) as any;
         if (!f) return null;
         const harm = f['Bild_Harmonisiert'];
         return {
           id, score, reasoning, rendering_brief, constraints,
-          name:            f['Page Titel']  ?? 'Unbekannt',
-          supplier:        f['Unternehmen'] ?? '',
-          type:            f['Type']        ?? '',
-          material:        f['Material']    ?? [],
-          volume:          f['Volume_ml']   ?? null,
-          closure:         f['Closure']     ?? '',
-          form:            f['Form']        ?? [],
-          url:             f['Link']        ?? '',
-          bildTyp:         f['Bild_Typ']    ?? '',
-          images:          getImages(f),
+          name: f['Page Titel'] ?? 'Unbekannt', supplier: f['Unternehmen'] ?? '',
+          type: f['Type'] ?? '', material: f['Material'] ?? [],
+          volume: f['Volume_ml'] ?? null, closure: f['Closure'] ?? '',
+          form: f['Form'] ?? [], url: f['Link'] ?? '', bildTyp: f['Bild_Typ'] ?? '',
+          images: getImages(f),
           harmonisedImage: Array.isArray(harm) && harm.length ? harm[0].url : undefined,
+          matched_kategorie: matchedRegel?.kategorie ?? null,
         };
-      })
-      .filter(Boolean);
+      }).filter(Boolean);
 
     const detected_filters = Object.entries(filters)
       .filter(([, v]) => v !== null)
       .map(([k, v]) => ({ key: k, value: v, label: k === 'volume_min' ? `>=${v}ml` : k === 'volume_max' ? `<=${v}ml` : String(v) }));
 
     console.log('[search] done, results:', results.length);
-    return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results });
+    return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results, matched_kategorie: matchedRegel?.kategorie ?? null });
 
   } catch (e: any) {
     console.error('[search] ERROR:', e.message, e.stack?.split('\n')[1]);
