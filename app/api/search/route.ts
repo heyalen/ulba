@@ -100,9 +100,9 @@ volume_min/max: Zahl in ml oder null. closure: "Schraubverschluss"|"Pump"|"Airle
 supplier: Name oder null. Nur explizit genannte Infos.`;
 
 const BASE_RANKING_PROMPT = `Beauty-Packaging-Experte. Ranke ALLE Produkte nach Query-Fit.
-NUR JSON-Array, kein Markdown:
-[{"id":"recXXX","score":85,"reasoning":"1 Satz","rendering_brief":"FLUX prompt","constraints":[]}]
-score:0-100, constraints:[] wenn keine.`;
+NUR JSON-Array, kein Markdown, NUR id und score:
+[{"id":"recXXX","score":85}]
+score:0-100. Kein anderer Text, keine anderen Felder.`;
 
 // ── Airtable Formula ─────────────────────────────────────────────────────
 function buildFormula(f: Record<string, any>): string {
@@ -221,19 +221,19 @@ export async function POST(req: NextRequest) {
 
     const jsonMatch = rankText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error(`Kein JSON: ${rankText.slice(0, 200)}`);
-    const rankings: Array<{ id: string; score: number; reasoning: string; rendering_brief: string; constraints: string[] }>
+    const rankings: Array<{ id: string; score: number }>
       = JSON.parse(jsonMatch[0]);
 
     // 5. Merge
     const recById = new Map(records.map((r: any) => [r.id, r.fields]));
     const results = rankings
       .sort((a, b) => b.score - a.score).slice(0, 12)
-      .map(({ id, score, reasoning, rendering_brief, constraints }) => {
+      .map(({ id, score }) => {
         const f = recById.get(id) as any;
         if (!f) return null;
         const harm = f['Bild_Harmonisiert'];
         return {
-          id, score, reasoning, rendering_brief, constraints,
+          id, score, reasoning: '', rendering_brief: '', constraints: [],
           name: f['Page Titel'] ?? 'Unbekannt', supplier: f['Unternehmen'] ?? '',
           type: f['Type'] ?? '', material: f['Material'] ?? [],
           volume: f['Volume_ml'] ?? null, closure: f['Closure'] ?? '',
