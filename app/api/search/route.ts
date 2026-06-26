@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Vercel: Timeout auf 60s erhöhen (benötigt Vercel Pro/Hobby mit aktiviertem Flag)
+export const maxDuration = 60;
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const AIRTABLE_BASE  = process.env.AIRTABLE_BASE_ID!;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN!;
@@ -160,13 +163,16 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: `Suchanfrage: "${query}"\n\nProdukte:\n${productsCtx}` }],
     });
     const rankText = rankRes.content[0].type === 'text' ? rankRes.content[0].text.trim() : '[]';
+    // Extrahiere JSON auch wenn Sonnet Markdown-Wrapper schickt
+    const jsonMatch = rankText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error(`Sonnet kein JSON: ${rankText.slice(0, 200)}`);
     const rankings: Array<{
       id: string;
       score: number;
       reasoning: string;
       rendering_brief: string;
       constraints: string[];
-    }> = JSON.parse(rankText.replace(/```json|```/g, ''));
+    }> = JSON.parse(jsonMatch[0]);
 
     // 4. Merge + Response
     const recById = new Map(records.map((r: any) => [r.id, r.fields]));
@@ -208,6 +214,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ query, hard_filters: filters, detected_filters, total: results.length, results });
 
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('[search/route]', e);
+    return NextResponse.json({ error: e.message ?? 'Unknown error', stack: e.stack?.split('\n')[1] }, { status: 500 });
   }
 }
