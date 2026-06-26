@@ -24,7 +24,7 @@ const TYPE_LABELS: Record<string, string> = {
 interface Product {
   id: string; name: string; supplier: string; type: string;
   images: string[]; harmonisedImage?: string; bildTyp?: string; url?: string;
-  material?: string[]; volume?: number | null; closure?: string; form?: string[];
+  material?: string[]; volume?: number | null; closure?: string; form?: string[]; capImages?: string[];
 }
 interface Result extends Product {
   score: number; reasoning: string; rendering_brief: string; constraints: string[];
@@ -52,6 +52,27 @@ function scoreBg(score: number) {
   if (score >= 80) return '#111';
   if (score >= 60) return '#555';
   return '#999';
+}
+
+
+function CapSlider({ caps }: { caps: string[] }) {
+  const [active, setActive] = useState(0);
+  if (!caps.length) return null;
+  return (
+    <div style={{ marginBottom:24 }}>
+      <div style={{ fontSize:11,color:'#aaa',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:10 }}>Passende Verschlüsse · {caps.length}</div>
+      <div style={{ display:'flex',gap:8,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none' as const }}>
+        {caps.map((url,i)=>(
+          <div key={i} onClick={()=>setActive(i)} style={{ flexShrink:0,width:64,height:64,borderRadius:12,overflow:'hidden',cursor:'pointer',border:active===i?'2px solid #111':'1.5px solid #e5e5e5',background:'#f7f7f7',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            <img src={url} alt={`Cap ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'contain',padding:4 }} onError={e=>{(e.target as HTMLImageElement).style.opacity='0.2';}} />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop:12,width:'100%',height:160,background:'#f7f7f7',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
+        <img src={caps[active]} alt="Verschluss" style={{ maxHeight:'100%',maxWidth:'100%',objectFit:'contain',padding:16 }} />
+      </div>
+    </div>
+  );
 }
 
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
@@ -365,6 +386,8 @@ export default function Home() {
                   {selected.harmonisedImage?<img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:selected.images?.length>0?<img src={selected.images[0]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
                 </div>
               </div>
+
+              {selected.capImages&&selected.capImages.length>0&&<CapSlider caps={selected.capImages} />}
 
               <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:4,letterSpacing:'-0.01em' }}>{selected.name}</div>
               <div style={{ fontSize:15,color:'#999',marginBottom:24 }}>{selected.supplier}</div>
