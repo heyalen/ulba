@@ -157,7 +157,8 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: query }],
     });
     const haikuText = haikuRes.content[0].type === 'text' ? haikuRes.content[0].text.trim() : '{}';
-    let filters = JSON.parse(haikuText.replace(/```json|```/g, ''));
+    const jsonObj = haikuText.match(/{[\s\S]*}/);
+    let filters = JSON.parse(jsonObj?.[0] ?? '{}');
     if (active_filters) filters = { ...filters, ...active_filters };
 
     // 2. Parallel: AttrMap + RegelCache + Airtable
