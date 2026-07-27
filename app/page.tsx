@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
+const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
+
 const EXAMPLES = [
   { label: 'Feminine luxury', q: 'Feminine luxury glass serum, premium' },
   { label: 'Gen Z bold', q: 'Gen Z bold color fun affordable' },
@@ -21,17 +24,23 @@ const TYPE_LABELS: Record<string, string> = {
   Bottle_TriggerPump: 'Bottle · Trigger',
 };
 
-interface Product {
-  id: string; name: string; supplier: string; type: string;
-  images: string[]; harmonisedImage?: string; bildTyp?: string; url?: string;
-  material?: string[]; volume?: number | null; closure?: string; form?: string[]; capImages?: string[];
+// active_filters keys ↔ menschenlesbares Label + Präfix für Chip
+const FILTER_LABELS: Record<string, string> = {
+  materials: 'Material', types: 'Typ', closures: 'Verschluss', sizes: 'Größe',
+};
+
+// API-Format (Stand 17.07.2026) — score/reasoning kommen direkt mit der Suche
+interface Result {
+  id: string; name: string; score: number; reasoning: string;
+  type: string; material: string[]; form: string[]; closure: string;
+  description?: string; imageUrl: string | null;
+  capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
+  capCount: number; capImages?: string[];
+  supplier?: string;
 }
-interface Result extends Product {
-  score: number; reasoning: string; rendering_brief: string; constraints: string[];
-}
+type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; closures: string[] };
 interface Project { id: string; name: string; createdAt: number; }
-interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Product; }
-interface DetectedFilter { key: string; value: any; label: string; }
+interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
 
 const LS_PROJECTS  = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
@@ -54,6 +63,9 @@ function scoreBg(score: number) {
   return '#999';
 }
 
+function Chip({ children }: { children: React.ReactNode }) {
+  return <span style={{ background:'#f2f2f2',color:'#666',borderRadius:999,padding:'4px 10px',fontSize:11.5,fontWeight:500,whiteSpace:'nowrap' }}>{children}</span>;
+}
 
 function CapSlider({ caps }: { caps: string[] }) {
   const [active, setActive] = useState(0);
@@ -75,6 +87,50 @@ function CapSlider({ caps }: { caps: string[] }) {
   );
 }
 
+function RenderSection({ product, defaultQuery }: { product: Result; defaultQuery: string }) {
+  const [query, setQuery]   = useState(defaultQuery);
+  const [status, setStatus] = useState<'idle'|'loading'|'done'|'error'>('idle');
+  const [imgUrl, setImgUrl] = useState<string|null>(null);
+  const [cached, setCached] = useState(false);
+
+  const run = async () => {
+    if (!query.trim()) return;
+    setStatus('loading'); setImgUrl(null);
+    try {
+      const res = await fetch(RENDER_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemId: product.id, query, tier: 'lite' }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'render failed');
+      setImgUrl(data.url || data.imageUrl || null);
+      setCached(!!data.cached);
+      setStatus('done');
+    } catch { setStatus('error'); }
+  };
+
+  return (
+    <div style={{ background:'#f7f7f7',borderRadius:20,padding:'20px 24px',marginBottom:24 }}>
+      <div style={{ fontSize:11,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:12 }}>Visualisieren</div>
+      <div style={{ display:'flex',gap:8,marginBottom:14 }}>
+        <input type="text" value={query} onChange={e=>setQuery(e.target.value)} placeholder="z.B. GenZ pink matt"
+          style={{ flex:1,background:'#fff',border:0,borderRadius:12,padding:'12px 16px',fontSize:14,color:'#111',fontFamily:'inherit',boxSizing:'border-box' as const }} />
+        <button onClick={run} disabled={status==='loading'||!query.trim()}
+          style={{ background:'#111',color:'#fff',border:0,borderRadius:12,padding:'12px 20px',fontSize:13,fontWeight:500,cursor:query.trim()?'pointer':'default',fontFamily:'inherit',whiteSpace:'nowrap',opacity:status==='loading'?0.6:1 }}>
+          {status==='loading' ? 'Rendering...' : '✨ Visualisieren'}
+        </button>
+      </div>
+      {status==='error'&&<div style={{ fontSize:13,color:'#dc2626' }}>Rendering fehlgeschlagen — bitte erneut versuchen.</div>}
+      {imgUrl&&(
+        <div style={{ borderRadius:16,overflow:'hidden',background:'#fff' }}>
+          <img src={imgUrl} alt="Rendering" style={{ width:'100%',display:'block' }} />
+          {cached&&<div style={{ fontSize:11,color:'#999',padding:'8px 12px' }}>Aus Cache</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
@@ -82,7 +138,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   const submit = async () => {
     if (!email.trim()) return; setStatus('sending');
     try {
-      const res = await fetch('/api/sample-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier, brandName: firm||name, brandEmail: email, brief }) });
+      const res = await fetch('/api/sample-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id, productName: product.name, supplier: product.supplier || '', brandName: firm||name, brandEmail: email, brief }) });
       if (!res.ok) throw new Error(); setStatus('done');
     } catch { setStatus('error'); }
   };
@@ -94,13 +150,13 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
           <div style={{ textAlign:'center',padding:'20px 0' }}>
             <div style={{ fontSize:40,marginBottom:16 }}>✓</div>
             <div style={{ fontSize:22,fontWeight:600,color:'#111',marginBottom:10 }}>Request sent</div>
-            <div style={{ fontSize:14,color:'#999',marginBottom:32,lineHeight:1.6 }}>We'll get back to you within 3–5 business days<br />with samples and pricing from {product.supplier}.</div>
+            <div style={{ fontSize:14,color:'#999',marginBottom:32,lineHeight:1.6 }}>We'll get back to you within 3–5 business days<br />with samples and pricing{product.supplier?` from ${product.supplier}`:''}.</div>
             <button onClick={onClose} style={{ background:'#111',color:'#fff',border:0,borderRadius:999,padding:'14px 36px',fontSize:15,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>Done</button>
           </div>
         ) : (
           <>
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28 }}>
-              <div><div style={{ fontSize:20,fontWeight:600,color:'#111',marginBottom:4 }}>Request a sample</div><div style={{ fontSize:13,color:'#999' }}>{product.name} · {product.supplier}</div></div>
+              <div><div style={{ fontSize:20,fontWeight:600,color:'#111',marginBottom:4 }}>Request a sample</div><div style={{ fontSize:13,color:'#999' }}>{product.name}{product.supplier?` · ${product.supplier}`:''}</div></div>
               <button onClick={onClose} style={{ background:'#f2f2f2',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',color:'#555',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
             </div>
             <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
@@ -121,7 +177,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
-function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Product; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
+function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Result; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
   const [newName, setNewName] = useState(''); const [creating, setCreating] = useState(false);
   const savedProjectIds = favorites.filter(f=>f.productId===product.id).map(f=>f.projectId);
   return (
@@ -152,7 +208,7 @@ function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: {
   );
 }
 
-function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Product) => void; }) {
+function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Result) => void; }) {
   const [editingId, setEditingId] = useState<string|null>(null); const [editName, setEditName] = useState(''); const [activeProject, setActiveProject] = useState<string>('all');
   const filtered = activeProject==='all' ? favorites : favorites.filter(f=>f.projectId===activeProject);
   const uniqueProducts = filtered.filter((f,i,arr)=>arr.findIndex(x=>x.productId===f.productId)===i);
@@ -179,10 +235,10 @@ function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDelet
         : <div className="masonry-grid">{uniqueProducts.map((f,i)=>(
             <div key={f.productId+f.projectId} style={{ breakInside:'avoid',marginBottom:28 }}>
               <div onClick={()=>onProductClick(f.product)} style={{ width:'100%',minHeight:HEIGHTS[i%HEIGHTS.length],background:'#f5f5f5',position:'relative',borderRadius:20,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
-                {f.product.images?.[0]?<img src={f.product.images[0]} alt={f.product.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:12,minHeight:HEIGHTS[i%HEIGHTS.length] }} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
+                {f.product.imageUrl?<img src={f.product.imageUrl} alt={f.product.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:12,minHeight:HEIGHTS[i%HEIGHTS.length] }} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
                 <button onClick={e=>{ e.stopPropagation();onRemove(f.productId,f.projectId); }} style={{ position:'absolute',top:12,right:12,background:'rgba(255,255,255,0.95)',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center' }}>♥</button>
               </div>
-              <div style={{ padding:'14px 4px 0' }}><div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{f.product.name}</div><div style={{ fontSize:13,color:'#999' }}>{f.product.supplier}</div></div>
+              <div style={{ padding:'14px 4px 0' }}><div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{f.product.name}</div><div style={{ fontSize:13,color:'#999' }}>{f.product.supplier||''}</div></div>
             </div>
           ))}</div>}
     </div>
@@ -193,18 +249,17 @@ export default function Home() {
   const [mounted, setMounted]                   = useState(false);
   const [input, setInput]                       = useState('');
   const [results, setResults]                   = useState<Result[]|null>(null);
-  const [detectedFilters, setDetectedFilters]   = useState<DetectedFilter[]>([]);
-  const [activeFilters, setActiveFilters]       = useState<Record<string,any>>({});
+  const [parsedFilters, setParsedFilters]       = useState<ParsedFilters>({ sizes:[],materials:[],types:[],closures:[] });
+  const [categoryMatch, setCategoryMatch]       = useState<string>('');
   const [status, setStatus]                     = useState<'idle'|'loading'|'done'|'error'>('idle');
   const [selected, setSelected]                 = useState<Result|null>(null);
-  const [reasoningLoading, setReasoningLoading] = useState(false);
   const [currentQuery, setCurrentQuery]         = useState('');
   const [showResults, setShowResults]           = useState(false);
   const [sampleProduct, setSampleProduct]       = useState<Result|null>(null);
   const [view, setView]                         = useState<'search'|'saved'>('search');
   const [projects, setProjects]                 = useState<Project[]>([]);
   const [favorites, setFavorites]               = useState<FavoriteEntry[]>([]);
-  const [saveModal, setSaveModal]               = useState<Product|null>(null);
+  const [saveModal, setSaveModal]               = useState<Result|null>(null);
   const [copied, setCopied]                     = useState(false);
 
   useEffect(() => { setMounted(true); setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
@@ -222,21 +277,9 @@ export default function Home() {
     else { const u=new URL(window.location.href); u.searchParams.delete('product'); window.history.replaceState(null,'',u.toString()); }
   }, [mounted, selected]);
 
-  // On-demand reasoning — lädt nur wenn Detail-Panel geöffnet wird
-  useEffect(() => {
-    if (!selected || !currentQuery || selected.reasoning) return;
-    setReasoningLoading(true);
-    const ctx = [selected.type,(selected.material??[]).join('+'),selected.volume?`${selected.volume}ml`:'',selected.closure,(selected.form??[]).join('+')].filter(Boolean).join(' ');
-    fetch('/api/reasoning', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ productName: selected.name, productContext: ctx, query: currentQuery }) })
-      .then(r=>r.json())
-      .then(d=>{ if(d.reasoning) setSelected(p=>p?{...p,reasoning:d.reasoning,rendering_brief:d.rendering_brief??''}:p); })
-      .catch(()=>{})
-      .finally(()=>setReasoningLoading(false));
-  }, [selected?.id]);
-
   const isFavorited = (id: string) => favorites.some(f=>f.productId===id);
 
-  const handleSave = (product: Product, projectIdOrNew: string) => {
+  const handleSave = (product: Result, projectIdOrNew: string) => {
     let pid = projectIdOrNew; let updP = projects;
     if (projectIdOrNew.startsWith('__new__:')) {
       const name = projectIdOrNew.replace('__new__:','');
@@ -260,32 +303,48 @@ export default function Home() {
     navigator.clipboard.writeText(u.toString()); setCopied(true); setTimeout(()=>setCopied(false),2000);
   };
 
-  const doSearch = useCallback(async (text: string, overrideFilters?: Record<string,any>) => {
+  // overrideFilters: undefined = frische Suche (Backend parst selbst).
+  //                  Objekt   = reduzierte Filtermenge nach Chip-Removal.
+  const doSearch = useCallback(async (text: string, overrideFilters?: ParsedFilters) => {
     if (!text.trim()) return;
     setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search');
     try {
       const body: any = { query: text };
       if (overrideFilters !== undefined) body.active_filters = overrideFilters;
-      const res = await fetch('/api/search', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const res = await fetch(SEARCH_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setDetectedFilters(data.detected_filters||[]);
-      const na: Record<string,any> = {};
-      for (const f of (data.detected_filters||[])) na[f.key]=f.value;
-      setActiveFilters(na);
-      setResults(data.results||[]);
+      setParsedFilters(data.parsedFilters || { sizes:[],materials:[],types:[],closures:[] });
+      setCategoryMatch(data.categoryMatch || '');
+      setResults(data.results || []);
       setStatus('done');
       if (mounted) window.scrollTo({top:0,behavior:'smooth'});
     } catch { setStatus('error'); }
   }, [mounted]);
 
-  const search     = (t: string) => { setActiveFilters({}); doSearch(t); };
+  const search     = (t: string) => doSearch(t);
   const submit     = () => search(input);
   const useExample = (q: string) => { setInput(q); search(q); };
-  const removeFilter = (key: string) => { const n={...activeFilters}; delete n[key]; setActiveFilters(n); doSearch(currentQuery,n); };
-  const goHome = () => { setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null); setDetectedFilters([]); setActiveFilters({}); setSelected(null); setView('search'); if(mounted)window.scrollTo({top:0,behavior:'smooth'}); };
+  const goHome = () => { setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null); setParsedFilters({ sizes:[],materials:[],types:[],closures:[] }); setCategoryMatch(''); setSelected(null); setView('search'); if(mounted)window.scrollTo({top:0,behavior:'smooth'}); };
+
+  // Chip entfernen → einen Wert aus einer Filter-Kategorie nehmen, reduzierte Menge an Backend
+  const removeFilter = (key: keyof ParsedFilters, value: string) => {
+    const next: ParsedFilters = {
+      sizes: [...parsedFilters.sizes], materials: [...parsedFilters.materials],
+      types: [...parsedFilters.types], closures: [...parsedFilters.closures],
+    };
+    next[key] = next[key].filter(v => v !== value);
+    setParsedFilters(next);
+    doSearch(currentQuery, next);
+  };
 
   const favCount = favorites.filter((f,i,arr)=>arr.findIndex(x=>x.productId===f.productId)===i).length;
+
+  // Flache Liste aller aktiven Filter-Chips über alle Kategorien
+  const filterChips: { key: keyof ParsedFilters; value: string; label: string }[] = [];
+  (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(key => {
+    (parsedFilters[key] || []).forEach(value => filterChips.push({ key, value, label: `${FILTER_LABELS[key]}: ${value}` }));
+  });
 
   if (!mounted) return (
     <div style={{ minHeight:'100vh',background:'#fff',fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
@@ -305,7 +364,6 @@ export default function Home() {
         input::placeholder{color:#aaa!important;opacity:1!important} textarea::placeholder{color:#aaa;opacity:1} textarea{outline:none}
         .chips-bar::-webkit-scrollbar{display:none}
         .masonry-grid{columns:3;column-gap:24px} @media(max-width:900px){.masonry-grid{columns:2}} @media(max-width:600px){.masonry-grid{columns:1}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} .rl{animation:pulse 1.5s ease-in-out infinite}
       `}</style>
 
       <div style={{ display:'flex',alignItems:'center',padding:'0 32px',height:60,borderBottom:'1px solid #f0f0f0',background:'#fff',gap:20,position:'sticky',top:0,zIndex:40 }}>
@@ -330,32 +388,35 @@ export default function Home() {
         </div>
       )}
 
-      {view==='saved'&&<FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p=>setSelected({...p,score:0,reasoning:'',rendering_brief:'',constraints:[]})} />}
+      {view==='saved'&&<FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p=>setSelected(p)} />}
 
       {showResults&&view==='search'&&(
         <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px' }}>
           <div className="chips-bar" style={{ display:'flex',gap:8,padding:'16px 0 8px',overflowX:'auto',flexWrap:'nowrap' }}>
             {EXAMPLES.map((ex,i)=><button key={i} onClick={()=>useExample(ex.q)} style={{ background:currentQuery===ex.q?'#111':'#f2f2f2',color:currentQuery===ex.q?'#fff':'#555',border:0,borderRadius:999,padding:'9px 18px',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',flexShrink:0 }}>{ex.label}</button>)}
           </div>
-          {detectedFilters.length>0&&<div style={{ display:'flex',gap:6,flexWrap:'wrap',padding:'4px 0 8px' }}>{detectedFilters.map(f=><div key={f.key} style={{ display:'flex',alignItems:'center',gap:6,background:'#111',color:'#fff',borderRadius:999,padding:'6px 12px',fontSize:12,fontWeight:500 }}><span>{f.label}</span><span onClick={()=>removeFilter(f.key)} style={{ cursor:'pointer',opacity:0.7,fontSize:16,lineHeight:1,marginLeft:2 }}>×</span></div>)}</div>}
+          {filterChips.length>0&&<div style={{ display:'flex',gap:6,flexWrap:'wrap',padding:'4px 0 8px' }}>{filterChips.map((f,i)=><div key={i} style={{ display:'flex',alignItems:'center',gap:6,background:'#111',color:'#fff',borderRadius:999,padding:'6px 12px',fontSize:12,fontWeight:500 }}><span>{f.label}</span><span onClick={()=>removeFilter(f.key,f.value)} style={{ cursor:'pointer',opacity:0.7,fontSize:16,lineHeight:1,marginLeft:2 }}>×</span></div>)}</div>}
           <div style={{ padding:'8px 0 24px',fontSize:14,color:'#999',display:'flex',alignItems:'baseline',gap:10 }}>
             {status==='loading'&&<span>Searching...</span>}
             {status==='error'&&<span style={{ color:'#dc2626' }}>Error — please try again</span>}
-            {results&&status==='done'&&<><b style={{ color:'#111',fontWeight:500,fontSize:15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span><span style={{ marginLeft:'auto',fontSize:12,color:'#bbb' }}>Sorted by relevance</span></>}
+            {results&&status==='done'&&<><b style={{ color:'#111',fontWeight:500,fontSize:15 }}>{results.length} packagings</b><span>for "{currentQuery}"</span>{categoryMatch&&<span style={{ color:'#bbb' }}>· {categoryMatch}</span>}<span style={{ marginLeft:'auto',fontSize:12,color:'#bbb' }}>Sorted by relevance</span></>}
             {results&&status==='done'&&results.length===0&&<span style={{ color:'#aaa' }}>No results — try a broader search</span>}
           </div>
           {results&&results.length>0&&(
             <div className="masonry-grid" style={{ paddingBottom:60 }}>
-              {results.map((r,i)=>{ const img=r.harmonisedImage||r.images?.[0]||null; return (
+              {results.map((r,i)=>{
+                const chips = [r.material?.[0], r.availableSizes?.[0], r.capCount ? `${r.capCount} closures` : null].filter(Boolean) as string[];
+                return (
                 <div key={r.id} style={{ breakInside:'avoid',marginBottom:28 }}>
                   <div onClick={()=>setSelected(r)} style={{ width:'100%',minHeight:HEIGHTS[i%HEIGHTS.length],background:'#f5f5f5',position:'relative',borderRadius:20,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
-                    {img?<img src={img} alt={r.name} style={{ width:'100%',height:'100%',objectFit:'contain',minHeight:HEIGHTS[i%HEIGHTS.length],padding:12 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
+                    {r.imageUrl?<img src={r.imageUrl} alt={r.name} style={{ width:'100%',height:'100%',objectFit:'contain',minHeight:HEIGHTS[i%HEIGHTS.length],padding:12 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<span style={{ fontSize:40,color:'#ccc' }}>◇</span>}
                     <div style={{ position:'absolute',top:14,right:14,background:scoreBg(r.score),color:'#fff',borderRadius:999,padding:'5px 13px',fontSize:12,fontWeight:600 }}>{r.score}%</div>
                     <button onClick={e=>{e.stopPropagation();setSaveModal(r);}} style={{ position:'absolute',bottom:12,right:12,background:'rgba(255,255,255,0.95)',border:0,borderRadius:999,width:36,height:36,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',color:isFavorited(r.id)?'#e11d48':'#999' }}>{isFavorited(r.id)?'♥':'♡'}</button>
                   </div>
                   <div style={{ padding:'14px 4px 0' }}>
                     <div style={{ fontSize:15,fontWeight:500,color:'#111',lineHeight:1.3,marginBottom:3 }}>{r.name}</div>
-                    <div style={{ fontSize:13,color:'#999' }}>{r.supplier}</div>
+                    <div style={{ fontSize:13,color:'#999',marginBottom:8 }}>{r.supplier||''}</div>
+                    {chips.length>0&&<div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>{chips.map((c,ci)=><Chip key={ci}>{c}</Chip>)}</div>}
                   </div>
                 </div>
               ); })}
@@ -385,31 +446,24 @@ export default function Home() {
 
               <div style={{ marginBottom:28 }}>
                 <div style={{ width:'100%',aspectRatio:'1',background:'#f5f5f5',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
-                  {selected.harmonisedImage?<img src={selected.harmonisedImage} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:selected.images?.length>0?<img src={selected.images[0]} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain' }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
+                  {selected.imageUrl?<img src={selected.imageUrl} alt={selected.name} style={{ width:'100%',height:'100%',objectFit:'contain',padding:24 }} />:<span style={{ fontSize:88,color:'#ddd' }}>◇</span>}
                 </div>
               </div>
 
               <div style={{ fontSize:28,fontWeight:500,color:'#111',lineHeight:1.25,marginBottom:4,letterSpacing:'-0.01em' }}>{selected.name}</div>
-              <div style={{ fontSize:15,color:'#999',marginBottom:24 }}>{selected.supplier}</div>
+              <div style={{ fontSize:15,color:'#999',marginBottom:24 }}>{selected.supplier||''}</div>
 
-              {/* Score + Reasoning (on-demand) */}
               {selected.score>0&&(
                 <div style={{ background:'#f7f7f7',borderRadius:20,padding:'20px 24px',marginBottom:24 }}>
                   <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:10 }}>
                     <b style={{ fontSize:32,fontWeight:600,color:'#111' }}>{selected.score}%</b>
                     <span style={{ fontSize:13,color:'#999' }}>match</span>
                   </div>
-                  {reasoningLoading&&<div className="rl" style={{ height:14,width:'75%',background:'#ddd',borderRadius:7 }} />}
-                  {!reasoningLoading&&selected.reasoning&&<p style={{ margin:0,fontSize:14,color:'#555',lineHeight:1.6 }}>{selected.reasoning}</p>}
+                  {selected.reasoning&&<p style={{ margin:0,fontSize:14,color:'#555',lineHeight:1.6 }}>{selected.reasoning}</p>}
                 </div>
               )}
 
-              {selected.constraints?.length>0&&(
-                <div style={{ marginBottom:24 }}>
-                  <div style={{ fontSize:11,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:10 }}>Nicht möglich</div>
-                  {selected.constraints.map((c,i)=><div key={i} style={{ display:'flex',alignItems:'flex-start',gap:8,fontSize:13,color:'#666',marginBottom:6,lineHeight:1.5 }}><span style={{ color:'#dc2626',flexShrink:0,marginTop:1 }}>✕</span>{c}</div>)}
-                </div>
-              )}
+              <RenderSection product={selected} defaultQuery={currentQuery} />
 
               <div style={{ marginBottom:28 }}>
                 <div style={{ fontSize:11,color:'#bbb',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:500,marginBottom:14 }}>Specifications</div>
@@ -417,15 +471,18 @@ export default function Home() {
                   {selected.type&&<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Type</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{TYPE_LABELS[selected.type]||selected.type}</div></div>}
                   {selected.supplier&&<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Supplier</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.supplier}</div></div>}
                   {selected.material?.length?<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Material</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.material.join(', ')}</div></div>:null}
-                  {selected.volume?<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Volume</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.volume} ml</div></div>:null}
+                  {selected.availableSizes?.length?<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Sizes</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.availableSizes.join(', ')}</div></div>:null}
                   {selected.closure&&<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Closure</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.closure}</div></div>}
                   {selected.form?.length?<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Form</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.form.join(', ')}</div></div>:null}
+                  {selected.capCount>0&&<div style={{ background:'#f7f7f7',borderRadius:14,padding:'14px 18px' }}><div style={{ fontSize:11,color:'#aaa',marginBottom:4 }}>Compatible closures</div><div style={{ fontSize:15,fontWeight:500,color:'#111' }}>{selected.capCount}</div></div>}
                 </div>
+                {selected.capabilities?.length>0&&(
+                  <div style={{ display:'flex',gap:6,flexWrap:'wrap',marginTop:10 }}>{selected.capabilities.map((c,i)=><Chip key={i}>{c}</Chip>)}</div>
+                )}
               </div>
 
               <div style={{ display:'flex',gap:12,marginTop:32 }}>
                 <button onClick={()=>setSampleProduct(selected)} style={{ flex:1,padding:18,background:'#111',color:'#fff',border:0,borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit' }}>Request sample →</button>
-                {selected.url&&<a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ padding:'18px 32px',background:'#fff',color:'#111',border:'1px solid #e5e5e5',borderRadius:999,fontSize:16,fontWeight:500,cursor:'pointer',fontFamily:'inherit',textDecoration:'none' }}>Supplier</a>}
               </div>
             </div>
           </div>
