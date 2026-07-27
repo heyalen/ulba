@@ -103,7 +103,7 @@ function RenderSection({ product, defaultQuery }: { product: Result; defaultQuer
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'render failed');
-      setImgUrl(data.url || data.imageUrl || null);
+      setImgUrl(data.renderingUrl || null);
       setCached(!!data.cached);
       setStatus('done');
     } catch { setStatus('error'); }
