@@ -1,6 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+/* ══════════════════════════════════════════════════════════════════════
+   ulba · page.tsx  —  Stufe 1 (Variante A)
+   Thread-Verlaufsmodell: jeder Suchlauf ist ein Block im Verlauf.
+   Verdrahtet gegen die bestehenden Endpoints /api/search und /api/render.
+   Favoriten/Projekte laufen wie bisher über localStorage (unverändert).
+
+   Was hier NEU ist gegenüber deinem v10-Stand:
+     · Linke App-Nav (Neues Projekt · Favoriten · Meine Linien · Musteranfragen)
+     · Chat-artiger Verlauf: jede Verfeinerung erzeugt einen Block DARUNTER
+     · Facetten (nur nicht gesetzte Dimensionen) am jeweils letzten Block
+     · Split-Ansicht 530/530: Klick öffnet Render-Panel rechts (kein Slide-over)
+
+   ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
+   Suche unten nach  ANNAHME:  — dort sind die Feldnamen dokumentiert,
+   die dein Backend liefern muss. Wenn ein Feld anders heisst, nur dort ändern.
+   ══════════════════════════════════════════════════════════════════════ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
@@ -22,21 +39,21 @@ const TYPE_LABELS: Record<string, string> = {
   Bottle_TriggerPump: 'Flasche · Trigger',
 };
 
-const FILTER_LABELS: Record<string, string> = {
+const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
   materials: 'Material', types: 'Typ', closures: 'Verschluss', sizes: 'Größe',
 };
 
-// Volumen → Regal-Höhe (Maßstab). Erste verfügbare Größe bestimmt den Bucket.
-const VOL_BUCKET: Record<number, number> = { 15: 150, 20: 162, 30: 178, 50: 205, 75: 232, 100: 258, 150: 288, 200: 310 };
-function sizeToHeight(sizes?: string[]): number {
-  const raw = sizes?.[0] || '';
-  const ml = parseInt(raw.replace(/[^0-9]/g, ''), 10);
-  if (!ml || Number.isNaN(ml)) return 205;
-  const keys = Object.keys(VOL_BUCKET).map(Number);
-  const near = keys.reduce((a, b) => (Math.abs(b - ml) < Math.abs(a - ml) ? b : a));
-  return VOL_BUCKET[near];
-}
+/* Facetten zum manuellen Eingrenzen. Nur Dimensionen anbieten,
+   die nicht schon in parsedFilters gesetzt sind. Die Werte werden bei
+   Auswahl in active_filters.<dim> geschoben und lösen eine neue Suche aus. */
+const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
+  { dim: 'materials', label: 'Material', opt: ['Glass', 'PP', 'PETG', 'Acrylic', 'Aluminium'] },
+  { dim: 'sizes', label: 'Volumen', opt: ['15ml', '30ml', '50ml', '75ml', '100ml'] },
+  { dim: 'closures', label: 'Verschluss', opt: ['ScrewCap', 'Pump', 'Dropper', 'Spray', 'FlipTop'] },
+];
 
+// ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
+//     (1:1 aus deinem bestehenden Interface übernommen — nichts geraten.)
 interface Result {
   id: string; name: string; score: number; reasoning: string;
   type: string; material: string[]; form: string[]; closure: string;
@@ -45,11 +62,27 @@ interface Result {
   capCount: number; capImages?: string[];
   supplier?: string;
 }
+
+// ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
 type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; closures: string[] };
+
+/* Ein Verlaufs-Block = ein Suchlauf. Der Thread ist Block[].
+   So wird jede Verfeinerung als eigener Block DARUNTER sichtbar. */
+interface Block {
+  id: number;
+  intro: string;            // was diesen Block ausgelöst hat ("wärmer", "Material: Glass", Startquery)
+  query: string;            // die Query, mit der gesucht wurde
+  filters: ParsedFilters;   // Filterstand dieses Blocks (Snapshot)
+  results: Result[];
+  categoryMatch: string;
+  alleZeigen: boolean;      // "alle weiteren anzeigen" pro Block
+  status: 'loading' | 'done' | 'error';
+}
+
 interface Project { id: string; name: string; createdAt: number; }
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
 
-const LS_PROJECTS  = 'ulba_projects';
+const LS_PROJECTS = 'ulba_projects';
 const LS_FAVORITES = 'ulba_favorites';
 
 function loadProjects(): Project[] {
@@ -64,177 +97,226 @@ function loadFavorites(): FavoriteEntry[] {
 }
 function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
 
+/* ── Design-System: „Porzellan & Pigment" ── */
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root{
-  --weiss:#FFFFFF;--tinte:#17181A;--grau:#6F7276;--hell:#B4B6B9;
-  --rouge:#4C1420;--linie:#ECEBE9;--linie2:#F4F3F2;--r:14px;
+  --porzellan:#FBFAF8;--panel:#FFFFFF;--nische:#F5F4F1;
+  --tinte:#14181A;--grau:#5F6A6C;--hell:#98A2A3;
+  --rouge:#4C1420;--linie:#E4E3DF;--linie2:#F0EFEC;--r:14px;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'Instrument Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
 }
-.ulba{background:var(--weiss);color:var(--tinte);min-height:100vh;font-family:'Instrument Sans',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
 .ulba button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ulba input,.ulba textarea{font:inherit}
 .ulba :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
-.serif{font-family:'Instrument Serif',Georgia,serif}
-.kursiv{font-family:'Instrument Serif',Georgia,serif;font-style:italic;font-weight:400}
+.serif{font-family:var(--serif)} .kursiv{font-family:var(--serif);font-style:italic}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 
-.kopf{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.88);backdrop-filter:blur(12px);display:flex;align-items:center;gap:16px;padding:15px 32px}
-.marke{font-family:'Instrument Serif',serif;font-size:24px;letter-spacing:-.01em;line-height:1;cursor:pointer;flex-shrink:0}
-.kopf-suche{flex:1;display:flex;justify-content:center}
-.kopf-feld{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--linie);border-radius:999px;padding:9px 20px;width:100%;max-width:640px;box-shadow:0 3px 18px -12px rgba(23,24,26,.14)}
-.kopf-feld input{flex:1;border:0;background:transparent;outline:none;font-size:14px;color:var(--tinte)}
-.kopf-feld input::placeholder{color:var(--hell)}
-.kopf-btn{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--grau);flex-shrink:0}
-.kopf-btn:hover{color:var(--tinte)}
-.kopf-btn .z{font-size:12px;background:var(--tinte);color:#fff;border-radius:999px;min-width:19px;height:19px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+/* Nav */
+.nav{border-right:1px solid var(--linie);padding:16px 12px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
+.nav-marke{font-family:var(--serif);font-size:26px;text-align:left;padding:4px 8px 12px}
+.nav-neu{text-align:left;border:1px solid var(--linie);border-radius:11px;padding:11px 14px;font-size:14px;background:var(--panel);margin-bottom:10px}
+.nav-neu:hover{border-color:var(--tinte)}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;text-align:left;color:var(--grau);font-size:14px}
+.nav-item:hover{background:var(--nische)}
+.nav-item.an{background:var(--nische);color:var(--tinte)}
+.ni-ic{width:18px;text-align:center;color:var(--hell)} .nav-item.an .ni-ic{color:var(--rouge)}
+.ni-t{flex:1}
+.ni-b{font-family:var(--mono);font-size:11px;background:var(--rouge);color:#fff;border-radius:999px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+.nav-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--hell);padding:12px 11px 6px}
+.nav-chats{display:flex;flex-direction:column;gap:1px;flex:1;overflow-y:auto}
+.nav-chat{text-align:left;padding:9px 11px;border-radius:9px;display:flex;flex-direction:column;gap:2px}
+.nav-chat:hover{background:var(--nische)} .nav-chat.an{background:var(--nische)}
+.nc-t{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nc-s{font-family:var(--mono);font-size:10px;color:var(--hell)}
+.nav-leer{font-size:12.5px;color:var(--hell);padding:8px 11px}
+.nav-profil{display:flex;align-items:center;gap:10px;padding:12px 8px 4px;margin-top:8px;border-top:1px solid var(--linie)}
+.np-av{width:30px;height:30px;border-radius:50%;background:var(--rouge);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
+.np-n{display:block;font-size:13.5px} .np-s{display:block;font-family:var(--mono);font-size:10.5px;color:var(--hell)}
 
-.landing{display:flex;flex-direction:column;align-items:center;padding:104px 24px 60px;text-align:center}
-.landing h1{font-family:'Instrument Serif',serif;font-size:clamp(38px,5.4vw,56px);line-height:1.05;letter-spacing:-.02em;max-width:16ch;margin:0 auto 16px}
-.landing h1 em{font-style:italic;color:var(--rouge)}
-.landing .unter{color:var(--grau);max-width:40ch;margin:0 auto 40px}
-.feld{display:flex;align-items:center;max-width:600px;width:100%;border:1px solid var(--linie);border-radius:999px;background:#fff;padding:5px 5px 5px 22px;box-shadow:0 4px 24px -12px rgba(23,24,26,.12)}
-.feld input{flex:1;border:0;background:transparent;outline:none;padding:12px 6px;font-size:16px;color:var(--tinte)}
+/* Main */
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
+.topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
+.content{flex:1;overflow-y:auto;min-height:0}
+
+/* Start */
+.start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
+.st-mitte{width:100%;max-width:640px;text-align:center;padding:0 24px}
+.st-logo{font-family:var(--serif);font-size:26px;color:var(--rouge);margin-bottom:18px;opacity:.7}
+.st-mitte h1{font-family:var(--serif);font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.02em;margin-bottom:30px}
+.st-mitte h1 em{font-style:italic;color:var(--rouge)}
+.feld{position:relative;display:flex;align-items:center;max-width:600px;margin:0 auto;border:1px solid var(--linie);border-radius:16px;background:var(--panel);padding:6px 6px 6px 20px;box-shadow:0 10px 40px -22px rgba(20,24,26,.4)}
+.feld:focus-within{border-color:var(--tinte)}
+.feld input{flex:1;border:0;background:none;padding:14px 4px;color:var(--tinte);min-width:0;outline:none}
 .feld input::placeholder{color:var(--hell)}
-.feld button{background:var(--tinte);color:#fff;padding:12px 26px;border-radius:999px;font-size:14px;flex-shrink:0}
-.feld button:hover{background:var(--rouge)}
-.chips-ein{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:20px;max-width:560px}
-.chip-ein{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau)}
-.chip-ein:hover{background:var(--linie2);color:var(--tinte)}
-.chip-ein.an{background:var(--tinte);color:#fff}
+.feld .go{flex:none;width:42px;height:42px;border-radius:11px;background:var(--tinte);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.feld .go:hover{background:var(--rouge)}
+.st-trend{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:22px auto 0;max-width:580px}
+.tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:var(--panel)}
+.tr-pill:hover{border-color:var(--tinte);color:var(--tinte)}
+.st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 
-.results{max-width:1200px;margin:0 auto;padding:0 32px}
-.gelesen{margin:24px 0 8px;color:var(--grau);display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;font-size:14px}
-.gelesen .pal{font-family:'Instrument Serif',serif;font-style:italic;font-size:20px;color:var(--tinte)}
-.gelesen .treffer{margin-left:auto;color:var(--hell)}
-.fzeile{display:flex;gap:7px;flex-wrap:wrap;padding:6px 0 8px}
-.fchip{display:inline-flex;align-items:center;gap:8px;background:var(--linie2);padding:6px 8px 6px 13px;border-radius:999px;font-size:13px;color:var(--grau)}
-.fchip .x{cursor:pointer;color:var(--hell);font-size:15px;line-height:1}
-.fchip .x:hover{color:var(--rouge)}
+/* Chat / Split */
+.chat{display:grid;grid-template-columns:1fr;height:100%}
+.chat.split{grid-template-columns:minmax(530px,1fr) 530px}
+.cs-main{display:flex;flex-direction:column;min-width:0;height:100%}
+.thread{flex:1;overflow-y:auto;padding:26px clamp(16px,4vw,54px) 20px}
+.refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
+.refine .feld{max-width:none;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
+.refine .feld input{padding:11px 4px;font-size:14px}
 
-.abschnitt{display:flex;justify-content:space-between;align-items:baseline;margin:34px 0 4px}
-.abschnitt .h{font-family:'Instrument Serif',serif;font-size:20px}
-.abschnitt .s{color:var(--hell);font-size:13px}
+.msg-user{display:flex;justify-content:flex-end;margin:16px 0}
+.msg-user span{background:var(--tinte);color:#fff;padding:11px 17px;border-radius:16px 16px 4px 16px;font-size:14.5px;max-width:78%}
+.msg-ulba{margin:8px 0 26px}
+.eb-alt{opacity:.6}
+.eb-intro{font-family:var(--serif);font-style:italic;font-size:19px;line-height:1.4;margin-bottom:14px;max-width:60ch}
+.eb-filter{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+.ebf-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell);margin-right:4px}
+.ebf-pill{display:inline-flex;align-items:center;gap:7px;background:var(--tinte);color:#fff;padding:6px 8px 6px 13px;border-radius:999px;font-size:13px}
+.ebf-x{color:rgba(255,255,255,.6);font-size:15px;line-height:1;cursor:pointer}
+.ebf-x:hover{color:#fff}
+.eb-kopf{display:flex;align-items:baseline;gap:10px;margin:2px 0 12px}
+.ebk-h{font-family:var(--serif);font-size:20px}
+.ebk-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
+.eb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.eb-grid.schmal{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
+.ek:hover{border-color:var(--hell);transform:translateY(-2px)}
+.ek.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
+.ek-klick{display:block;width:100%;text-align:left}
+.ek-bild{background:var(--nische);display:flex;align-items:center;justify-content:center;height:150px;overflow:hidden}
+.ek-bild img{max-width:78%;max-height:80%;object-fit:contain}
+.ek-ph{font-size:38px;color:#d8d8d6}
+.ek-info{padding:11px 13px}
+.ek-nm{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ek-spec{display:block;font-family:var(--mono);font-size:11px;color:var(--hell);margin-top:3px}
+.ek-match{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:var(--porzellan);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
+.em-z{font-family:var(--mono);font-size:15px;color:var(--rouge);line-height:1}
+.em-l{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-top:1px}
+.favherz{position:absolute;top:9px;left:10px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(251,250,248,.9);border:1px solid var(--linie);font-size:13px;color:var(--hell);display:flex;align-items:center;justify-content:center}
+.favherz:hover,.favherz.an{color:var(--rouge)}
+.eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
+.eb-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
+.eb-facetten{display:flex;flex-direction:column;gap:10px;margin-top:22px;padding-top:20px;border-top:1px solid var(--linie2)}
+.facet{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.fc-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--grau);width:92px;flex:none}
+.fc-opt{padding:7px 14px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:var(--panel)}
+.fc-opt:hover{border-color:var(--tinte);color:var(--tinte)}
+.eb-scan{border:1px solid var(--linie);border-radius:13px;background:var(--panel);padding:15px 18px;max-width:560px;margin-bottom:8px}
+.sc-kopf{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}
+.sc-lbl{font-size:13.5px} .sc-liefer{font-family:var(--mono);font-size:11px;color:var(--rouge)}
+.sc-zeile{font-family:var(--mono);font-size:12px;color:var(--grau)}
 
-.regale{margin-bottom:6px}
-.regal-reihe{display:flex;align-items:flex-end;gap:clamp(20px,3.2vw,54px);padding:46px 4px 0;position:relative;overflow-x:auto}
-.regal-reihe::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--linie)}
-.regal-reihe::-webkit-scrollbar{display:none}
-.stellplatz{position:relative;display:flex;flex-direction:column;align-items:center;flex:none;padding-bottom:30px;cursor:pointer;transition:transform .2s}
-.stellplatz:hover{transform:translateY(-5px)}
-.obj-wrap{position:relative;display:flex;align-items:flex-end;justify-content:center;filter:drop-shadow(0 12px 16px rgba(23,24,26,.09))}
-.obj-wrap img{object-fit:contain;object-position:bottom;display:block}
-.obj-ph{display:flex;align-items:center;justify-content:center;color:#d8d8d6}
-.score{position:absolute;top:2px;right:-2px;font-size:11px;color:var(--hell);font-variant-numeric:tabular-nums;z-index:2}
-.stellplatz:hover .score,.kachel:hover .score{color:var(--grau)}
-.nm{position:absolute;bottom:6px;font-size:12.5px;color:var(--grau);white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
-.stellplatz:hover .nm{color:var(--tinte)}
-.stellplatz .fav{position:absolute;top:0;left:-4px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:13px;opacity:0;transition:opacity .15s}
-.stellplatz:hover .fav{opacity:1}
-
-.raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;padding-bottom:20px}
-.kachel{background:#FAFAF9;border:1px solid var(--linie2);border-radius:12px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:border-color .15s,transform .15s;overflow:hidden}
-.kachel:hover{border-color:var(--linie);transform:translateY(-2px)}
-.kachel img{max-width:78%;max-height:74%;object-fit:contain}
-.kachel .score{top:8px;right:9px}
-.kachel .kn{position:absolute;bottom:8px;left:10px;right:10px;font-size:11.5px;color:var(--hell);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kachel:hover .kn{color:var(--grau)}
-.kachel .fav{position:absolute;top:7px;left:8px;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:12px;opacity:0;transition:opacity .15s}
-.kachel:hover .fav{opacity:1}
-.ffzeile{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 18px}
-.ff{padding:6px 13px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:#fff}
-.ff:hover{border-color:var(--hell);color:var(--tinte)}
-.ff.an{background:var(--tinte);border-color:var(--tinte);color:#fff}
-.mehr-btn{display:block;margin:8px auto 60px;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:14px;color:var(--grau);background:#fff}
-.mehr-btn:hover{border-color:var(--tinte);color:var(--tinte)}
-
-.status-z{padding:10px 0 20px;font-size:14px;color:var(--grau)}
-
-.panel-bg{position:fixed;inset:0;background:rgba(23,24,26,.22);z-index:50}
-.panel{position:fixed;top:0;right:0;width:680px;max-width:100vw;height:100%;background:#fff;z-index:51;overflow-y:auto;box-shadow:-2px 0 40px rgba(23,24,26,.1)}
-.panel-in{padding:32px 44px 56px}
-.panel-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:10px}
-.ptool{display:flex;align-items:center;gap:7px;background:var(--linie2);color:var(--grau);border-radius:999px;padding:10px 18px;font-size:14px}
-.ptool:hover{color:var(--tinte)}
-.ptool.an{background:#fff0f4;color:var(--rouge)}
-.ptool.ok{background:#f0fdf4;color:#16a34a}
-.pclose{background:var(--linie2);border-radius:999px;width:40px;height:40px;color:var(--grau);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.pbild{width:100%;aspect-ratio:1;background:#FAFAF9;border:1px solid var(--linie2);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:26px}
-.pbild img{width:100%;height:100%;object-fit:contain;padding:26px}
-.ptitel{font-family:'Instrument Serif',serif;font-size:30px;line-height:1.15;letter-spacing:-.015em;margin-bottom:5px}
-.psub{font-size:14px;color:var(--hell);margin-bottom:22px}
-.pgrund{font-family:'Instrument Serif',serif;font-style:italic;font-size:18px;line-height:1.45;color:var(--grau);margin:0 0 22px;padding-left:15px;border-left:1px solid var(--rouge)}
-.pblock-lbl{font-size:12px;color:var(--hell);margin-bottom:12px;letter-spacing:.02em}
-.specs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
-.spec{background:#FAFAF9;border-radius:12px;padding:14px 18px}
-.spec .k{font-size:11px;color:var(--hell);margin-bottom:4px}
-.spec .v{font-size:14.5px;font-weight:500;color:var(--tinte)}
-.chip{background:var(--linie2);color:var(--grau);border-radius:999px;padding:5px 11px;font-size:12px;white-space:nowrap;display:inline-block}
-.vis{background:#FAFAF9;border-radius:var(--r);padding:20px 22px;margin:24px 0}
-.vis .top{font-size:12px;color:var(--hell);margin-bottom:12px;letter-spacing:.02em}
-.vis .row{display:flex;gap:8px;align-items:center}
-.vis input{flex:1;background:#fff;border:1px solid var(--linie);border-radius:12px;padding:12px 15px;font-size:14px;color:var(--tinte);outline:none}
-.vis .go{background:var(--tinte);color:#fff;border-radius:999px;padding:12px 22px;font-size:13px;white-space:nowrap;flex-shrink:0}
-.vis .go:hover{background:var(--rouge)}
-.vis .go:disabled{opacity:.5;cursor:default}
-.vis .out{margin-top:14px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--linie)}
+/* Render-Panel (rechts, fest 530) */
+.panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;overflow-y:auto}
+.pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
+.pn-kopf h3{font-family:var(--serif);font-size:24px}
+.pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
+.pn-akt{display:flex;gap:10px}
+.pn-zu{font-size:22px;color:var(--hell)} .pn-zu:hover{color:var(--rouge)}
+.pn-bild{margin:0 24px;height:min(42vh,340px);min-height:260px;border:1px solid var(--linie);border-radius:var(--r);background:var(--porzellan);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-bild img{max-width:82%;max-height:82%;object-fit:contain}
+.pn-body{padding:16px 24px 0}
+.pgrund{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.45;color:var(--grau);margin:16px 0;padding-left:15px;border-left:1px solid var(--rouge)}
+.vis{background:var(--nische);border-radius:var(--r);padding:16px 18px;margin:18px 0}
+.vis .top{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
+.vis .row{display:flex;gap:8px}
+.vis input{flex:1;background:var(--panel);border:1px solid var(--linie);border-radius:11px;padding:11px 13px;font-size:14px;outline:none}
+.vis .gen{background:var(--tinte);color:#fff;border-radius:999px;padding:11px 20px;font-size:13px;white-space:nowrap}
+.vis .gen:hover{background:var(--rouge)} .vis .gen:disabled{opacity:.5;cursor:default}
+.vis .out{margin-top:12px;border-radius:11px;overflow:hidden;border:1px solid var(--linie);background:var(--panel)}
 .vis .out img{width:100%;display:block}
-.cta-zeile{display:flex;gap:12px;margin-top:30px}
-.cta{flex:1;background:var(--tinte);color:#fff;padding:16px;border-radius:999px;font-size:16px}
-.cta:hover{background:var(--rouge)}
-
-.capstrip .lbl{font-size:12px;color:var(--hell);margin-bottom:10px;letter-spacing:.02em}
+.specs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.spec{background:var(--nische);border-radius:11px;padding:12px 15px}
+.spec .k{font-size:11px;color:var(--hell);margin-bottom:3px}
+.spec .v{font-size:14px;font-weight:500}
+.chip{background:var(--nische);color:var(--grau);border-radius:999px;padding:5px 11px;font-size:12px;display:inline-block}
+.capstrip{margin:16px 0}
+.capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
 .capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-.capthumb{flex-shrink:0;width:60px;height:60px;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--linie);background:#FAFAF9;display:flex;align-items:center;justify-content:center}
-.capthumb.an{border:1.5px solid var(--tinte)}
-.capthumb img{width:100%;height:100%;object-fit:contain;padding:6px}
-.capsolo{margin-top:12px;width:100%;height:140px;background:#FAFAF9;border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.capsolo img{max-height:100%;max-width:100%;object-fit:contain;padding:16px}
+.capthumb{flex:none;width:56px;height:56px;border-radius:11px;border:1px solid var(--linie);background:var(--nische);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.capthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
+.capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:6px}
+.pn-aktion{position:sticky;bottom:0;display:flex;gap:9px;padding:16px 24px;background:linear-gradient(to top,var(--panel) 72%,transparent);margin-top:auto}
+.pn-aktion .cta{flex:1;background:var(--tinte);color:#fff;padding:14px;border-radius:999px;font-size:15px}
+.pn-aktion .cta:hover{background:var(--rouge)}
+.pn-aktion .cta-sek{border:1px solid var(--linie);border-radius:999px;padding:14px 18px;font-size:14px;color:var(--grau);background:var(--panel)}
+.pn-aktion .cta-sek.an{border-color:var(--rouge);color:var(--rouge)}
 
-.modal-bg{position:fixed;inset:0;background:rgba(23,24,26,.35);z-index:100}
-.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;z-index:101;box-shadow:0 24px 60px rgba(23,24,26,.18)}
-.mfield{width:100%;background:#FAFAF9;border:0;border-radius:12px;padding:12px 16px;font-size:14px;color:var(--tinte);outline:none}
+/* Bereiche */
+.bereich{padding:32px clamp(16px,4vw,54px) 60px}
+.ber-kopf{margin-bottom:24px}
+.ber-kopf h2{font-family:var(--serif);font-size:32px;letter-spacing:-.015em;margin-bottom:8px}
+.ber-kopf p{color:var(--grau);max-width:52ch}
+.leer{color:var(--hell);font-size:14px;padding:44px;text-align:center;border:1px dashed var(--linie);border-radius:var(--r)}
+.leer .gr{font-family:var(--serif);font-style:italic;font-size:20px;color:var(--tinte);margin-bottom:6px}
+.lin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.lin-karte{text-align:left;border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.lin-karte:hover{border-color:var(--hell)}
+.lk-reihe{display:flex;gap:12px;justify-content:center;background:var(--nische);padding:20px;min-height:110px;align-items:center}
+.lk-reihe img{max-height:80px;object-fit:contain}
+.lk-info{padding:14px 16px}
+.lk-t{display:block;font-family:var(--serif);font-size:18px}
+.lk-s{display:block;font-family:var(--mono);font-size:11px;color:var(--hell);margin-top:3px}
+.anf-liste{display:flex;flex-direction:column;gap:12px}
+.anf-karte{display:grid;grid-template-columns:1fr auto;gap:16px;border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);padding:16px 20px}
+.ak-t{font-family:var(--serif);font-size:18px}
+.ak-meta{font-family:var(--mono);font-size:11px;color:var(--hell);margin:3px 0 12px}
+.ak-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sst{font-family:var(--mono);font-size:11.5px;color:var(--hell)} .sst.an{color:var(--grau)} .sst.jetzt{color:var(--rouge)}
+.sst-pfeil{color:var(--linie)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(20,24,26,.35);z-index:100}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;z-index:101;border-radius:22px;box-shadow:0 24px 60px rgba(20,24,26,.18);width:480px;max-width:calc(100vw - 48px);padding:36px}
+.mfield{width:100%;background:var(--nische);border:0;border-radius:11px;padding:12px 15px;font-size:14px;outline:none}
 .mfield::placeholder{color:var(--hell)}
-.mlbl{font-size:11px;color:var(--hell);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.mlbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
 
-.leer{text-align:center;padding:80px 20px;color:var(--grau)}
-.leer .gr{font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:var(--tinte);margin-bottom:8px}
-
-@media(max-width:900px){.raster{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
-@media(max-width:560px){.kopf{padding-left:18px;padding-right:18px}.results{padding-left:18px;padding-right:18px}.panel-in{padding:24px 22px 44px}.specs{grid-template-columns:1fr}}
+@media(max-width:820px){
+  .ulba{grid-template-columns:1fr}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
+  .nav.offen{transform:none}
+  .chat.split{grid-template-columns:1fr}
+  .chat.split .cs-main{display:none}
+}
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 `;
 
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className="chip">{children}</span>;
+/* ── Helpers ── */
+function specText(r: Result): string {
+  const parts = [TYPE_LABELS[r.type] || r.type];
+  if (r.availableSizes?.[0]) parts.push(r.availableSizes[0]);
+  if (r.material?.[0]) parts.push(r.material[0]);
+  return parts.filter(Boolean).join(' · ');
 }
-
-function CapSlider({ caps }: { caps: string[] }) {
-  const [active, setActive] = useState(0);
-  if (!caps.length) return null;
-  return (
-    <div className="capstrip" style={{ marginBottom: 24 }}>
-      <div className="lbl">Passende Verschlüsse · {caps.length}</div>
-      <div className="thumbs">
-        {caps.map((url, i) => (
-          <div key={i} className={`capthumb${active === i ? ' an' : ''}`} onClick={() => setActive(i)}>
-            <img src={url} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-          </div>
-        ))}
-      </div>
-      <div className="capsolo"><img src={caps[active]} alt="Verschluss" /></div>
-    </div>
-  );
+function emptyFilters(): ParsedFilters { return { sizes: [], materials: [], types: [], closures: [] }; }
+function cloneFilters(f: ParsedFilters): ParsedFilters {
+  return { sizes: [...f.sizes], materials: [...f.materials], types: [...f.types], closures: [...f.closures] };
 }
+function hasDim(f: ParsedFilters, d: keyof ParsedFilters): boolean { return (f[d] || []).length > 0; }
 
-function RenderSection({ product, defaultQuery }: { product: Result; defaultQuery: string }) {
-  const [query, setQuery]   = useState(defaultQuery);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+/* ── Render-Panel rechts ── */
+function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, onSample, onClose }: {
+  product: Result; defaultQuery: string; isFav: boolean; inBoard: boolean;
+  onFav: () => void; onBoard: () => void; onSample: () => void; onClose: () => void;
+}) {
+  const [query, setQuery] = useState(defaultQuery);
+  const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [cached, setCached] = useState(false);
+  const [cap, setCap] = useState(0);
+
+  useEffect(() => { setQuery(defaultQuery); setRstatus('idle'); setImgUrl(null); setCap(0); }, [product.id, defaultQuery]);
 
   const run = async () => {
     if (!query.trim()) return;
-    setStatus('loading'); setImgUrl(null);
+    setRstatus('loading'); setImgUrl(null);
     try {
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -242,32 +324,73 @@ function RenderSection({ product, defaultQuery }: { product: Result; defaultQuer
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'render failed');
-      setImgUrl(data.renderingUrl || null);
-      setCached(!!data.cached);
-      setStatus('done');
-    } catch { setStatus('error'); }
+      setImgUrl(data.renderingUrl || null); setCached(!!data.cached); setRstatus('done');
+    } catch { setRstatus('error'); }
   };
 
+  const shown = imgUrl || product.imageUrl;
   return (
-    <div className="vis">
-      <div className="top">Deine Richtung</div>
-      <div className="row">
-        <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="z. B. warmes Beige, matt, dezent" />
-        <button className="go" onClick={run} disabled={status === 'loading' || !query.trim()}>
-          {status === 'loading' ? 'Generiert …' : 'Generieren'}
-        </button>
-      </div>
-      {status === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
-      {imgUrl && (
-        <div className="out">
-          <img src={imgUrl} alt="Rendering" />
-          {cached && <div style={{ fontSize: 11, color: 'var(--hell)', padding: '8px 12px' }}>Aus Cache</div>}
+    <aside className="panel">
+      <div className="pn-kopf">
+        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
+        <div className="pn-akt">
+          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
+          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
-      )}
-    </div>
+      </div>
+
+      <div className="pn-bild">
+        {shown ? <img src={shown} alt={product.name} /> : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+      </div>
+
+      <div className="pn-body">
+        {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
+
+        <div className="vis">
+          <div className="top">Deine Richtung</div>
+          <div className="row">
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="z. B. warmes Beige, matt, dezent" />
+            <button className="gen" onClick={run} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
+          </div>
+          {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
+          {imgUrl && <div className="out"><img src={imgUrl} alt="Rendering" />{cached && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--hell)', padding: '8px 12px' }}>Aus Cache</div>}</div>}
+        </div>
+
+        {product.capImages && product.capImages.length > 0 && (
+          <div className="capstrip">
+            <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
+            <div className="thumbs">
+              {product.capImages.map((url, i) => (
+                <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => setCap(i)}>
+                  <img src={url} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="specs">
+          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
+          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
+          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
+          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
+          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
+          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
+        </div>
+        {product.capabilities?.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+        )}
+      </div>
+
+      <div className="pn-aktion">
+        <button className="cta" onClick={onSample}>Muster anfragen →</button>
+        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
+      </div>
+    </aside>
   );
 }
 
+/* ── Muster-Anfrage-Modal (unverändert aus deinem Code) ── */
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
@@ -281,25 +404,24 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   };
   return (
     <>
-      <div className="modal-bg" onClick={onClose} style={{ zIndex: 100 }} />
-      <div className="modal" style={{ width: 480, maxWidth: 'calc(100vw - 48px)', borderRadius: 24, padding: '40px 40px 36px', zIndex: 101 }}>
+      <div className="modal-bg" onClick={onClose} />
+      <div className="modal">
         {status === 'done' ? (
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <div className="serif" style={{ fontSize: 32, color: 'var(--rouge)', marginBottom: 14 }}>✓</div>
-            <div className="serif" style={{ fontSize: 24, color: 'var(--tinte)', marginBottom: 10 }}>Anfrage raus.</div>
+            <div className="serif" style={{ fontSize: 24, color: 'var(--rouge)', marginBottom: 10 }}>Anfrage raus.</div>
             <div style={{ fontSize: 14, color: 'var(--grau)', marginBottom: 30, lineHeight: 1.6 }}>Der Lieferant meldet sich direkt bei dir{product.supplier ? ` (${product.supplier})` : ''} — mit Mustern und Preisen.</div>
             <button onClick={onClose} style={{ background: 'var(--tinte)', color: '#fff', borderRadius: 999, padding: '14px 36px', fontSize: 15 }}>Schließen</button>
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 26 }}>
-              <div><div className="serif" style={{ fontSize: 22, color: 'var(--tinte)', marginBottom: 3 }}>Muster anfragen</div><div style={{ fontSize: 13, color: 'var(--hell)' }}>{product.name}{product.supplier ? ` · ${product.supplier}` : ''}</div></div>
-              <button className="pclose" onClick={onClose} style={{ width: 36, height: 36, fontSize: 13 }}>✕</button>
+              <div><div className="serif" style={{ fontSize: 22, marginBottom: 3 }}>Muster anfragen</div><div style={{ fontSize: 13, color: 'var(--hell)' }}>{product.name}{product.supplier ? ` · ${product.supplier}` : ''}</div></div>
+              <button className="pn-zu" onClick={onClose}>×</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div><div className="mlbl">Name</div><input className="mfield" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name" /></div>
-                <div><div className="mlbl">Marke</div><input className="mfield" type="text" value={firm} onChange={e => setFirm(e.target.value)} placeholder="Markenname" /></div>
+                <div><div className="mlbl">Name</div><input className="mfield" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name" /></div>
+                <div><div className="mlbl">Marke</div><input className="mfield" value={firm} onChange={e => setFirm(e.target.value)} placeholder="Markenname" /></div>
               </div>
               <div><div className="mlbl">E-Mail *</div><input className="mfield" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="du@marke.com" /></div>
               <div><div className="mlbl">Briefing (optional)</div><textarea className="mfield" value={brief} onChange={e => setBrief(e.target.value)} placeholder="Volumen, Menge, Finish, Zeitrahmen …" rows={3} style={{ resize: 'none', lineHeight: 1.5 }} /></div>
@@ -314,362 +436,280 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
-function SaveToProjectModal({ product, projects, favorites, onSave, onClose }: { product: Result; projects: Project[]; favorites: FavoriteEntry[]; onSave: (projectId: string) => void; onClose: () => void; }) {
-  const [newName, setNewName] = useState(''); const [creating, setCreating] = useState(false);
-  const savedProjectIds = favorites.filter(f => f.productId === product.id).map(f => f.projectId);
+/* ── Ergebniskarte ── */
+function Karte({ r, selected, isFav, onOpen, onFav }: {
+  r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
+}) {
   return (
-    <>
-      <div className="modal-bg" onClick={onClose} style={{ zIndex: 200 }} />
-      <div className="modal" style={{ width: 360, maxWidth: 'calc(100vw - 48px)', borderRadius: 22, padding: '30px 30px 26px', zIndex: 201 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div className="serif" style={{ fontSize: 19, color: 'var(--tinte)' }}>Aufs Board</div>
-          <button className="pclose" onClick={onClose} style={{ width: 32, height: 32, fontSize: 12 }}>✕</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {projects.map(p => { const isSaved = savedProjectIds.includes(p.id); return (
-            <button key={p.id} onClick={() => onSave(p.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isSaved ? '#fff0f4' : '#FAFAF9', border: isSaved ? '1px solid #f0d0da' : '1px solid transparent', borderRadius: 12, fontSize: 14, color: 'var(--tinte)', textAlign: 'left' }}>
-              <span>{p.name}</span>{isSaved && <span style={{ color: 'var(--rouge)' }}>♥</span>}
-            </button>
-          ); })}
-        </div>
-        {creating ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input autoFocus className="mfield" type="text" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } if (e.key === 'Escape') setCreating(false); }} placeholder="Board-Name …" />
-            <button onClick={() => { if (newName.trim()) { onSave('__new__:' + newName.trim()); setCreating(false); setNewName(''); } }} style={{ background: 'var(--tinte)', color: '#fff', borderRadius: 12, padding: '10px 16px', fontSize: 13 }}>Anlegen</button>
-          </div>
-        ) : (
-          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: 11, color: 'var(--grau)', border: '1px dashed var(--linie)', borderRadius: 12, fontSize: 13 }}>+ Neues Board</button>
-        )}
-      </div>
-    </>
-  );
-}
-
-function ProductTile({ r, i, onOpen, onFav, isFav }: { r: Result; i: number; onOpen: () => void; onFav: (e: React.MouseEvent) => void; isFav: boolean }) {
-  const h = sizeToHeight(r.availableSizes);
-  return (
-    <div className="stellplatz" onClick={onOpen} title={`${r.name}${r.availableSizes?.[0] ? ' · ' + r.availableSizes[0] : ''}`}>
-      <span className="score">{r.score}</span>
-      <button className="fav" onClick={onFav} style={{ color: isFav ? 'var(--rouge)' : 'var(--grau)' }}>{isFav ? '♥' : '♡'}</button>
-      <div className="obj-wrap" style={{ height: h, width: Math.round(h * 0.6) }}>
-        {r.imageUrl
-          ? <img src={r.imageUrl} alt={r.name} style={{ maxHeight: h, maxWidth: '100%' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
-          : <span className="obj-ph" style={{ height: h, fontSize: 40 }}>◇</span>}
-      </div>
-      <span className="nm">{r.name}</span>
-    </div>
-  );
-}
-
-function FavoritesView({ projects, favorites, onRemove, onRenameProject, onDeleteProject, onProductClick }: { projects: Project[]; favorites: FavoriteEntry[]; onRemove: (productId: string, projectId: string) => void; onRenameProject: (id: string, name: string) => void; onDeleteProject: (id: string) => void; onProductClick: (product: Result) => void; }) {
-  const [editingId, setEditingId] = useState<string | null>(null); const [editName, setEditName] = useState(''); const [activeProject, setActiveProject] = useState<string>('all');
-  const filtered = activeProject === 'all' ? favorites : favorites.filter(f => f.projectId === activeProject);
-  const uniqueProducts = filtered.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i);
-  const allCount = favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length;
-  return (
-    <div className="results" style={{ paddingBottom: 60 }}>
-      <div className="ffzeile" style={{ marginTop: 24 }}>
-        <button className={`ff${activeProject === 'all' ? ' an' : ''}`} onClick={() => setActiveProject('all')}>Alle ({allCount})</button>
-        {projects.map(p => { const count = favorites.filter(f => f.projectId === p.id).length; return (
-          editingId === p.id
-            ? <input key={p.id} autoFocus className="mfield" style={{ width: 150 }} value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); }} onKeyDown={e => { if (e.key === 'Enter') { if (editName.trim()) onRenameProject(p.id, editName.trim()); setEditingId(null); } }} />
-            : <button key={p.id} className={`ff${activeProject === p.id ? ' an' : ''}`} onClick={() => setActiveProject(p.id)} onDoubleClick={() => { setEditingId(p.id); setEditName(p.name); }}>{p.name} ({count})</button>
-        ); })}
-      </div>
-      {activeProject !== 'all' && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-          <button onClick={() => { const p = projects.find(x => x.id === activeProject); if (p) { setEditingId(p.id); setEditName(p.name); } }} style={{ background: '#FAFAF9', borderRadius: 999, padding: '8px 16px', fontSize: 12, color: 'var(--grau)' }}>Umbenennen</button>
-          <button onClick={() => { onDeleteProject(activeProject); setActiveProject('all'); }} style={{ background: '#fff0f0', borderRadius: 999, padding: '8px 16px', fontSize: 12, color: '#dc2626' }}>Board löschen</button>
-        </div>
-      )}
-      {uniqueProducts.length === 0
-        ? <div className="leer"><div className="gr">Noch leer.</div><div>Speicher im Detail ein Packmittel — dann siehst du deine Linie hier.</div></div>
-        : <div className="raster">{uniqueProducts.map((f, i) => (
-            <div key={f.productId + f.projectId} className="kachel" onClick={() => onProductClick(f.product)}>
-              <span className="score">{f.product.score}</span>
-              <button className="fav" onClick={e => { e.stopPropagation(); onRemove(f.productId, f.projectId); }} style={{ color: 'var(--rouge)' }}>♥</button>
-              {f.product.imageUrl ? <img src={f.product.imageUrl} alt={f.product.name} /> : <span style={{ fontSize: 34, color: '#d8d8d6' }}>◇</span>}
-              <span className="kn">{f.product.name}</span>
-            </div>
-          ))}</div>}
+    <div className={`ek${selected ? ' an' : ''}`}>
+      <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
+      <button className="ek-klick" onClick={onOpen}>
+        <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ek-ph">◇</span>}</div>
+        <div className="ek-info"><span className="ek-nm">{r.name}</span><span className="ek-spec">{specText(r)}</span></div>
+        <span className="ek-match"><span className="em-z">{r.score}</span><span className="em-l">Match</span></span>
+      </button>
     </div>
   );
 }
 
 export default function Home() {
-  const [mounted, setMounted]             = useState(false);
-  const [input, setInput]                 = useState('');
-  const [results, setResults]             = useState<Result[] | null>(null);
-  const [parsedFilters, setParsedFilters] = useState<ParsedFilters>({ sizes: [], materials: [], types: [], closures: [] });
-  const [categoryMatch, setCategoryMatch] = useState<string>('');
-  const [status, setStatus]               = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [selected, setSelected]           = useState<Result | null>(null);
-  const [currentQuery, setCurrentQuery]   = useState('');
-  const [showResults, setShowResults]     = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
+  const [input, setInput] = useState('');
+  const [refineInput, setRefineInput] = useState('');
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [rootQuery, setRootQuery] = useState('');
+  const [selected, setSelected] = useState<Result | null>(null);
   const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
-  const [view, setView]                   = useState<'search' | 'saved'>('search');
-  const [projects, setProjects]           = useState<Project[]>([]);
-  const [favorites, setFavorites]         = useState<FavoriteEntry[]>([]);
-  const [saveModal, setSaveModal]         = useState<Result | null>(null);
-  const [copied, setCopied]               = useState(false);
-  const [formFilter, setFormFilter]       = useState<string | null>(null);
-  const [restLimit, setRestLimit]         = useState(24);
+  const [board, setBoard] = useState<Result[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
+  const blockId = useRef(0);
+  const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
+  useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks]);
 
-  useEffect(() => {
-    if (!mounted) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (sampleProduct) { setSampleProduct(null); return; } if (saveModal) { setSaveModal(null); return; } setSelected(null); } };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [mounted, sampleProduct, saveModal]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    if (selected) { const u = new URL(window.location.href); u.searchParams.set('product', selected.id); window.history.replaceState(null, '', u.toString()); }
-    else { const u = new URL(window.location.href); u.searchParams.delete('product'); window.history.replaceState(null, '', u.toString()); }
-  }, [mounted, selected]);
-
-  const isFavorited = (id: string) => favorites.some(f => f.productId === id);
-
-  const handleSave = (product: Result, projectIdOrNew: string) => {
-    let pid = projectIdOrNew; let updP = projects;
-    if (projectIdOrNew.startsWith('__new__:')) {
-      const name = projectIdOrNew.replace('__new__:', '');
-      const np: Project = { id: Date.now().toString(), name, createdAt: Date.now() };
-      updP = [...projects, np]; setProjects(updP); saveProjects(updP); pid = np.id;
-    }
-    const saved = favorites.some(f => f.productId === product.id && f.projectId === pid);
-    const upd = saved ? favorites.filter(f => !(f.productId === product.id && f.projectId === pid)) : [...favorites, { productId: product.id, projectId: pid, savedAt: Date.now(), product }];
-    setFavorites(upd); saveFavorites(upd); setSaveModal(null);
-  };
+  const isFav = (id: string) => favorites.some(f => f.productId === id);
   const quickFav = (product: Result) => {
-    const pid = 'default';
     const saved = favorites.some(f => f.productId === product.id);
-    const upd = saved ? favorites.filter(f => f.productId !== product.id) : [...favorites, { productId: product.id, projectId: pid, savedAt: Date.now(), product }];
+    const upd = saved ? favorites.filter(f => f.productId !== product.id)
+      : [...favorites, { productId: product.id, projectId: 'default', savedAt: Date.now(), product }];
     setFavorites(upd); saveFavorites(upd);
   };
-  const removeFavorite = (pid: string, prj: string) => { const u = favorites.filter(f => !(f.productId === pid && f.projectId === prj)); setFavorites(u); saveFavorites(u); };
-  const renameProject  = (id: string, name: string) => { const u = projects.map(p => p.id === id ? { ...p, name } : p); setProjects(u); saveProjects(u); };
-  const deleteProject  = (id: string) => {
-    const updP = projects.filter(p => p.id !== id); const updF = favorites.filter(f => f.projectId !== id);
-    if (!updP.length) { const d = [{ id: 'default', name: 'Meine Sammlung', createdAt: Date.now() }]; setProjects(d); saveProjects(d); } else { setProjects(updP); saveProjects(updP); }
-    setFavorites(updF); saveFavorites(updF);
-  };
-  const copyLink = () => {
-    if (!selected || !mounted) return;
-    const u = new URL(window.location.href); u.searchParams.set('product', selected.id);
-    navigator.clipboard.writeText(u.toString()); setCopied(true); setTimeout(() => setCopied(false), 2000);
+  const toggleBoard = (product: Result) => {
+    setBoard(b => b.some(x => x.id === product.id) ? b.filter(x => x.id !== product.id) : [...b, product]);
   };
 
-  const doSearch = useCallback(async (text: string, overrideFilters?: ParsedFilters) => {
-    if (!text.trim()) return;
-    setStatus('loading'); setCurrentQuery(text); setShowResults(true); setView('search'); setFormFilter(null); setRestLimit(24);
+  /* Kernstück: ein Suchlauf → ein neuer Block im Verlauf.
+     Variante A: wir nutzen den bestehenden active_filters-Mechanismus. */
+  const runSearch = useCallback(async (query: string, filters: ParsedFilters, intro: string) => {
+    const id = ++blockId.current;
+    setBlocks(prev => [...prev, { id, intro, query, filters, results: [], categoryMatch: '', alleZeigen: false, status: 'loading' }]);
     try {
-      const body: any = { query: text };
-      if (overrideFilters !== undefined) body.active_filters = overrideFilters;
+      const body: any = { query };
+      // Nur mitschicken, wenn wir aktiv eingegrenzt haben (erste Suche: reines query).
+      if (filters.sizes.length || filters.materials.length || filters.types.length || filters.closures.length) {
+        body.active_filters = filters;
+      }
       const res = await fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setParsedFilters(data.parsedFilters || { sizes: [], materials: [], types: [], closures: [] });
-      setCategoryMatch(data.categoryMatch || '');
-      setResults(data.results || []);
-      setStatus('done');
-      if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch { setStatus('error'); }
-  }, [mounted]);
+      // ►►► ANNAHME: data.results, data.parsedFilters, data.categoryMatch
+      const serverFilters: ParsedFilters = data.parsedFilters || filters;
+      setBlocks(prev => prev.map(b => b.id === id ? {
+        ...b, results: data.results || [], categoryMatch: data.categoryMatch || '',
+        filters: serverFilters, status: 'done',
+      } : b));
+    } catch {
+      setBlocks(prev => prev.map(b => b.id === id ? { ...b, status: 'error' } : b));
+    }
+  }, []);
 
-  const search     = (t: string) => doSearch(t);
-  const submit     = () => search(input);
-  const useExample = (q: string) => { setInput(q); search(q); };
-  const goHome = () => { setShowResults(false); setInput(''); setCurrentQuery(''); setResults(null); setParsedFilters({ sizes: [], materials: [], types: [], closures: [] }); setCategoryMatch(''); setSelected(null); setView('search'); if (mounted) window.scrollTo({ top: 0, behavior: 'smooth' }); };
-
-  const removeFilter = (key: keyof ParsedFilters, value: string) => {
-    const next: ParsedFilters = { sizes: [...parsedFilters.sizes], materials: [...parsedFilters.materials], types: [...parsedFilters.types], closures: [...parsedFilters.closures] };
-    next[key] = next[key].filter(v => v !== value);
-    setParsedFilters(next);
-    doSearch(currentQuery, next);
+  const starteSuche = (text: string) => {
+    if (!text.trim()) return;
+    setRootQuery(text.trim()); setBlocks([]); blockId.current = 0; setSelected(null); setView('chat');
+    runSearch(text.trim(), emptyFilters(), text.trim());
   };
 
-  const favCount = favorites.filter((f, i, arr) => arr.findIndex(x => x.productId === f.productId) === i).length;
+  // Freitext-Verfeinerung: hängt an die Root-Query an und sucht neu (Stufe 2 macht das smarter).
+  const verfeinereText = (text: string) => {
+    if (!text.trim()) return;
+    const letzter = blocks[blocks.length - 1];
+    const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
+    const neueQuery = `${rootQuery} ${text.trim()}`;
+    setSelected(null);
+    runSearch(neueQuery, filters, text.trim());
+  };
 
-  const filterChips: { key: keyof ParsedFilters; value: string; label: string }[] = [];
-  (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(key => {
-    (parsedFilters[key] || []).forEach(value => filterChips.push({ key, value, label: `${FILTER_LABELS[key]}: ${value}` }));
-  });
+  // Facette wählen → Filter erweitern → neuer Block darunter
+  const waehleFacette = (dim: keyof ParsedFilters, wert: string) => {
+    const letzter = blocks[blocks.length - 1];
+    const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
+    if (!filters[dim].includes(wert)) filters[dim] = [...filters[dim], wert];
+    setSelected(null);
+    runSearch(rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`);
+  };
 
-  const gelesenPalette = categoryMatch || (currentQuery ? EXAMPLES.find(e => e.q === currentQuery)?.label : '') || 'Deine Suche';
+  // Filter-Pill entfernen → neuer Block darunter
+  const entferneFilter = (dim: keyof ParsedFilters, wert: string) => {
+    const letzter = blocks[blocks.length - 1];
+    const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
+    filters[dim] = filters[dim].filter(v => v !== wert);
+    setSelected(null);
+    runSearch(rootQuery, filters, `ohne ${wert}`);
+  };
 
-  // Regale (Top-Matches, bis zu 5 Reihen) + Raster (Rest)
-  const PRO_REIHE = 7, MAX_REGALE = 5;
-  const alle = results || [];
-  const gefiltert = formFilter ? alle.filter(r => (r.form?.[0] || r.type || '').toLowerCase().includes(formFilter.toLowerCase())) : alle;
-  const topN = PRO_REIHE * MAX_REGALE;
-  const top = gefiltert.slice(0, Math.min(topN, gefiltert.length));
-  const rest = gefiltert.slice(top.length);
-  const regale: Result[][] = [];
-  for (let i = 0; i < top.length; i += PRO_REIHE) regale.push(top.slice(i, i + PRO_REIHE));
-  const formOptionen = Array.from(new Set(alle.map(r => r.form?.[0] || r.type).filter(Boolean))) as string[];
+  const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
+  const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
+
+  const nav = (
+    <aside className="nav">
+      <button className="nav-marke" onClick={() => setView('start')}>ulba</button>
+      <button className="nav-neu" onClick={() => setView('start')}>+ Neues Projekt</button>
+      <div>
+        {([['favoriten', '♡', 'Favoriten', favCount], ['linien', '▤', 'Meine Linien', board.length], ['anfragen', '⇄', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
+          <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => setView(v as any)}>
+            <span className="ni-ic">{ic}</span><span className="ni-t">{t}</span>{badge ? <span className="ni-b">{badge}</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="nav-lbl">Projekt</div>
+      <div className="nav-chats">
+        {rootQuery
+          ? <button className={`nav-chat${view === 'chat' ? ' an' : ''}`} onClick={() => setView('chat')}>
+              <span className="nc-t">{rootQuery.slice(0, 40)}</span>
+              <span className="nc-s">{board.length ? `${board.length} im Paket` : 'Suche'}</span>
+            </button>
+          : <div className="nav-leer">Noch kein Projekt</div>}
+      </div>
+      <div className="nav-profil"><span className="np-av">A</span><div><span className="np-n">Alen</span><span className="np-s">ulba · Basel</span></div></div>
+    </aside>
+  );
 
   if (!mounted) {
-    return (
-      <div className="ulba">
-        <style>{STYLES}</style>
-        <div className="kopf"><span className="marke">ulba</span></div>
-        <div className="landing"><h1>Beschreib das <em>Gefühl</em>.<br />Wir stellen das Regal.</h1></div>
-      </div>
-    );
+    return <div className="ulba"><style>{STYLES}</style>{nav}<div className="main" /></div>;
   }
 
   return (
     <div className="ulba">
       <style>{STYLES}</style>
+      {nav}
+      <div className="main">
+        <header className="topbar">
+          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 40) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
+        </header>
 
-      <div className="kopf">
-        <span className="marke" onClick={goHome}>ulba</span>
-        {(showResults || view === 'saved') && view === 'search' && (
-          <div className="kopf-suche"><div className="kopf-feld"><input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Suchen …" /></div></div>
-        )}
-        {(showResults || view === 'saved') && view === 'saved' && <div className="kopf-suche" />}
-        <button className="kopf-btn" onClick={() => setView(v => v === 'saved' ? 'search' : 'saved')}>
-          Board {favCount > 0 && <span className="z">{favCount}</span>}
-        </button>
-      </div>
-
-      {!showResults && view === 'search' && (
-        <div className="landing">
-          <h1>Beschreib das <em>Gefühl</em>.<br />Wir stellen das Regal.</h1>
-          <div className="unter">Marken-Sprache oder harte Specs — beides trägt.</div>
-          <div className="feld">
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="z. B. ruhige, teure Hautpflege für Frauen 40+" autoFocus />
-            <button onClick={submit}>Suchen</button>
-          </div>
-          <div className="chips-ein">
-            {EXAMPLES.map((ex, i) => <button key={i} className="chip-ein" onClick={() => useExample(ex.q)}>{ex.label}</button>)}
-          </div>
-        </div>
-      )}
-
-      {view === 'saved' && <FavoritesView projects={projects} favorites={favorites} onRemove={removeFavorite} onRenameProject={renameProject} onDeleteProject={deleteProject} onProductClick={p => setSelected(p)} />}
-
-      {showResults && view === 'search' && (
-        <div className="results">
-          <div className="chips-ein" style={{ justifyContent: 'flex-start', margin: '16px 0 4px', maxWidth: 'none' }}>
-            {EXAMPLES.map((ex, i) => <button key={i} className={`chip-ein${currentQuery === ex.q ? ' an' : ''}`} onClick={() => useExample(ex.q)}>{ex.label}</button>)}
-          </div>
-
-          {status === 'loading' && <div className="status-z">Sucht …</div>}
-          {status === 'error' && <div className="status-z" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
-
-          {results && status === 'done' && (
-            <>
-              <div className="gelesen">
-                <span>Gelesen als</span><span className="pal">{gelesenPalette}</span>
-                <span className="treffer">{gefiltert.length} Treffer</span>
-              </div>
-              {filterChips.length > 0 && (
-                <div className="fzeile">
-                  {filterChips.map((f, i) => <span key={i} className="fchip">{f.label}<span className="x" onClick={() => removeFilter(f.key, f.value)}>×</span></span>)}
+        <div className="content">
+          {view === 'start' && (
+            <div className="start">
+              <div className="st-mitte">
+                <div className="st-logo">علبة</div>
+                <h1>Was möchtest du <em>launchen</em>?</h1>
+                <div className="feld">
+                  <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && starteSuche(input)} placeholder="z. B. ruhiges Vitamin-C-Serum, 30 ml, premium" autoFocus />
+                  <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">↑</button>
                 </div>
-              )}
-
-              {results.length === 0 && <div className="leer" style={{ paddingTop: 60 }}><div className="gr">Keine Treffer.</div><div>Versuch eine breitere Suche.</div></div>}
-
-              {top.length > 0 && (
-                <>
-                  <div className="abschnitt"><span className="h">Fürs Gefühl kuratiert</span><span className="s">Top {top.length} · beste zuerst</span></div>
-                  <div className="regale">
-                    {regale.map((reihe, ri) => (
-                      <div className="regal-reihe" key={ri}>
-                        {reihe.map(r => <ProductTile key={r.id} r={r} i={ri} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} isFav={isFavorited(r.id)} />)}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {rest.length > 0 && (
-                <>
-                  <div className="abschnitt"><span className="h">Weitere Treffer</span><span className="s">{rest.length} · nach Relevanz</span></div>
-                  {formOptionen.length > 1 && (
-                    <div className="ffzeile">
-                      <button className={`ff${!formFilter ? ' an' : ''}`} onClick={() => { setFormFilter(null); setRestLimit(24); }}>Alle</button>
-                      {formOptionen.map(f => <button key={f} className={`ff${formFilter === f ? ' an' : ''}`} onClick={() => { setFormFilter(f); setRestLimit(24); }}>{f}</button>)}
-                    </div>
-                  )}
-                  <div className="raster">
-                    {rest.slice(0, restLimit).map(r => (
-                      <div key={r.id} className="kachel" onClick={() => setSelected(r)} title={r.name}>
-                        <span className="score">{r.score}</span>
-                        <button className="fav" onClick={e => { e.stopPropagation(); quickFav(r); }} style={{ color: isFavorited(r.id) ? 'var(--rouge)' : 'var(--grau)' }}>{isFavorited(r.id) ? '♥' : '♡'}</button>
-                        {r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span style={{ fontSize: 34, color: '#d8d8d6' }}>◇</span>}
-                        <span className="kn">{r.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {rest.length > restLimit && <button className="mehr-btn" onClick={() => setRestLimit(l => l + 24)}>Weitere {Math.min(24, rest.length - restLimit)} laden</button>}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {selected && (
-        <>
-          <div className="panel-bg" onClick={() => setSelected(null)} />
-          <div className="panel">
-            <div className="panel-in">
-              <div className="panel-top">
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button className={`ptool${isFavorited(selected.id) ? ' an' : ''}`} onClick={() => setSaveModal(selected)}>
-                    <span>{isFavorited(selected.id) ? '♥' : '♡'}</span><span>{isFavorited(selected.id) ? 'Gespeichert' : 'Speichern'}</span>
-                  </button>
-                  <button className={`ptool${copied ? ' ok' : ''}`} onClick={copyLink}>
-                    <span style={{ fontSize: 13 }}>{copied ? '✓' : '↗'}</span><span>{copied ? 'Kopiert' : 'Teilen'}</span>
-                  </button>
+                <div className="st-trend">
+                  {EXAMPLES.map((ex, i) => <button key={i} className="tr-pill" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>{ex.label}</button>)}
                 </div>
-                <button className="pclose" onClick={() => setSelected(null)}>✕</button>
-              </div>
-
-              {selected.capImages && selected.capImages.length > 0 && <CapSlider caps={selected.capImages} />}
-
-              <div className="pbild">
-                {selected.imageUrl ? <img src={selected.imageUrl} alt={selected.name} /> : <span style={{ fontSize: 80, color: '#e2e2e0' }}>◇</span>}
-              </div>
-
-              <div className="ptitel">{selected.name}</div>
-              <div className="psub">{selected.supplier || ''}</div>
-
-              {selected.reasoning && <p className="pgrund">{selected.reasoning}</p>}
-
-              <RenderSection product={selected} defaultQuery={currentQuery} />
-
-              <div style={{ marginBottom: 8 }}>
-                <div className="pblock-lbl">Technische Daten</div>
-                <div className="specs">
-                  {selected.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[selected.type] || selected.type}</div></div>}
-                  {selected.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{selected.supplier}</div></div>}
-                  {selected.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{selected.material.join(', ')}</div></div> : null}
-                  {selected.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{selected.availableSizes.join(', ')}</div></div> : null}
-                  {selected.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{selected.closure}</div></div>}
-                  {selected.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{selected.capCount}</div></div>}
-                </div>
-                {selected.capabilities?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{selected.capabilities.map((c, i) => <Chip key={i}>{c}</Chip>)}</div>
-                )}
-              </div>
-
-              <div className="cta-zeile">
-                <button className="cta" onClick={() => setSampleProduct(selected)}>Muster anfragen →</button>
+                <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
               </div>
             </div>
-          </div>
-        </>
-      )}
+          )}
+
+          {view === 'chat' && (
+            <div className={`chat${selected ? ' split' : ''}`}>
+              <main className="cs-main">
+                <div className="thread" ref={threadRef}>
+                  {blocks.map(b => {
+                    const isLast = b.id === lastId;
+                    const liste = b.results;
+                    const zeige = b.alleZeigen ? liste : liste.slice(0, 20);
+                    const rest = liste.length - zeige.length;
+                    const pal = b.categoryMatch || 'deine Suche';
+                    const chips: { dim: keyof ParsedFilters; wert: string; label: string }[] = [];
+                    (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(dim =>
+                      (b.filters[dim] || []).forEach(wert => chips.push({ dim, wert, label: `${FILTER_LABELS[dim]}: ${wert}` })));
+                    const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
+                    return (
+                      <div key={b.id}>
+                        <div className="msg-user"><span>{b.intro}</span></div>
+                        <div className="msg-ulba">
+                          {b.status === 'loading' && (
+                            <div className="eb-scan">
+                              <div className="sc-kopf"><span className="sc-lbl">Durchsuche Lieferanten-Kataloge</span><span className="sc-liefer">LUMSON · Glanzer · Bakic</span></div>
+                              <div className="sc-zeile">Rankt nach Passung …</div>
+                            </div>
+                          )}
+                          {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
+                          {b.status === 'done' && (
+                            <div className={`eb${isLast ? '' : ' eb-alt'}`}>
+                              {chips.length > 0 && (
+                                <div className="eb-filter">
+                                  <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
+                                  {chips.map((c, i) => (
+                                    <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                              {liste.length === 0
+                                ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
+                                : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
+                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                  </div>}
+                              {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: true } : x))}>Alle weiteren {rest} anzeigen ↓</button>}
+                              {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: false } : x))}>Nur beste 20 zeigen ↑</button>}
+                              {isLast && facetten.length > 0 && (
+                                <div className="eb-facetten">
+                                  <span className="ebf-lbl">Weiter eingrenzen</span>
+                                  {facetten.map(f => (
+                                    <div key={f.dim} className="facet">
+                                      <span className="fc-lbl">{f.label}</span>
+                                      {f.opt.map(o => <button key={o} className="fc-opt" onClick={() => waehleFacette(f.dim, o)}>{o}</button>)}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="refine">
+                  <div className="feld">
+                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { verfeinereText(refineInput); setRefineInput(''); } }} placeholder={'Verfeinern in Worten — „wärmer", „nur Glas", „30 ml"'} />
+                    <button className="go" onClick={() => { verfeinereText(refineInput); setRefineInput(''); }} aria-label="senden">↑</button>
+                  </div>
+                </div>
+              </main>
+              {selected && (
+                <RenderPanel product={selected} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={() => setSampleProduct(selected)} onClose={() => setSelected(null)} />
+              )}
+            </div>
+          )}
+
+          {view === 'linien' && (
+            <div className="bereich">
+              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Was du ins Musterpaket gelegt hast. In Stufe 2 wird daraus eine Linie pro Projekt.</p></div>
+              {board.length === 0
+                ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
+                : <div className="lin-grid">
+                    <div className="lin-karte">
+                      <div className="lk-reihe">{board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
+                      <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 30) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile</span></div>
+                    </div>
+                  </div>}
+            </div>
+          )}
+
+          {view === 'favoriten' && (
+            <div className="bereich">
+              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Einzelne Packmittel, die du dir gemerkt hast.</p></div>
+              {favCount === 0
+                ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
+                : <div className="eb-grid">
+                    {favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).map(f => (
+                      <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                    ))}
+                  </div>}
+            </div>
+          )}
+
+          {view === 'anfragen' && (
+            <div className="bereich">
+              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast — und wo es steht. Status kommt in Stufe 3 aus Airtable.</p></div>
+              <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {sampleProduct && <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />}
-      {saveModal && <SaveToProjectModal product={saveModal} projects={projects} favorites={favorites} onSave={pid => handleSave(saveModal, pid)} onClose={() => setSaveModal(null)} />}
     </div>
   );
 }
