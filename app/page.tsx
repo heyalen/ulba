@@ -60,6 +60,7 @@ interface Result {
   capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
   capCount: number; capImages?: string[];
   supplier?: string;
+  projekt?: string; // Projekt-Label (Such-Query), zum Gruppieren der Listen
 }
 
 // ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
@@ -162,8 +163,11 @@ const STYLES = `
 .chat.split{grid-template-columns:minmax(420px,1fr) 720px}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
+.thread-inner{max-width:900px;margin:0 auto;width:100%}
 .refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
-.refine .feld{max-width:none;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
+.refine .feld{max-width:900px;margin:0 auto;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
+.grp-titel{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.01em;margin:28px 0 14px}
+.grp-titel:first-child{margin-top:0}
 .refine .feld input{padding:11px 4px;font-size:14px}
 .msg-user{display:flex;justify-content:flex-end;margin:16px 0}
 .msg-user span{background:var(--tinte);color:#fff;padding:11px 17px;border-radius:16px 16px 4px 16px;font-size:14.5px;max-width:78%}
@@ -203,6 +207,12 @@ const STYLES = `
 .fc-opt{padding:7px 14px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:var(--panel)}
 .fc-opt:hover{border-color:var(--tinte);color:var(--tinte)}
 .eb-scan{border:1px solid var(--linie);border-radius:13px;background:var(--panel);padding:15px 18px;max-width:560px;margin-bottom:8px}
+.scan{width:100%;margin:10px 0 6px}
+.scan-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:11px}
+.scan-msg{font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--grau)}
+.scan-pct{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--tinte);font-variant-numeric:tabular-nums}
+.scan-bar{height:3px;background:var(--linie);border-radius:999px;overflow:hidden}
+.scan-fill{height:100%;background:var(--rouge);border-radius:999px;transition:width .17s ease}
 .sc-kopf{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}
 .sc-lbl{font-size:13.5px} .sc-liefer{font-family:var(--mono);font-size:11px;color:var(--rouge)}
 .sc-zeile{font-family:var(--mono);font-size:12px;color:var(--grau)}
@@ -311,6 +321,12 @@ function cloneFilters(f: ParsedFilters): ParsedFilters {
   return { sizes: [...f.sizes], materials: [...f.materials], types: [...f.types], closures: [...f.closures] };
 }
 function hasDim(f: ParsedFilters, d: keyof ParsedFilters): boolean { return (f[d] || []).length > 0; }
+/* Nach Projekt-Label gruppieren, Reihenfolge = erstes Auftreten. */
+function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, T[]][] {
+  const map = new Map<string, T[]>();
+  for (const it of items) { const k = label(it) || 'Ohne Projekt'; if (!map.has(k)) map.set(k, []); map.get(k)!.push(it); }
+  return Array.from(map.entries());
+}
 
 /* ── Render-Panel rechts ── */
 function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, onSample, onClose }: {
@@ -459,6 +475,34 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
+/* ── Lade-Anzeige: laufender Balken + wechselnde Statustexte (psychologisch, ohne Lieferantennamen) ── */
+const SCAN_MESSAGES = [
+  'Lese Formsprache und Silhouette …',
+  'Gleiche Material und Volumen ab …',
+  'Bewerte emotionale Passung …',
+  'Prüfe Verschluss-Kompatibilität …',
+  'Wäge Markenfit und Regalwirkung ab …',
+  'Stelle die besten Treffer zusammen …',
+];
+function ScanBar() {
+  const [pct, setPct] = useState(4);
+  const [msg, setMsg] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setPct(p => (p < 95 ? p + Math.max(1, Math.round((96 - p) / 14)) : p)), 170);
+    const m = setInterval(() => setMsg(i => (i + 1) % SCAN_MESSAGES.length), 1300);
+    return () => { clearInterval(t); clearInterval(m); };
+  }, []);
+  return (
+    <div className="scan">
+      <div className="scan-top">
+        <span className="scan-msg">{SCAN_MESSAGES[msg]}</span>
+        <span className="scan-pct">{pct}%</span>
+      </div>
+      <div className="scan-bar"><div className="scan-fill" style={{ width: pct + '%' }} /></div>
+    </div>
+  );
+}
+
 /* ── Ergebniskarte ── */
 function Karte({ r, selected, isFav, onOpen, onFav }: {
   r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
@@ -495,13 +539,15 @@ export default function Home() {
 
   const isFav = (id: string) => favorites.some(f => f.productId === id);
   const quickFav = (product: Result) => {
+    const proj = rootQuery.trim() || 'Ohne Projekt';
     const saved = favorites.some(f => f.productId === product.id);
     const upd = saved ? favorites.filter(f => f.productId !== product.id)
-      : [...favorites, { productId: product.id, projectId: 'default', savedAt: Date.now(), product }];
+      : [...favorites, { productId: product.id, projectId: proj, savedAt: Date.now(), product: { ...product, projekt: proj } }];
     setFavorites(upd); saveFavorites(upd);
   };
   const toggleBoard = (product: Result) => {
-    setBoard(b => b.some(x => x.id === product.id) ? b.filter(x => x.id !== product.id) : [...b, product]);
+    const proj = rootQuery.trim() || 'Ohne Projekt';
+    setBoard(b => b.some(x => x.id === product.id) ? b.filter(x => x.id !== product.id) : [...b, { ...product, projekt: proj }]);
   };
 
   /* Kernstück: ein Suchlauf → ein neuer Block im Verlauf.
@@ -621,6 +667,7 @@ export default function Home() {
             <div className={`chat${selected ? ' split' : ''}`}>
               <main className="cs-main">
                 <div className="thread" ref={threadRef}>
+                  <div className="thread-inner">
                   {blocks.map(b => {
                     const isLast = b.id === lastId;
                     const liste = b.results;
@@ -635,12 +682,7 @@ export default function Home() {
                       <div key={b.id}>
                         <div className="msg-user"><span>{b.intro}</span></div>
                         <div className="msg-ulba">
-                          {b.status === 'loading' && (
-                            <div className="eb-scan">
-                              <div className="sc-kopf"><span className="sc-lbl">Durchsuche Lieferanten-Kataloge</span><span className="sc-liefer">LUMSON · Glanzer · Bakic</span></div>
-                              <div className="sc-zeile">Rankt nach Passung …</div>
-                            </div>
-                          )}
+                          {b.status === 'loading' && <ScanBar />}
                           {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
                           {b.status === 'done' && (
                             <div className={`eb${isLast ? '' : ' eb-alt'}`}>
@@ -677,6 +719,7 @@ export default function Home() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
                 <div className="refine">
                   <div className="feld">
@@ -694,35 +737,45 @@ export default function Home() {
 
           {view === 'linien' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Was du ins Musterpaket gelegt hast. In Stufe 2 wird daraus eine Linie pro Projekt.</p></div>
+              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Deine Musterpakete — gruppiert nach Projekt. Tippe eine Verpackung an, um Details zu sehen.</p></div>
               {board.length === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
-                : <>
-                  <div className="lin-kopf">
-                    <div className="lk-reihe">{board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
-                    <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 40) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile · zum Ansehen antippen</span></div>
+                : gruppiereNachProjekt(board, r => r.projekt || 'Ohne Projekt').map(([proj, items]) => (
+                  <div key={proj} style={{ marginBottom: 34 }}>
+                    <div className="lin-kopf">
+                      <div className="lk-reihe">{items.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
+                      <div className="lk-info"><span className="lk-t">{proj.slice(0, 44)}</span><span className="lk-s">{items.length} Teile · zum Ansehen antippen</span></div>
+                    </div>
+                    <div className="eb-grid" style={{ marginTop: 16 }}>
+                      {items.map(r => (
+                        <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
+                          onOpen={() => { setView('chat'); setSelected(r); }}
+                          onFav={e => { e.stopPropagation(); quickFav(r); }} />
+                      ))}
+                    </div>
                   </div>
-                  <div className="eb-grid" style={{ marginTop: 20 }}>
-                    {board.map(r => (
-                      <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
-                        onOpen={() => { setView('chat'); setSelected(r); }}
-                        onFav={e => { e.stopPropagation(); quickFav(r); }} />
-                    ))}
-                  </div>
-                </>}
+                ))}
             </div>
           )}
 
           {view === 'favoriten' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Einzelne Packmittel, die du dir gemerkt hast.</p></div>
+              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Gemerkte Packmittel — gruppiert nach Projekt.</p></div>
               {favCount === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
-                : <div className="eb-grid">
-                  {favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).map(f => (
-                    <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                : gruppiereNachProjekt(
+                    favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i),
+                    f => f.projectId || 'Ohne Projekt'
+                  ).map(([proj, items]) => (
+                    <div key={proj} style={{ marginBottom: 30 }}>
+                      <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
+                      <div className="eb-grid">
+                        {items.map(f => (
+                          <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </div>}
             </div>
           )}
 
