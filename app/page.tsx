@@ -1,19 +1,18 @@
 'use client';
 
 /* ══════════════════════════════════════════════════════════════════════
-   ulba · page.tsx  —  Stufe 1 (Variante A)
+   ulba · page.tsx — Stufe 1 (Variante A)
    Thread-Verlaufsmodell: jeder Suchlauf ist ein Block im Verlauf.
    Verdrahtet gegen die bestehenden Endpoints /api/search und /api/render.
    Favoriten/Projekte laufen wie bisher über localStorage (unverändert).
 
-   Was hier NEU ist gegenüber deinem v10-Stand:
-     · Linke App-Nav (Neues Projekt · Favoriten · Meine Linien · Musteranfragen)
-     · Chat-artiger Verlauf: jede Verfeinerung erzeugt einen Block DARUNTER
-     · Facetten (nur nicht gesetzte Dimensionen) am jeweils letzten Block
-     · Split-Ansicht 530/530: Klick öffnet Render-Panel rechts (kein Slide-over)
+   Änderungen 29.07 (v2):
+   · Farbwelt auf reines Weiß + kühles Hellgrau umgestellt (ChatGPT-Stil):
+     --porzellan #FFFFFF · --nische #F7F7F8 · --linie #ECECEE · --linie2 #F4F4F5
+   · Render-Panel rechts von 530px auf 640px verbreitert
 
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
-   Suche unten nach  ANNAHME:  — dort sind die Feldnamen dokumentiert,
+   Suche unten nach ANNAHME: — dort sind die Feldnamen dokumentiert,
    die dein Backend liefern muss. Wenn ein Feld anders heisst, nur dort ändern.
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -53,7 +52,7 @@ const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
 ];
 
 // ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
-//     (1:1 aus deinem bestehenden Interface übernommen — nichts geraten.)
+// (1:1 aus deinem bestehenden Interface übernommen — nichts geraten.)
 interface Result {
   id: string; name: string; score: number; reasoning: string;
   type: string; material: string[]; form: string[]; closure: string;
@@ -70,12 +69,12 @@ type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; cl
    So wird jede Verfeinerung als eigener Block DARUNTER sichtbar. */
 interface Block {
   id: number;
-  intro: string;            // was diesen Block ausgelöst hat ("wärmer", "Material: Glass", Startquery)
-  query: string;            // die Query, mit der gesucht wurde
-  filters: ParsedFilters;   // Filterstand dieses Blocks (Snapshot)
+  intro: string;          // was diesen Block ausgelöst hat ("wärmer", "Material: Glass", Startquery)
+  query: string;          // die Query, mit der gesucht wurde
+  filters: ParsedFilters; // Filterstand dieses Blocks (Snapshot)
   results: Result[];
   categoryMatch: string;
-  alleZeigen: boolean;      // "alle weiteren anzeigen" pro Block
+  alleZeigen: boolean;    // "alle weiteren anzeigen" pro Block
   status: 'loading' | 'done' | 'error';
 }
 
@@ -97,16 +96,16 @@ function loadFavorites(): FavoriteEntry[] {
 }
 function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
 
-/* ── Design-System: „Porzellan & Pigment" ── */
+/* ── Design-System: „Porzellan & Pigment" — v2: reines Weiß ── */
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root{
-  --porzellan:#FBFAF8;--panel:#FFFFFF;--nische:#F5F4F1;
-  --tinte:#14181A;--grau:#5F6A6C;--hell:#98A2A3;
-  --rouge:#4C1420;--linie:#E4E3DF;--linie2:#F0EFEC;--r:14px;
-  --serif:'Instrument Serif',Georgia,serif;
-  --sans:'Instrument Sans',system-ui,sans-serif;
-  --mono:'IBM Plex Mono',ui-monospace,monospace;
+--porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F7F7F8;
+--tinte:#14181A;--grau:#5F6A6C;--hell:#98A2A3;
+--rouge:#4C1420;--linie:#ECECEE;--linie2:#F4F4F5;--r:14px;
+--serif:'Instrument Serif',Georgia,serif;
+--sans:'Instrument Sans',system-ui,sans-serif;
+--mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 .ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
@@ -115,7 +114,6 @@ const STYLES = `
 .ulba :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
 .serif{font-family:var(--serif)} .kursiv{font-family:var(--serif);font-style:italic}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-
 /* Nav */
 .nav{border-right:1px solid var(--linie);padding:16px 12px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
 .nav-marke{font-family:var(--serif);font-size:26px;text-align:left;padding:4px 8px 12px}
@@ -137,14 +135,12 @@ const STYLES = `
 .nav-profil{display:flex;align-items:center;gap:10px;padding:12px 8px 4px;margin-top:8px;border-top:1px solid var(--linie)}
 .np-av{width:30px;height:30px;border-radius:50%;background:var(--rouge);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
 .np-n{display:block;font-size:13.5px} .np-s{display:block;font-family:var(--mono);font-size:10.5px;color:var(--hell)}
-
 /* Main */
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
 .topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
 .content{flex:1;overflow-y:auto;min-height:0}
 .content-chat{overflow:hidden;display:flex}
-
 /* Start */
 .start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
 .st-mitte{width:100%;max-width:640px;text-align:center;padding:0 24px}
@@ -161,16 +157,14 @@ const STYLES = `
 .tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:var(--panel)}
 .tr-pill:hover{border-color:var(--tinte);color:var(--tinte)}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
-
 /* Chat / Split */
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
-.chat.split{grid-template-columns:minmax(530px,1fr) 530px}
+.chat.split{grid-template-columns:minmax(480px,1fr) 640px}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
 .refine .feld{max-width:none;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
 .refine .feld input{padding:11px 4px;font-size:14px}
-
 .msg-user{display:flex;justify-content:flex-end;margin:16px 0}
 .msg-user span{background:var(--tinte);color:#fff;padding:11px 17px;border-radius:16px 16px 4px 16px;font-size:14.5px;max-width:78%}
 .msg-ulba{margin:8px 0 26px}
@@ -199,7 +193,7 @@ const STYLES = `
 .ek-match{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:var(--porzellan);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
 .em-z{font-family:var(--mono);font-size:15px;color:var(--rouge);line-height:1}
 .em-l{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-top:1px}
-.favherz{position:absolute;top:9px;left:10px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(251,250,248,.9);border:1px solid var(--linie);font-size:13px;color:var(--hell);display:flex;align-items:center;justify-content:center}
+.favherz{position:absolute;top:9px;left:10px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--linie);font-size:13px;color:var(--hell);display:flex;align-items:center;justify-content:center}
 .favherz:hover,.favherz.an{color:var(--rouge)}
 .eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
 .eb-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
@@ -212,8 +206,7 @@ const STYLES = `
 .sc-kopf{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}
 .sc-lbl{font-size:13.5px} .sc-liefer{font-family:var(--mono);font-size:11px;color:var(--rouge)}
 .sc-zeile{font-family:var(--mono);font-size:12px;color:var(--grau)}
-
-/* Render-Panel (rechts, fest 530) */
+/* Render-Panel (rechts, fest 640) */
 .panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
@@ -248,7 +241,6 @@ const STYLES = `
 .pn-aktion .cta:hover{background:var(--rouge)}
 .pn-aktion .cta-sek{border:1px solid var(--linie);border-radius:999px;padding:14px 18px;font-size:14px;color:var(--grau);background:var(--panel)}
 .pn-aktion .cta-sek.an{border-color:var(--rouge);color:var(--rouge)}
-
 /* Bereiche */
 .bereich{padding:32px clamp(16px,4vw,54px) 60px}
 .ber-kopf{margin-bottom:24px}
@@ -271,20 +263,18 @@ const STYLES = `
 .ak-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sst{font-family:var(--mono);font-size:11.5px;color:var(--hell)} .sst.an{color:var(--grau)} .sst.jetzt{color:var(--rouge)}
 .sst-pfeil{color:var(--linie)}
-
 /* Modal */
 .modal-bg{position:fixed;inset:0;background:rgba(20,24,26,.35);z-index:100}
 .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;z-index:101;border-radius:22px;box-shadow:0 24px 60px rgba(20,24,26,.18);width:480px;max-width:calc(100vw - 48px);padding:36px}
 .mfield{width:100%;background:var(--nische);border:0;border-radius:11px;padding:12px 15px;font-size:14px;outline:none}
 .mfield::placeholder{color:var(--hell)}
 .mlbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
-
 @media(max-width:820px){
-  .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
-  .nav.offen{transform:none}
-  .chat.split{grid-template-columns:1fr}
-  .chat.split .cs-main{display:none}
+.ulba{grid-template-columns:1fr}
+.nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
+.nav.offen{transform:none}
+.chat.split{grid-template-columns:1fr}
+.chat.split .cs-main{display:none}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 `;
@@ -330,6 +320,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   };
 
   const shown = imgUrl || product.imageUrl;
+
   return (
     <aside className="panel">
       <div className="pn-kopf">
@@ -339,14 +330,11 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
-
       <div className="pn-bild">
         {shown ? <img src={shown} alt={product.name} /> : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
       </div>
-
       <div className="pn-body">
         {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
-
         <div className="vis">
           <div className="top">Deine Richtung</div>
           <div className="row">
@@ -356,7 +344,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
           {imgUrl && <div className="out"><img src={imgUrl} alt="Rendering" />{cached && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--hell)', padding: '8px 12px' }}>Aus Cache</div>}</div>}
         </div>
-
         {product.capImages && product.capImages.length > 0 && (
           <div className="capstrip">
             <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
@@ -369,7 +356,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
             </div>
           </div>
         )}
-
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
           {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
@@ -382,7 +368,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
         )}
       </div>
-
       <div className="pn-aktion">
         <button className="cta" onClick={onSample}>Muster anfragen →</button>
         <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
@@ -396,6 +381,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+
   const submit = async () => {
     if (!email.trim()) return; setStatus('sending');
     try {
@@ -403,6 +389,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
       if (!res.ok) throw new Error(); setStatus('done');
     } catch { setStatus('error'); }
   };
+
   return (
     <>
       <div className="modal-bg" onClick={onClose} />
@@ -559,9 +546,9 @@ export default function Home() {
       <div className="nav-chats">
         {rootQuery
           ? <button className={`nav-chat${view === 'chat' ? ' an' : ''}`} onClick={() => setView('chat')}>
-              <span className="nc-t">{rootQuery.slice(0, 40)}</span>
-              <span className="nc-s">{board.length ? `${board.length} im Paket` : 'Suche'}</span>
-            </button>
+            <span className="nc-t">{rootQuery.slice(0, 40)}</span>
+            <span className="nc-s">{board.length ? `${board.length} im Paket` : 'Suche'}</span>
+          </button>
           : <div className="nav-leer">Noch kein Projekt</div>}
       </div>
       <div className="nav-profil"><span className="np-av">A</span><div><span className="np-n">Alen</span><span className="np-s">ulba · Basel</span></div></div>
@@ -580,7 +567,6 @@ export default function Home() {
         <header className="topbar">
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 40) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
-
         <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
           {view === 'start' && (
             <div className="start">
@@ -638,8 +624,8 @@ export default function Home() {
                               {liste.length === 0
                                 ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                 : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
-                                  </div>}
+                                  {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                </div>}
                               {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: true } : x))}>Alle weiteren {rest} anzeigen ↓</button>}
                               {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: false } : x))}>Nur beste 20 zeigen ↑</button>}
                               {isLast && facetten.length > 0 && (
@@ -680,11 +666,11 @@ export default function Home() {
               {board.length === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
                 : <div className="lin-grid">
-                    <div className="lin-karte">
-                      <div className="lk-reihe">{board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
-                      <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 30) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile</span></div>
-                    </div>
-                  </div>}
+                  <div className="lin-karte">
+                    <div className="lk-reihe">{board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
+                    <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 30) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile</span></div>
+                  </div>
+                </div>}
             </div>
           )}
 
@@ -694,10 +680,10 @@ export default function Home() {
               {favCount === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
                 : <div className="eb-grid">
-                    {favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).map(f => (
-                      <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
-                    ))}
-                  </div>}
+                  {favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).map(f => (
+                    <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                  ))}
+                </div>}
             </div>
           )}
 
@@ -709,7 +695,6 @@ export default function Home() {
           )}
         </div>
       </div>
-
       {sampleProduct && <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />}
     </div>
   );
