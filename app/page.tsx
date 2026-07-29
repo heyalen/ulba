@@ -7,21 +7,23 @@
    Favoriten/Projekte laufen wie bisher über localStorage (unverändert).
 
    Änderungen 29.07 (v2):
-   · Farbwelt auf reines Weiß + kühles Hellgrau umgestellt (ChatGPT-Stil):
-     --porzellan #FFFFFF · --nische #F7F7F8 · --linie #ECECEE · --linie2 #F4F4F5
-   · Render-Panel rechts von 530px auf 640px verbreitert
+   · Farbwelt auf reines Weiß + kühles Hellgrau umgestellt (ChatGPT-Stil).
+   · Render-Panel rechts auf 720px.
 
    Änderungen 29.07 (v3) — Render-Umbau Stufe 1:
-   · Render wird zum Hero-Bild (großes Bild oben). Rohteil bleibt als erstes
-     Thumbnail im neuen Varianten-Strip → Vorher/Nachher-Kontrast bleibt.
-   · Doppelbild behoben (Render tauchte in .pn-bild UND .vis .out auf).
-   · Private Render-Historie pro Packmittel via localStorage (ulba_renders_v1).
-   · KEIN Auto-Render — Render startet nur auf Klick auf „Generieren".
-   · Redundantes „Gewählter Verschluss"-Großbild (pn-cap-gross) entfernt.
+   · Render wird Hero-Bild. Rohteil bleibt erstes Thumbnail im Varianten-Strip.
+   · Doppelbild behoben. Private Render-Historie pro Packmittel (localStorage).
+   · KEIN Auto-Render — Render startet nur auf Klick.
+
+   Änderungen 29.07 (v4) — Cap→Render (Schritt 2):
+   · /api/search liefert jetzt caps: [{id, imageUrl}] (id für Render, url für Anzeige).
+     Rückwärtskompatibel: fehlt caps, wird aus capImages ohne id abgeleitet.
+   · „Gewählter Verschluss"-Großbild zurück, an Thumbnail-Klick gekoppelt.
+   · „Generieren" schickt selectedCapId mit → render.ts baut das System (Base+Cap).
+   · Kein Cap → kein Cap-UI, Render ändert nur Farbe/Finish (render.ts Fall A).
 
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
-   Suche unten nach ANNAHME: — dort sind die Feldnamen dokumentiert,
-   die dein Backend liefern muss. Wenn ein Feld anders heisst, nur dort ändern.
+   Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -51,52 +53,53 @@ const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
 };
 
 /* Facetten zum manuellen Eingrenzen. Nur Dimensionen anbieten,
-   die nicht schon in parsedFilters gesetzt sind. Die Werte werden bei
-   Auswahl in active_filters.<dim> geschoben und lösen eine neue Suche aus. */
+   die nicht schon in parsedFilters gesetzt sind. */
 const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
   { dim: 'materials', label: 'Material', opt: ['Glass', 'PP', 'PETG', 'Acrylic', 'Aluminium'] },
   { dim: 'sizes', label: 'Volumen', opt: ['15ml', '30ml', '50ml', '75ml', '100ml'] },
   { dim: 'closures', label: 'Verschluss', opt: ['ScrewCap', 'Pump', 'Dropper', 'Spray', 'FlipTop'] },
 ];
 
+/* Ein Verschluss aus /api/search: id (für den Render) + imageUrl (für die Anzeige). */
+interface CapRef { id: string; imageUrl: string }
+
 // ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
-// (1:1 aus deinem bestehenden Interface übernommen — nichts geraten.)
 interface Result {
   id: string; name: string; score: number; reasoning: string;
   type: string; material: string[]; form: string[]; closure: string;
   description?: string; imageUrl: string | null;
   capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
-  capCount: number; capImages?: string[];
+  capCount: number;
+  caps?: CapRef[];        // NEU: {id,imageUrl}-Paare
+  capImages?: string[];   // Fallback (nur URLs) — falls Backend noch alt ist
   supplier?: string;
-  projekt?: string; // Projekt-Label (Such-Query), zum Gruppieren der Listen
+  projekt?: string;       // Projekt-Label (Such-Query), zum Gruppieren der Listen
 }
 
 // ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
 type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; closures: string[] };
 
-/* Ein Verlaufs-Block = ein Suchlauf. Der Thread ist Block[].
-   So wird jede Verfeinerung als eigener Block DARUNTER sichtbar. */
+/* Ein Verlaufs-Block = ein Suchlauf. Der Thread ist Block[]. */
 interface Block {
   id: number;
-  intro: string;          // was diesen Block ausgelöst hat ("wärmer", "Material: Glass", Startquery)
-  query: string;          // die Query, mit der gesucht wurde
-  filters: ParsedFilters; // Filterstand dieses Blocks (Snapshot)
+  intro: string;
+  query: string;
+  filters: ParsedFilters;
   results: Result[];
   categoryMatch: string;
-  alleZeigen: boolean;    // "alle weiteren anzeigen" pro Block
+  alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
 }
 
-/* Ein Projekt = ein Chat mit eigener Historie, eigenem Musterpaket und eigener Query.
-   Alles lokal in localStorage — kein Login, aber echte Mehr-Projekt-Struktur. */
+/* Ein Projekt = ein Chat mit eigener Historie, eigenem Musterpaket und eigener Query. */
 interface Project {
   id: string;
-  name: string;        // aus der ersten Query abgeleitet
+  name: string;
   createdAt: number;
   rootQuery: string;
   blocks: Block[];
   board: Result[];
-  blockSeq: number;    // Block-Zähler pro Projekt
+  blockSeq: number;
 }
 
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
@@ -117,8 +120,7 @@ function loadFavorites(): FavoriteEntry[] {
 }
 function saveFavorites(f: FavoriteEntry[]) { try { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); } catch {} }
 
-/* Private Render-Historie pro Packmittel — client-seitig, kein Leak, überlebt Sessions.
-   Der aggregierte Blick auf Renders bleibt bewusst draußen — der gehört in den Demand-Report, nicht ins UI. */
+/* Private Render-Historie pro Packmittel — client-seitig, kein Leak, überlebt Sessions. */
 const LS_RENDERS = 'ulba_renders_v1';
 function loadRenderHist(systemId: string): string[] {
   try { const raw = localStorage.getItem(LS_RENDERS); if (raw) { const all = JSON.parse(raw); return Array.isArray(all[systemId]) ? all[systemId] : []; } } catch {}
@@ -131,6 +133,13 @@ function saveRenderHist(systemId: string, urls: string[]) {
     all[systemId] = urls;
     localStorage.setItem(LS_RENDERS, JSON.stringify(all));
   } catch {}
+}
+
+/* Caps eines Produkts normalisieren: bevorzugt caps[{id,url}], sonst aus capImages ableiten. */
+function getCaps(p: Result): CapRef[] {
+  if (p.caps && p.caps.length > 0) return p.caps.filter(c => c && c.imageUrl);
+  if (p.capImages && p.capImages.length > 0) return p.capImages.map(url => ({ id: '', imageUrl: url }));
+  return [];
 }
 
 /* ── Design-System: „Porzellan & Pigment" — v2: reines Weiß ── */
@@ -257,7 +266,7 @@ const STYLES = `
 .sc-kopf{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}
 .sc-lbl{font-size:13.5px} .sc-liefer{font-family:var(--mono);font-size:11px;color:var(--rouge)}
 .sc-zeile{font-family:var(--mono);font-size:12px;color:var(--grau)}
-/* Render-Panel (rechts, fest 640) */
+/* Render-Panel (rechts, fest 720) */
 .panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
@@ -284,10 +293,12 @@ const STYLES = `
 .pn-caps-top{padding:4px 24px 14px}
 .pn-caps-top .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
-.capstrip{margin:16px 0}
-.capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
-.capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-.capthumb{flex:none;width:82px;height:82px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-cap-gross{margin:0 24px 14px;padding:0}
+.pn-cap-gross .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.pn-cap-gross .buehne{height:150px;background:#FFFFFF;border:1px solid var(--linie);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-cap-gross .buehne img{max-width:58%;max-height:84%;object-fit:contain}
+.pn-cap-gross .ph{font-size:34px;color:#d8d8d6}
+.capthumb{flex:none;width:82px;height:82px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}
 .capthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
 .capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:9px}
 .pn-aktion{position:sticky;bottom:0;display:flex;gap:9px;padding:16px 24px;background:linear-gradient(to top,var(--panel) 72%,transparent);margin-top:auto}
@@ -340,8 +351,8 @@ const STYLES = `
 .eb-intro{color:var(--grau);font-weight:400}
 .pgrund{font-weight:400}
 .leer .gr{font-weight:700}
-.mono,.nav-lbl,.ebf-lbl,.fc-lbl,.em-l,.pn-caps-top .lbl,.capstrip .lbl,.vis .top,.mlbl,.topbar .spur{font-weight:600}
-/* Varianten-Strip + Render-Ladezustand (Render-Umbau Stufe 1) */
+.mono,.nav-lbl,.ebf-lbl,.fc-lbl,.em-l,.pn-caps-top .lbl,.pn-cap-gross .lbl,.vis .top,.mlbl,.topbar .spur{font-weight:600}
+/* Varianten-Strip + Render-Ladezustand */
 .varstrip{margin:14px 24px 4px}
 .varstrip .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px;font-weight:600}
 .varstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -387,16 +398,20 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
 
-  const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
+  const roh = product.imageUrl;   // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
+  const caps = getCaps(product);  // [{id,imageUrl}] — leer, wenn das Produkt keinen Cap hat
 
   const run = async (brief: string) => {
     const q = brief.trim();
     if (!q) return;
     setRstatus('loading');
     try {
+      const selectedCapId = caps[cap]?.id || null;
+      const body: any = { systemId: product.id, query: q, tier: 'lite' };
+      if (selectedCapId) body.selectedCapId = selectedCapId; // nur mitschicken, wenn echte ID da ist
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemId: product.id, query: q, tier: 'lite' }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'render failed');
@@ -436,15 +451,28 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         </div>
       </div>
 
-      {product.capImages && product.capImages.length > 0 && (
+      {/* Passende Verschlüsse — Thumbnail-Strip. Klick wählt den Cap für den nächsten Render. */}
+      {caps.length > 0 && (
         <div className="pn-caps-top">
-          <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
+          <div className="lbl">Passende Verschlüsse · {caps.length}</div>
           <div className="thumbs">
-            {product.capImages.map((url, i) => (
+            {caps.map((c, i) => (
               <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => setCap(i)}>
-                <img src={url} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                <img src={c.imageUrl} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Gewählter Verschluss — großes Bild, folgt dem Thumbnail-Klick. */}
+      {caps.length > 0 && (
+        <div className="pn-cap-gross">
+          <div className="lbl">Gewählter Verschluss · {cap + 1}/{caps.length}</div>
+          <div className="buehne">
+            {caps[cap]?.imageUrl
+              ? <img src={caps[cap].imageUrl} alt={`Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              : <span className="ph">◇</span>}
           </div>
         </div>
       )}
@@ -512,7 +540,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   );
 }
 
-/* ── Muster-Anfrage-Modal (unverändert aus deinem Code) ── */
+/* ── Muster-Anfrage-Modal (unverändert) ── */
 function SampleModal({ product, onClose }: { product: Result; onClose: () => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
@@ -560,7 +588,7 @@ function SampleModal({ product, onClose }: { product: Result; onClose: () => voi
   );
 }
 
-/* ── Lade-Anzeige: laufender Balken + wechselnde Statustexte (psychologisch, ohne Lieferantennamen) ── */
+/* ── Lade-Anzeige: laufender Balken + wechselnde Statustexte ── */
 const SCAN_MESSAGES = [
   'Lese Formsprache und Silhouette …',
   'Gleiche Material und Volumen ab …',
@@ -632,7 +660,6 @@ export default function Home() {
 
   useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks, activeId]);
 
-  // Ein Projekt gezielt updaten
   const patchProject = useCallback((id: string, patch: (p: Project) => Project) => {
     setProjects(prev => prev.map(p => p.id === id ? patch(p) : p));
   }, []);
@@ -684,7 +711,6 @@ export default function Home() {
     }
   }, []);
 
-  // Neue Suche vom Start-Screen → neues Projekt anlegen
   const starteSuche = (text: string) => {
     if (!text.trim()) return;
     const q = text.trim();
@@ -695,7 +721,6 @@ export default function Home() {
     runSearch(id, q, emptyFilters(), q);
   };
 
-  // Freitext-Verfeinerung im aktiven Projekt
   const verfeinereText = (text: string) => {
     if (!text.trim() || !active) return;
     const letzter = blocks[blocks.length - 1];
@@ -724,7 +749,6 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
   };
 
-  // Projekt öffnen / neu / löschen
   const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
   const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
@@ -735,7 +759,6 @@ export default function Home() {
 
   const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
   const boardTotal = projects.reduce((n, p) => n + p.board.length, 0);
-  const allBoard = projects.flatMap(p => p.board);
   const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
 
   const nav = (
