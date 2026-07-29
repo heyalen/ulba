@@ -143,6 +143,7 @@ const STYLES = `
 .topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
 .topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
 .content{flex:1;overflow-y:auto;min-height:0}
+.content-chat{overflow:hidden;display:flex}
 
 /* Start */
 .start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
@@ -162,10 +163,10 @@ const STYLES = `
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 
 /* Chat / Split */
-.chat{display:grid;grid-template-columns:1fr;height:100%}
+.chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
 .chat.split{grid-template-columns:minmax(530px,1fr) 530px}
-.cs-main{display:flex;flex-direction:column;min-width:0;height:100%}
-.thread{flex:1;overflow-y:auto;padding:26px clamp(16px,4vw,54px) 20px}
+.cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
+.thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
 .refine .feld{max-width:none;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
 .refine .feld input{padding:11px 4px;font-size:14px}
@@ -213,7 +214,7 @@ const STYLES = `
 .sc-zeile{font-family:var(--mono);font-size:12px;color:var(--grau)}
 
 /* Render-Panel (rechts, fest 530) */
-.panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;overflow-y:auto}
+.panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
@@ -580,7 +581,7 @@ export default function Home() {
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 40) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
 
-        <div className="content">
+        <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
           {view === 'start' && (
             <div className="start">
               <div className="st-mitte">
