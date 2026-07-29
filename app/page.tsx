@@ -233,6 +233,8 @@ const STYLES = `
 .pn-caps-top{padding:4px 24px 14px}
 .pn-caps-top .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.pn-cap-gross{margin:0 24px 14px;height:150px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-cap-gross img{max-width:60%;max-height:82%;object-fit:contain}
 .capstrip{margin:16px 0}
 .capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
 .capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -343,6 +345,11 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {product.capImages && product.capImages.length > 0 && (
+        <div className="pn-cap-gross">
+          <img src={product.capImages[cap]} alt={`Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
         </div>
       )}
       <div className="pn-bild">
