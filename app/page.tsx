@@ -11,6 +11,14 @@
      --porzellan #FFFFFF · --nische #F7F7F8 · --linie #ECECEE · --linie2 #F4F4F5
    · Render-Panel rechts von 530px auf 640px verbreitert
 
+   Änderungen 29.07 (v3) — Render-Umbau Stufe 1:
+   · Render wird zum Hero-Bild (großes Bild oben). Rohteil bleibt als erstes
+     Thumbnail im neuen Varianten-Strip → Vorher/Nachher-Kontrast bleibt.
+   · Doppelbild behoben (Render tauchte in .pn-bild UND .vis .out auf).
+   · Private Render-Historie pro Packmittel via localStorage (ulba_renders_v1).
+   · KEIN Auto-Render — Render startet nur auf Klick auf „Generieren".
+   · Redundantes „Gewählter Verschluss"-Großbild (pn-cap-gross) entfernt.
+
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche unten nach ANNAHME: — dort sind die Feldnamen dokumentiert,
    die dein Backend liefern muss. Wenn ein Feld anders heisst, nur dort ändern.
@@ -90,6 +98,7 @@ interface Project {
   board: Result[];
   blockSeq: number;    // Block-Zähler pro Projekt
 }
+
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
 
 const LS_PROJECTS = 'ulba_projects_v2';
@@ -101,22 +110,39 @@ function loadProjects(): Project[] {
 }
 function saveProjects(p: Project[]) { try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); } catch {} }
 function neueProjektId(): string { return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
 function loadFavorites(): FavoriteEntry[] {
   try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return JSON.parse(raw); } catch {}
   return [];
 }
 function saveFavorites(f: FavoriteEntry[]) { try { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); } catch {} }
 
+/* Private Render-Historie pro Packmittel — client-seitig, kein Leak, überlebt Sessions.
+   Der aggregierte Blick auf Renders bleibt bewusst draußen — der gehört in den Demand-Report, nicht ins UI. */
+const LS_RENDERS = 'ulba_renders_v1';
+function loadRenderHist(systemId: string): string[] {
+  try { const raw = localStorage.getItem(LS_RENDERS); if (raw) { const all = JSON.parse(raw); return Array.isArray(all[systemId]) ? all[systemId] : []; } } catch {}
+  return [];
+}
+function saveRenderHist(systemId: string, urls: string[]) {
+  try {
+    const raw = localStorage.getItem(LS_RENDERS);
+    const all = raw ? JSON.parse(raw) : {};
+    all[systemId] = urls;
+    localStorage.setItem(LS_RENDERS, JSON.stringify(all));
+  } catch {}
+}
+
 /* ── Design-System: „Porzellan & Pigment" — v2: reines Weiß ── */
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap');
 :root{
---porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F7F7F8;
---tinte:#1D1D1B;--grau:#5B5B58;--hell:#9A9A96;
---rouge:#4C1420;--linie:#ECECEE;--linie2:#F4F4F5;--r:14px;
---serif:'Archivo',system-ui,sans-serif;
---sans:'Archivo',system-ui,sans-serif;
---mono:'Archivo',system-ui,sans-serif;
+  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F7F7F8;
+  --tinte:#1D1D1B;--grau:#5B5B58;--hell:#9A9A96;
+  --rouge:#4C1420;--linie:#ECECEE;--linie2:#F4F4F5;--r:14px;
+  --serif:'Archivo',system-ui,sans-serif;
+  --sans:'Archivo',system-ui,sans-serif;
+  --mono:'Archivo',system-ui,sans-serif;
 }
 .ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
@@ -258,11 +284,6 @@ const STYLES = `
 .pn-caps-top{padding:4px 24px 14px}
 .pn-caps-top .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
-.pn-cap-gross{margin:0 24px 14px;padding:0}
-.pn-cap-gross .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
-.pn-cap-gross .buehne{height:150px;background:#FFFFFF;border:1px solid var(--linie);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-cap-gross .buehne img{max-width:58%;max-height:84%;object-fit:contain}
-.pn-cap-gross .ph{font-size:34px;color:#d8d8d6}
 .capstrip{margin:16px 0}
 .capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
 .capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -306,11 +327,11 @@ const STYLES = `
 .mfield::placeholder{color:var(--hell)}
 .mlbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
 @media(max-width:820px){
-.ulba{grid-template-columns:1fr}
-.nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
-.nav.offen{transform:none}
-.chat.split{grid-template-columns:1fr}
-.chat.split .cs-main{display:none}
+  .ulba{grid-template-columns:1fr}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
+  .nav.offen{transform:none}
+  .chat.split{grid-template-columns:1fr}
+  .chat.split .cs-main{display:none}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 /* Vitsoe-Anpassung: eine Grotesk, schwere Headlines, keine Serifen */
@@ -319,8 +340,19 @@ const STYLES = `
 .eb-intro{color:var(--grau);font-weight:400}
 .pgrund{font-weight:400}
 .leer .gr{font-weight:700}
-.mono,.nav-lbl,.ebf-lbl,.fc-lbl,.em-l,.pn-caps-top .lbl,.pn-cap-gross .lbl,.capstrip .lbl,.vis .top,.mlbl,.topbar .spur{font-weight:600}
-
+.mono,.nav-lbl,.ebf-lbl,.fc-lbl,.em-l,.pn-caps-top .lbl,.capstrip .lbl,.vis .top,.mlbl,.topbar .spur{font-weight:600}
+/* Varianten-Strip + Render-Ladezustand (Render-Umbau Stufe 1) */
+.varstrip{margin:14px 24px 4px}
+.varstrip .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px;font-weight:600}
+.varstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.varthumb{position:relative;flex:none;width:74px;height:74px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}
+.varthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
+.varthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:7px}
+.varthumb .ph{font-size:26px;color:#d8d8d6}
+.vt-tag{position:absolute;bottom:0;left:0;right:0;font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell);background:rgba(255,255,255,.86);padding:2px 0;text-align:center}
+.pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
+.pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
+@keyframes pnspin{to{transform:rotate(360deg)}}
 `;
 
 /* ── Helpers ── */
@@ -335,6 +367,7 @@ function cloneFilters(f: ParsedFilters): ParsedFilters {
   return { sizes: [...f.sizes], materials: [...f.materials], types: [...f.types], closures: [...f.closures] };
 }
 function hasDim(f: ParsedFilters, d: keyof ParsedFilters): boolean { return (f[d] || []).length > 0; }
+
 /* Nach Projekt-Label gruppieren, Reihenfolge = erstes Auftreten. */
 function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, T[]][] {
   const map = new Map<string, T[]>();
@@ -349,29 +382,49 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 }) {
   const [query, setQuery] = useState(defaultQuery);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [varianten, setVarianten] = useState<string[]>([]);
+  const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
-  const [capErr, setCapErr] = useState(false);
 
-  useEffect(() => { setQuery(defaultQuery); setRstatus('idle'); setImgUrl(null); setCap(0); }, [product.id, defaultQuery]);
-  useEffect(() => { setCapErr(false); }, [cap, product.id]);
+  const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
 
-  const run = async () => {
-    if (!query.trim()) return;
-    setRstatus('loading'); setImgUrl(null);
+  const run = async (brief: string) => {
+    const q = brief.trim();
+    if (!q) return;
+    setRstatus('loading');
     try {
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemId: product.id, query, tier: 'lite' }),
+        body: JSON.stringify({ systemId: product.id, query: q, tier: 'lite' }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'render failed');
-      setImgUrl(data.renderingUrl || null); setCached(!!data.cached); setRstatus('done');
+      const url: string | null = data.renderingUrl || null;
+      if (url) {
+        setHeroUrl(url);
+        setCached(!!data.cached);
+        setVarianten(prev => {
+          const next = prev.includes(url) ? prev : [...prev, url];
+          saveRenderHist(product.id, next);
+          return next;
+        });
+      }
+      setRstatus('done');
     } catch { setRstatus('error'); }
   };
 
-  const shown = imgUrl || product.imageUrl;
+  // Produktwechsel: Historie laden, Hero setzen. KEIN Auto-Render — Render startet nur auf Klick.
+  useEffect(() => {
+    setQuery(defaultQuery);
+    setCap(0);
+    setCached(false);
+    setRstatus('idle');
+    const hist = loadRenderHist(product.id);
+    setVarianten(hist);
+    setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id, defaultQuery]);
 
   return (
     <aside className="panel">
@@ -382,6 +435,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
+
       {product.capImages && product.capImages.length > 0 && (
         <div className="pn-caps-top">
           <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
@@ -394,33 +448,48 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           </div>
         </div>
       )}
-      {product.capImages && product.capImages.length > 0 && (
-        <div className="pn-cap-gross">
-          <div className="lbl">Gewählter Verschluss · {cap + 1}/{product.capImages.length}</div>
-          <div className="buehne">
-            {product.capImages[cap] && !capErr
-              ? <img src={product.capImages[cap]} alt={`Verschluss ${cap + 1}`} onError={() => setCapErr(true)} />
-              : <span className="ph">◇</span>}
+
+      {/* Hero: aktueller Render (oder Rohteil, solange keiner da ist) */}
+      <div className="pn-bild">
+        {rstatus === 'loading'
+          ? <div className="pn-lade"><span className="pn-lade-sp" />Rendert deine Richtung …</div>
+          : heroUrl
+            ? <img src={heroUrl} alt={product.name} />
+            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+      </div>
+
+      {/* Varianten-Strip: erst ab dem ersten Render. Rohteil zuerst (hält den Vorher/Nachher-Kontrast). */}
+      {varianten.length > 0 && (
+        <div className="varstrip">
+          <div className="lbl">Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</div>
+          <div className="thumbs">
+            <button className={`varthumb${heroUrl === roh ? ' an' : ''}`} onClick={() => setHeroUrl(roh)} title="Original-Rohteil">
+              {roh ? <img src={roh} alt="Original" /> : <span className="ph">◇</span>}
+              <span className="vt-tag">Original</span>
+            </button>
+            {varianten.map((u, i) => (
+              <button key={i} className={`varthumb${heroUrl === u ? ' an' : ''}`} onClick={() => setHeroUrl(u)}>
+                <img src={u} alt={`Render ${i + 1}`} />
+              </button>
+            ))}
           </div>
         </div>
       )}
-      <div className="pn-bild">
-        {shown ? <img src={shown} alt={product.name} /> : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
-      </div>
+
       <div className="pn-body">
         {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
+
         <div className="vis">
           <div className="top">Deine Richtung</div>
           <div className="row">
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={run} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
+            <input value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') run(query); }}
+              placeholder="z. B. warmes Beige, matt, dezent" />
+            <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
           </div>
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
-          {imgUrl && <div className="out"><img src={imgUrl} alt="Rendering" />{cached && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--hell)', padding: '8px 12px' }}>Aus Cache</div>}</div>}
         </div>
-        {product.capImages && product.capImages.length > 0 && (
-          <div className="capstrip" style={{ display: 'none' }} />
-        )}
+
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
           {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
@@ -429,10 +498,12 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
           {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
         </div>
+
         {product.capabilities?.length > 0 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
         )}
       </div>
+
       <div className="pn-aktion">
         <button className="cta" onClick={onSample}>Muster anfragen →</button>
         <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
@@ -550,6 +621,7 @@ export default function Home() {
     const ps = loadProjects(); setProjects(ps);
     setFavorites(loadFavorites());
   }, []);
+
   // Persistenz: bei jeder Projekt-Änderung speichern
   useEffect(() => { if (mounted) saveProjects(projects); }, [projects, mounted]);
 
@@ -573,6 +645,7 @@ export default function Home() {
       : [...favorites, { productId: product.id, projectId: proj, savedAt: Date.now(), product: { ...product, projekt: proj } }];
     setFavorites(upd); saveFavorites(upd);
   };
+
   const toggleBoard = (product: Result) => {
     if (!active) return;
     const proj = rootQuery.trim() || 'Ohne Projekt';
@@ -709,6 +782,7 @@ export default function Home() {
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
         <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
+
           {view === 'start' && (
             <div className="start">
               <div className="st-mitte">
@@ -730,57 +804,57 @@ export default function Home() {
               <main className="cs-main">
                 <div className="thread" ref={threadRef}>
                   <div className="thread-inner">
-                  {blocks.map(b => {
-                    const isLast = b.id === lastId;
-                    const liste = b.results;
-                    const zeige = b.alleZeigen ? liste : liste.slice(0, 20);
-                    const rest = liste.length - zeige.length;
-                    const pal = b.categoryMatch || 'deine Suche';
-                    const chips: { dim: keyof ParsedFilters; wert: string; label: string }[] = [];
-                    (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(dim =>
-                      (b.filters[dim] || []).forEach(wert => chips.push({ dim, wert, label: `${FILTER_LABELS[dim]}: ${wert}` })));
-                    const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
-                    return (
-                      <div key={b.id}>
-                        <div className="msg-user"><span>{b.intro}</span></div>
-                        <div className="msg-ulba">
-                          {b.status === 'loading' && <ScanBar />}
-                          {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
-                          {b.status === 'done' && (
-                            <div className={`eb${isLast ? '' : ' eb-alt'}`}>
-                              {chips.length > 0 && (
-                                <div className="eb-filter">
-                                  <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
-                                  {chips.map((c, i) => (
-                                    <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
-                                  ))}
-                                </div>
-                              )}
-                              <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
-                              {liste.length === 0
-                                ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
-                                : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                  {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
-                                </div>}
-                              {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
-                              {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
-                              {isLast && facetten.length > 0 && (
-                                <div className="eb-facetten">
-                                  <span className="ebf-lbl">Weiter eingrenzen</span>
-                                  {facetten.map(f => (
-                                    <div key={f.dim} className="facet">
-                                      <span className="fc-lbl">{f.label}</span>
-                                      {f.opt.map(o => <button key={o} className="fc-opt" onClick={() => waehleFacette(f.dim, o)}>{o}</button>)}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                    {blocks.map(b => {
+                      const isLast = b.id === lastId;
+                      const liste = b.results;
+                      const zeige = b.alleZeigen ? liste : liste.slice(0, 20);
+                      const rest = liste.length - zeige.length;
+                      const pal = b.categoryMatch || 'deine Suche';
+                      const chips: { dim: keyof ParsedFilters; wert: string; label: string }[] = [];
+                      (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(dim =>
+                        (b.filters[dim] || []).forEach(wert => chips.push({ dim, wert, label: `${FILTER_LABELS[dim]}: ${wert}` })));
+                      const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
+                      return (
+                        <div key={b.id}>
+                          <div className="msg-user"><span>{b.intro}</span></div>
+                          <div className="msg-ulba">
+                            {b.status === 'loading' && <ScanBar />}
+                            {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
+                            {b.status === 'done' && (
+                              <div className={`eb${isLast ? '' : ' eb-alt'}`}>
+                                {chips.length > 0 && (
+                                  <div className="eb-filter">
+                                    <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
+                                    {chips.map((c, i) => (
+                                      <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                                {liste.length === 0
+                                  ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
+                                  : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
+                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                  </div>}
+                                {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
+                                {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
+                                {isLast && facetten.length > 0 && (
+                                  <div className="eb-facetten">
+                                    <span className="ebf-lbl">Weiter eingrenzen</span>
+                                    {facetten.map(f => (
+                                      <div key={f.dim} className="facet">
+                                        <span className="fc-lbl">{f.label}</span>
+                                        {f.opt.map(o => <button key={o} className="fc-opt" onClick={() => waehleFacette(f.dim, o)}>{o}</button>)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="refine">
@@ -830,18 +904,18 @@ export default function Home() {
               {favCount === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
                 : gruppiereNachProjekt(
-                    favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i),
-                    f => f.projectId || 'Ohne Projekt'
-                  ).map(([proj, items]) => (
-                    <div key={proj} style={{ marginBottom: 30 }}>
-                      <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
-                      <div className="eb-grid">
-                        {items.map(f => (
-                          <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setSelected(f.product); setView(active ? 'chat' : 'favoriten'); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
-                        ))}
-                      </div>
+                  favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i),
+                  f => f.projectId || 'Ohne Projekt'
+                ).map(([proj, items]) => (
+                  <div key={proj} style={{ marginBottom: 30 }}>
+                    <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
+                    <div className="eb-grid">
+                      {items.map(f => (
+                        <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setSelected(f.product); setView(active ? 'chat' : 'favoriten'); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                ))}
             </div>
           )}
 
@@ -851,6 +925,7 @@ export default function Home() {
               <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
             </div>
           )}
+
         </div>
       </div>
       {sampleProduct && <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />}
