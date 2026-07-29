@@ -79,23 +79,33 @@ interface Block {
   status: 'loading' | 'done' | 'error';
 }
 
-interface Project { id: string; name: string; createdAt: number; }
+/* Ein Projekt = ein Chat mit eigener Historie, eigenem Musterpaket und eigener Query.
+   Alles lokal in localStorage — kein Login, aber echte Mehr-Projekt-Struktur. */
+interface Project {
+  id: string;
+  name: string;        // aus der ersten Query abgeleitet
+  createdAt: number;
+  rootQuery: string;
+  blocks: Block[];
+  board: Result[];
+  blockSeq: number;    // Block-Zähler pro Projekt
+}
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
 
-const LS_PROJECTS = 'ulba_projects';
+const LS_PROJECTS = 'ulba_projects_v2';
 const LS_FAVORITES = 'ulba_favorites';
 
 function loadProjects(): Project[] {
   try { const raw = localStorage.getItem(LS_PROJECTS); if (raw) return JSON.parse(raw); } catch {}
-  const def: Project[] = [{ id: 'default', name: 'Meine Sammlung', createdAt: Date.now() }];
-  localStorage.setItem(LS_PROJECTS, JSON.stringify(def)); return def;
+  return [];
 }
-function saveProjects(p: Project[]) { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); }
+function saveProjects(p: Project[]) { try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); } catch {} }
+function neueProjektId(): string { return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function loadFavorites(): FavoriteEntry[] {
   try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return JSON.parse(raw); } catch {}
   return [];
 }
-function saveFavorites(f: FavoriteEntry[]) { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); }
+function saveFavorites(f: FavoriteEntry[]) { try { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); } catch {} }
 
 /* ── Design-System: „Porzellan & Pigment" — v2: reines Weiß ── */
 const STYLES = `
@@ -117,7 +127,7 @@ const STYLES = `
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* Nav */
 .nav{border-right:1px solid var(--linie);padding:16px 12px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
-.nav-marke{font-family:var(--serif);font-size:26px;text-align:left;padding:4px 8px 12px}
+.nav-marke{font-family:var(--serif);font-size:19px;font-weight:800;letter-spacing:-.02em;text-align:left;padding:4px 8px 12px}
 .nav-neu{text-align:left;border:1px solid var(--linie);border-radius:11px;padding:11px 14px;font-size:14px;background:var(--panel);margin-bottom:10px}
 .nav-neu:hover{border-color:var(--tinte)}
 .nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;text-align:left;color:var(--grau);font-size:14px}
@@ -128,8 +138,11 @@ const STYLES = `
 .ni-b{font-family:var(--mono);font-size:11px;background:var(--rouge);color:#fff;border-radius:999px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
 .nav-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--hell);padding:12px 11px 6px}
 .nav-chats{display:flex;flex-direction:column;gap:1px;flex:1;overflow-y:auto}
-.nav-chat{text-align:left;padding:9px 11px;border-radius:9px;display:flex;flex-direction:column;gap:2px}
+.nav-chat{position:relative;text-align:left;padding:9px 26px 9px 11px;border-radius:9px;display:flex;flex-direction:column;gap:2px}
 .nav-chat:hover{background:var(--nische)} .nav-chat.an{background:var(--nische)}
+.nc-x{position:absolute;top:50%;right:8px;transform:translateY(-50%);width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;color:var(--hell);opacity:0}
+.nav-chat:hover .nc-x{opacity:1}
+.nc-x:hover{background:var(--linie);color:var(--rouge)}
 .nc-t{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nc-s{font-family:var(--mono);font-size:10px;color:var(--hell)}
 .nav-leer{font-size:12.5px;color:var(--hell);padding:8px 11px}
@@ -524,18 +537,32 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [rootQuery, setRootQuery] = useState('');
   const [selected, setSelected] = useState<Result | null>(null);
   const [sampleProduct, setSampleProduct] = useState<Result | null>(null);
-  const [board, setBoard] = useState<Result[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
-  const blockId = useRef(0);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setMounted(true); setProjects(loadProjects()); setFavorites(loadFavorites()); }, []);
-  useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks]);
+  useEffect(() => {
+    setMounted(true);
+    const ps = loadProjects(); setProjects(ps);
+    setFavorites(loadFavorites());
+  }, []);
+  // Persistenz: bei jeder Projekt-Änderung speichern
+  useEffect(() => { if (mounted) saveProjects(projects); }, [projects, mounted]);
+
+  const active = projects.find(p => p.id === activeId) || null;
+  const blocks = active ? active.blocks : [];
+  const board = active ? active.board : [];
+  const rootQuery = active ? active.rootQuery : '';
+
+  useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks, activeId]);
+
+  // Ein Projekt gezielt updaten
+  const patchProject = useCallback((id: string, patch: (p: Project) => Project) => {
+    setProjects(prev => prev.map(p => p.id === id ? patch(p) : p));
+  }, []);
 
   const isFav = (id: string) => favorites.some(f => f.productId === id);
   const quickFav = (product: Result) => {
@@ -546,90 +573,121 @@ export default function Home() {
     setFavorites(upd); saveFavorites(upd);
   };
   const toggleBoard = (product: Result) => {
+    if (!active) return;
     const proj = rootQuery.trim() || 'Ohne Projekt';
-    setBoard(b => b.some(x => x.id === product.id) ? b.filter(x => x.id !== product.id) : [...b, { ...product, projekt: proj }]);
+    patchProject(active.id, p => ({
+      ...p,
+      board: p.board.some(x => x.id === product.id)
+        ? p.board.filter(x => x.id !== product.id)
+        : [...p.board, { ...product, projekt: proj }],
+    }));
   };
 
-  /* Kernstück: ein Suchlauf → ein neuer Block im Verlauf.
-     Variante A: wir nutzen den bestehenden active_filters-Mechanismus. */
-  const runSearch = useCallback(async (query: string, filters: ParsedFilters, intro: string) => {
-    const id = ++blockId.current;
-    setBlocks(prev => [...prev, { id, intro, query, filters, results: [], categoryMatch: '', alleZeigen: false, status: 'loading' }]);
+  /* Ein Suchlauf → ein neuer Block im Verlauf des ANGEGEBENEN Projekts. */
+  const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string) => {
+    let id = 0;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      id = p.blockSeq + 1;
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, results: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
+    }));
     try {
       const body: any = { query };
-      // Nur mitschicken, wenn wir aktiv eingegrenzt haben (erste Suche: reines query).
       if (filters.sizes.length || filters.materials.length || filters.types.length || filters.closures.length) {
         body.active_filters = filters;
       }
       const res = await fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // ►►► ANNAHME: data.results, data.parsedFilters, data.categoryMatch
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
-      setBlocks(prev => prev.map(b => b.id === id ? {
-        ...b, results: data.results || [], categoryMatch: data.categoryMatch || '',
-        filters: serverFilters, status: 'done',
-      } : b));
+      setProjects(prev => prev.map(p => p.id === projectId ? {
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, status: 'done' } : b),
+      } : p));
     } catch {
-      setBlocks(prev => prev.map(b => b.id === id ? { ...b, status: 'error' } : b));
+      setProjects(prev => prev.map(p => p.id === projectId ? {
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, status: 'error' } : b),
+      } : p));
     }
   }, []);
 
+  // Neue Suche vom Start-Screen → neues Projekt anlegen
   const starteSuche = (text: string) => {
     if (!text.trim()) return;
-    setRootQuery(text.trim()); setBlocks([]); blockId.current = 0; setSelected(null); setView('chat');
-    runSearch(text.trim(), emptyFilters(), text.trim());
+    const q = text.trim();
+    const id = neueProjektId();
+    const neu: Project = { id, name: q.slice(0, 48), createdAt: Date.now(), rootQuery: q, blocks: [], board: [], blockSeq: 0 };
+    setProjects(prev => [neu, ...prev]);
+    setActiveId(id); setSelected(null); setInput(''); setView('chat');
+    runSearch(id, q, emptyFilters(), q);
   };
 
-  // Freitext-Verfeinerung: hängt an die Root-Query an und sucht neu (Stufe 2 macht das smarter).
+  // Freitext-Verfeinerung im aktiven Projekt
   const verfeinereText = (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
-    const neueQuery = `${rootQuery} ${text.trim()}`;
-    runSearch(neueQuery, filters, text.trim());
+    runSearch(active.id, `${rootQuery} ${text.trim()}`, filters, text.trim());
   };
 
-  // Facette wählen → Filter erweitern → neuer Block darunter
   const waehleFacette = (dim: keyof ParsedFilters, wert: string) => {
+    if (!active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     if (!filters[dim].includes(wert)) filters[dim] = [...filters[dim], wert];
-    runSearch(rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`);
+    runSearch(active.id, rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`);
   };
 
-  // Filter-Pill entfernen → neuer Block darunter
   const entferneFilter = (dim: keyof ParsedFilters, wert: string) => {
+    if (!active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     filters[dim] = filters[dim].filter(v => v !== wert);
-    runSearch(rootQuery, filters, `ohne ${wert}`);
+    runSearch(active.id, rootQuery, filters, `ohne ${wert}`);
+  };
+
+  const setBlockAlle = (blockId: number, alle: boolean) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
+  };
+
+  // Projekt öffnen / neu / löschen
+  const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
+  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
+  const loescheProjekt = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setProjects(prev => prev.filter(p => p.id !== id));
+    if (activeId === id) { setActiveId(null); setView('start'); setSelected(null); }
   };
 
   const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
+  const boardTotal = projects.reduce((n, p) => n + p.board.length, 0);
+  const allBoard = projects.flatMap(p => p.board);
   const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
 
   const nav = (
     <aside className="nav">
-      <button className="nav-marke" onClick={() => setView('start')}>ulba</button>
-      <button className="nav-neu" onClick={() => setView('start')}>+ Neues Projekt</button>
+      <button className="nav-marke" onClick={neuesProjekt}>ulba</button>
+      <button className="nav-neu" onClick={neuesProjekt}>+ Neues Projekt</button>
       <div>
-        {([['favoriten', '♡', 'Favoriten', favCount], ['linien', '▤', 'Meine Linien', board.length], ['anfragen', '⇄', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
+        {([['favoriten', '\u2661', 'Favoriten', favCount], ['linien', '\u25a4', 'Meine Linien', boardTotal], ['anfragen', '\u21c4', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
           <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => setView(v as any)}>
             <span className="ni-ic">{ic}</span><span className="ni-t">{t}</span>{badge ? <span className="ni-b">{badge}</span> : null}
           </button>
         ))}
       </div>
-      <div className="nav-lbl">Projekt</div>
+      <div className="nav-lbl">Projekte</div>
       <div className="nav-chats">
-        {rootQuery
-          ? <button className={`nav-chat${view === 'chat' ? ' an' : ''}`} onClick={() => setView('chat')}>
-            <span className="nc-t">{rootQuery.slice(0, 40)}</span>
-            <span className="nc-s">{board.length ? `${board.length} im Paket` : 'Suche'}</span>
-          </button>
-          : <div className="nav-leer">Noch kein Projekt</div>}
+        {projects.length === 0
+          ? <div className="nav-leer">Noch kein Projekt</div>
+          : projects.map(p => (
+            <button key={p.id} className={`nav-chat${view === 'chat' && activeId === p.id ? ' an' : ''}`} onClick={() => oeffneProjekt(p.id)}>
+              <span className="nc-t">{p.name}</span>
+              <span className="nc-s">{p.board.length ? `${p.board.length} im Paket` : `${p.blocks.length} Suche${p.blocks.length === 1 ? '' : 'n'}`}</span>
+              <span className="nc-x" onClick={e => loescheProjekt(p.id, e)} aria-label="Projekt l\u00f6schen">\u00d7</span>
+            </button>
+          ))}
       </div>
-      <div className="nav-profil"><span className="np-av">A</span><div><span className="np-n">Alen</span><span className="np-s">ulba · Basel</span></div></div>
+      <div className="nav-profil"><span className="np-av">A</span><div><span className="np-n">Alen</span><span className="np-s">ulba \u00b7 Basel</span></div></div>
     </aside>
   );
 
@@ -643,27 +701,27 @@ export default function Home() {
       {nav}
       <div className="main">
         <header className="topbar">
-          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 40) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
+          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
         <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
           {view === 'start' && (
             <div className="start">
               <div className="st-mitte">
-                <div className="st-logo">علبة</div>
-                <h1>Was möchtest du <em>launchen</em>?</h1>
+                <div className="st-logo">\u0639\u0644\u0628\u0629</div>
+                <h1>Was m\u00f6chtest du <em>launchen</em>?</h1>
                 <div className="feld">
                   <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && starteSuche(input)} placeholder="z. B. ruhiges Vitamin-C-Serum, 30 ml, premium" autoFocus />
-                  <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">↑</button>
+                  <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">\u2191</button>
                 </div>
                 <div className="st-trend">
                   {EXAMPLES.map((ex, i) => <button key={i} className="tr-pill" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>{ex.label}</button>)}
                 </div>
-                <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
+                <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung \u2014 wie eine Designagentur, in Minuten.</p>
               </div>
             </div>
           )}
 
-          {view === 'chat' && (
+          {view === 'chat' && active && (
             <div className={`chat${selected ? ' split' : ''}`}>
               <main className="cs-main">
                 <div className="thread" ref={threadRef}>
@@ -683,25 +741,25 @@ export default function Home() {
                         <div className="msg-user"><span>{b.intro}</span></div>
                         <div className="msg-ulba">
                           {b.status === 'loading' && <ScanBar />}
-                          {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
+                          {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler \u2014 bitte erneut versuchen.</div>}
                           {b.status === 'done' && (
                             <div className={`eb${isLast ? '' : ' eb-alt'}`}>
                               {chips.length > 0 && (
                                 <div className="eb-filter">
                                   <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
                                   {chips.map((c, i) => (
-                                    <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
+                                    <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>\u00d7</span>}</span>
                                   ))}
                                 </div>
                               )}
-                              <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                              <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match \u00b7 gelesen als {pal}</span></div>
                               {liste.length === 0
                                 ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                 : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
                                   {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                 </div>}
-                              {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: true } : x))}>Alle weiteren {rest} anzeigen ↓</button>}
-                              {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlocks(prev => prev.map(x => x.id === b.id ? { ...x, alleZeigen: false } : x))}>Nur beste 20 zeigen ↑</button>}
+                              {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen \u2193</button>}
+                              {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen \u2191</button>}
                               {isLast && facetten.length > 0 && (
                                 <div className="eb-facetten">
                                   <span className="ebf-lbl">Weiter eingrenzen</span>
@@ -723,8 +781,8 @@ export default function Home() {
                 </div>
                 <div className="refine">
                   <div className="feld">
-                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { verfeinereText(refineInput); setRefineInput(''); } }} placeholder={'Verfeinern in Worten — „wärmer", „nur Glas", „30 ml"'} />
-                    <button className="go" onClick={() => { verfeinereText(refineInput); setRefineInput(''); }} aria-label="senden">↑</button>
+                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { verfeinereText(refineInput); setRefineInput(''); } }} placeholder={'Verfeinern in Worten \u2014 \u201ew\u00e4rmer\u201c, \u201enur Glas\u201c, \u201e30 ml\u201c'} />
+                    <button className="go" onClick={() => { verfeinereText(refineInput); setRefineInput(''); }} aria-label="senden">\u2191</button>
                   </div>
                 </div>
               </main>
@@ -735,21 +793,25 @@ export default function Home() {
             </div>
           )}
 
+          {view === 'chat' && !active && (
+            <div className="bereich"><div className="leer"><div className="gr">Kein Projekt offen.</div>W\u00e4hle links ein Projekt oder starte ein neues.</div></div>
+          )}
+
           {view === 'linien' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Deine Musterpakete — gruppiert nach Projekt. Tippe eine Verpackung an, um Details zu sehen.</p></div>
-              {board.length === 0
+              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Deine Musterpakete \u2014 pro Projekt getrennt. Tippe eine Verpackung an, um Details zu sehen.</p></div>
+              {boardTotal === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
-                : gruppiereNachProjekt(board, r => r.projekt || 'Ohne Projekt').map(([proj, items]) => (
-                  <div key={proj} style={{ marginBottom: 34 }}>
-                    <div className="lin-kopf">
-                      <div className="lk-reihe">{items.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
-                      <div className="lk-info"><span className="lk-t">{proj.slice(0, 44)}</span><span className="lk-s">{items.length} Teile · zum Ansehen antippen</span></div>
+                : projects.filter(p => p.board.length > 0).map(p => (
+                  <div key={p.id} style={{ marginBottom: 34 }}>
+                    <div className="lin-kopf" onClick={() => oeffneProjekt(p.id)} style={{ cursor: 'pointer' }}>
+                      <div className="lk-reihe">{p.board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>\u25c7</span>)}</div>
+                      <div className="lk-info"><span className="lk-t">{p.name}</span><span className="lk-s">{p.board.length} Teile \u00b7 zum Ansehen antippen</span></div>
                     </div>
                     <div className="eb-grid" style={{ marginTop: 16 }}>
-                      {items.map(r => (
+                      {p.board.map(r => (
                         <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
-                          onOpen={() => { setView('chat'); setSelected(r); }}
+                          onOpen={() => { setActiveId(p.id); setView('chat'); setSelected(r); }}
                           onFav={e => { e.stopPropagation(); quickFav(r); }} />
                       ))}
                     </div>
@@ -760,7 +822,7 @@ export default function Home() {
 
           {view === 'favoriten' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Gemerkte Packmittel — gruppiert nach Projekt.</p></div>
+              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Gemerkte Packmittel \u2014 nach Projekt gruppiert.</p></div>
               {favCount === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
                 : gruppiereNachProjekt(
@@ -768,10 +830,10 @@ export default function Home() {
                     f => f.projectId || 'Ohne Projekt'
                   ).map(([proj, items]) => (
                     <div key={proj} style={{ marginBottom: 30 }}>
-                      <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
+                      <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>\u00b7 {items.length}</span></div>
                       <div className="eb-grid">
                         {items.map(f => (
-                          <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setView('chat'); setSelected(f.product); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                          <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setSelected(f.product); setView(active ? 'chat' : 'favoriten'); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
                         ))}
                       </div>
                     </div>
@@ -781,7 +843,7 @@ export default function Home() {
 
           {view === 'anfragen' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast — und wo es steht. Status kommt in Stufe 3 aus Airtable.</p></div>
+              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast \u2014 und wo es steht. Status kommt in Stufe 3 aus Airtable.</p></div>
               <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
             </div>
           )}
