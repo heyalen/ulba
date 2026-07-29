@@ -160,17 +160,18 @@ const STYLES = `
 .start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
 .st-mitte{width:100%;max-width:640px;text-align:center;padding:0 24px}
 .st-logo{font-family:var(--serif);font-size:26px;color:var(--rouge);margin-bottom:18px;opacity:.7}
-.st-mitte h1{font-family:var(--serif);font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.02em;margin-bottom:30px}
-.st-mitte h1 em{font-style:normal;color:var(--rouge)}
-.feld{position:relative;display:flex;align-items:center;max-width:600px;margin:0 auto;border:1px solid var(--linie);border-radius:16px;background:var(--panel);padding:6px 6px 6px 20px;box-shadow:0 10px 40px -22px rgba(20,24,26,.4)}
-.feld:focus-within{border-color:var(--tinte)}
+.st-mitte h1{font-family:var(--serif);font-size:clamp(28px,3.6vw,40px);font-weight:500;line-height:1.12;letter-spacing:-.02em;color:var(--tinte);margin-bottom:34px}
+.st-mitte h1 em{font-style:normal;font-weight:500;color:var(--rouge)}
+.feld{position:relative;display:flex;align-items:center;max-width:600px;margin:0 auto;border:1px solid var(--linie);border-radius:14px;background:var(--panel);padding:6px 6px 6px 20px;box-shadow:none;transition:border-color .15s}
+.feld:focus-within{border-color:var(--hell)}
+.feld input:focus,.feld input:focus-visible{outline:none!important;box-shadow:none}
 .feld input{flex:1;border:0;background:none;padding:14px 4px;color:var(--tinte);min-width:0;outline:none}
 .feld input::placeholder{color:var(--hell)}
-.feld .go{flex:none;width:42px;height:42px;border-radius:11px;background:var(--tinte);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.feld .go{flex:none;width:38px;height:38px;border-radius:10px;background:var(--tinte);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
 .feld .go:hover{background:var(--rouge)}
 .st-trend{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:22px auto 0;max-width:580px}
-.tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid var(--linie);background:var(--panel)}
-.tr-pill:hover{border-color:var(--tinte);color:var(--tinte)}
+.tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid transparent;background:var(--nische)}
+.tr-pill:hover{background:var(--linie2);color:var(--tinte)}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 /* Chat / Split */
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
@@ -313,11 +314,10 @@ const STYLES = `
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 /* Vitsoe-Anpassung: eine Grotesk, schwere Headlines, keine Serifen */
-.nav-marke,.st-mitte h1,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t,.ak-t{font-weight:800;letter-spacing:-.015em}
+.nav-marke,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t,.ak-t{font-weight:800;letter-spacing:-.015em}
 .ebk-h,.pn-kopf h3,.lk-t,.ak-t{letter-spacing:-.01em}
 .eb-intro{color:var(--grau);font-weight:400}
 .pgrund{font-weight:400}
-.st-mitte h1 em{font-weight:800}
 .leer .gr{font-weight:700}
 .mono,.nav-lbl,.ebf-lbl,.fc-lbl,.em-l,.pn-caps-top .lbl,.pn-cap-gross .lbl,.capstrip .lbl,.vis .top,.mlbl,.topbar .spur{font-weight:600}
 
@@ -712,7 +712,6 @@ export default function Home() {
           {view === 'start' && (
             <div className="start">
               <div className="st-mitte">
-                <div className="st-logo">علبة</div>
                 <h1>Was möchtest du <em>launchen</em>?</h1>
                 <div className="feld">
                   <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && starteSuche(input)} placeholder="z. B. ruhiges Vitamin-C-Serum, 30 ml, premium" autoFocus />
