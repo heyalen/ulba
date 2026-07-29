@@ -257,6 +257,9 @@ const STYLES = `
 .leer{color:var(--hell);font-size:14px;padding:44px;text-align:center;border:1px dashed var(--linie);border-radius:var(--r)}
 .leer .gr{font-family:var(--serif);font-style:normal;font-size:20px;color:var(--tinte);margin-bottom:6px}
 .lin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.lin-kopf{display:flex;align-items:center;gap:20px;border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);padding:16px 20px}
+.lin-kopf .lk-reihe{display:flex;gap:12px;background:transparent;padding:0;min-height:0;flex:none}
+.lin-kopf .lk-reihe img{max-height:56px}
 .lin-karte{text-align:left;border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);overflow:hidden}
 .lin-karte:hover{border-color:var(--hell)}
 .lk-reihe{display:flex;gap:12px;justify-content:center;background:var(--nische);padding:20px;min-height:110px;align-items:center}
@@ -538,7 +541,6 @@ export default function Home() {
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     const neueQuery = `${rootQuery} ${text.trim()}`;
-    setSelected(null);
     runSearch(neueQuery, filters, text.trim());
   };
 
@@ -547,7 +549,6 @@ export default function Home() {
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     if (!filters[dim].includes(wert)) filters[dim] = [...filters[dim], wert];
-    setSelected(null);
     runSearch(rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`);
   };
 
@@ -556,7 +557,6 @@ export default function Home() {
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     filters[dim] = filters[dim].filter(v => v !== wert);
-    setSelected(null);
     runSearch(rootQuery, filters, `ohne ${wert}`);
   };
 
@@ -697,12 +697,19 @@ export default function Home() {
               <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Was du ins Musterpaket gelegt hast. In Stufe 2 wird daraus eine Linie pro Projekt.</p></div>
               {board.length === 0
                 ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
-                : <div className="lin-grid">
-                  <div className="lin-karte">
+                : <>
+                  <div className="lin-kopf">
                     <div className="lk-reihe">{board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
-                    <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 30) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile</span></div>
+                    <div className="lk-info"><span className="lk-t">{rootQuery.slice(0, 40) || 'Aktuelle Linie'}</span><span className="lk-s">{board.length} Teile · zum Ansehen antippen</span></div>
                   </div>
-                </div>}
+                  <div className="eb-grid" style={{ marginTop: 20 }}>
+                    {board.map(r => (
+                      <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
+                        onOpen={() => { setView('chat'); setSelected(r); }}
+                        onFav={e => { e.stopPropagation(); quickFav(r); }} />
+                    ))}
+                  </div>
+                </>}
             </div>
           )}
 
