@@ -233,8 +233,11 @@ const STYLES = `
 .pn-caps-top{padding:4px 24px 14px}
 .pn-caps-top .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
-.pn-cap-gross{margin:0 24px 14px;height:150px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-cap-gross img{max-width:60%;max-height:82%;object-fit:contain}
+.pn-cap-gross{margin:0 24px 14px;padding:0}
+.pn-cap-gross .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.pn-cap-gross .buehne{height:150px;background:#FFFFFF;border:1px solid var(--linie);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-cap-gross .buehne img{max-width:58%;max-height:84%;object-fit:contain}
+.pn-cap-gross .ph{font-size:34px;color:#d8d8d6}
 .capstrip{margin:16px 0}
 .capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
 .capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -307,8 +310,10 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
+  const [capErr, setCapErr] = useState(false);
 
   useEffect(() => { setQuery(defaultQuery); setRstatus('idle'); setImgUrl(null); setCap(0); }, [product.id, defaultQuery]);
+  useEffect(() => { setCapErr(false); }, [cap, product.id]);
 
   const run = async () => {
     if (!query.trim()) return;
@@ -349,7 +354,12 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       )}
       {product.capImages && product.capImages.length > 0 && (
         <div className="pn-cap-gross">
-          <img src={product.capImages[cap]} alt={`Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+          <div className="lbl">Gewählter Verschluss · {cap + 1}/{product.capImages.length}</div>
+          <div className="buehne">
+            {product.capImages[cap] && !capErr
+              ? <img src={product.capImages[cap]} alt={`Verschluss ${cap + 1}`} onError={() => setCapErr(true)} />
+              : <span className="ph">◇</span>}
+          </div>
         </div>
       )}
       <div className="pn-bild">
