@@ -213,11 +213,8 @@ const STYLES = `
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
 .pn-akt{display:flex;gap:10px}
 .pn-zu{font-size:22px;color:var(--hell)} .pn-zu:hover{color:var(--rouge)}
-.pn-bild{margin:0 24px;height:min(48vh,440px);min-height:300px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-bild > img{max-width:78%;max-height:82%;object-fit:contain}
-.pn-komposit{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%}
-.pn-komposit .pn-cap{max-width:38%;max-height:30%;object-fit:contain;object-position:bottom;margin-bottom:-8px;z-index:2}
-.pn-komposit .pn-base{max-width:66%;max-height:58%;object-fit:contain;object-position:top}
+.pn-bild{margin:0 24px;height:min(54vh,560px);min-height:360px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-bild > img{max-width:92%;max-height:90%;object-fit:contain}
 .pn-body{padding:16px 24px 0}
 .pgrund{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.45;color:var(--grau);margin:16px 0;padding-left:15px;border-left:1px solid var(--rouge)}
 .vis{background:var(--nische);border-radius:var(--r);padding:16px 18px;margin:18px 0}
@@ -233,12 +230,15 @@ const STYLES = `
 .spec .k{font-size:11px;color:var(--hell);margin-bottom:3px}
 .spec .v{font-size:14px;font-weight:500}
 .chip{background:var(--nische);color:var(--grau);border-radius:999px;padding:5px 11px;font-size:12px;display:inline-block}
+.pn-caps-top{padding:4px 24px 14px}
+.pn-caps-top .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
+.pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
 .capstrip{margin:16px 0}
 .capstrip .lbl{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:9px}
 .capstrip .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-.capthumb{flex:none;width:56px;height:56px;border-radius:11px;border:1px solid var(--linie);background:var(--nische);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.capthumb{flex:none;width:82px;height:82px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .capthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
-.capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:6px}
+.capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:9px}
 .pn-aktion{position:sticky;bottom:0;display:flex;gap:9px;padding:16px 24px;background:linear-gradient(to top,var(--panel) 72%,transparent);margin-top:auto}
 .pn-aktion .cta{flex:1;background:var(--tinte);color:#fff;padding:14px;border-radius:999px;font-size:15px}
 .pn-aktion .cta:hover{background:var(--rouge)}
@@ -323,9 +323,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   };
 
   const shown = imgUrl || product.imageUrl;
-  const capUrl = product.capImages && product.capImages.length > 0 ? product.capImages[cap] : null;
-  // Cap nur über das Base-Bild legen, nicht über ein fertiges Rendering (das enthält den Verschluss schon).
-  const capUeberBase = !imgUrl && !!capUrl;
 
   return (
     <aside className="panel">
@@ -336,17 +333,20 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
+      {product.capImages && product.capImages.length > 0 && (
+        <div className="pn-caps-top">
+          <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
+          <div className="thumbs">
+            {product.capImages.map((url, i) => (
+              <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => setCap(i)}>
+                <img src={url} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="pn-bild">
-        {shown ? (
-          capUeberBase ? (
-            <div className="pn-komposit">
-              <img className="pn-cap" src={capUrl!} alt="Verschluss" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              <img className="pn-base" src={shown} alt={product.name} />
-            </div>
-          ) : (
-            <img src={shown} alt={product.name} />
-          )
-        ) : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        {shown ? <img src={shown} alt={product.name} /> : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
       </div>
       <div className="pn-body">
         {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
@@ -360,16 +360,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {imgUrl && <div className="out"><img src={imgUrl} alt="Rendering" />{cached && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--hell)', padding: '8px 12px' }}>Aus Cache</div>}</div>}
         </div>
         {product.capImages && product.capImages.length > 0 && (
-          <div className="capstrip">
-            <div className="lbl">Passende Verschlüsse · {product.capImages.length}</div>
-            <div className="thumbs">
-              {product.capImages.map((url, i) => (
-                <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => setCap(i)}>
-                  <img src={url} alt={`Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-                </div>
-              ))}
-            </div>
-          </div>
+          <div className="capstrip" style={{ display: 'none' }} />
         )}
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
