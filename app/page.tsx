@@ -159,7 +159,7 @@ const STYLES = `
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 /* Chat / Split */
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
-.chat.split{grid-template-columns:minmax(480px,1fr) 640px}
+.chat.split{grid-template-columns:minmax(420px,1fr) 720px}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
@@ -179,12 +179,12 @@ const STYLES = `
 .ebk-h{font-family:var(--serif);font-size:20px}
 .ebk-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
 .eb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-.eb-grid.schmal{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.eb-grid.schmal{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
 .ek:hover{border-color:var(--hell);transform:translateY(-2px)}
 .ek.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
 .ek-klick{display:block;width:100%;text-align:left}
-.ek-bild{background:var(--nische);display:flex;align-items:center;justify-content:center;height:150px;overflow:hidden}
+.ek-bild{background:#FFFFFF;display:flex;align-items:center;justify-content:center;height:150px;overflow:hidden}
 .ek-bild img{max-width:78%;max-height:80%;object-fit:contain}
 .ek-ph{font-size:38px;color:#d8d8d6}
 .ek-info{padding:11px 13px}
@@ -213,8 +213,11 @@ const STYLES = `
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
 .pn-akt{display:flex;gap:10px}
 .pn-zu{font-size:22px;color:var(--hell)} .pn-zu:hover{color:var(--rouge)}
-.pn-bild{margin:0 24px;height:min(42vh,340px);min-height:260px;border:1px solid var(--linie);border-radius:var(--r);background:var(--porzellan);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-bild img{max-width:82%;max-height:82%;object-fit:contain}
+.pn-bild{margin:0 24px;height:min(48vh,440px);min-height:300px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-bild > img{max-width:78%;max-height:82%;object-fit:contain}
+.pn-komposit{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%}
+.pn-komposit .pn-cap{max-width:38%;max-height:30%;object-fit:contain;object-position:bottom;margin-bottom:-8px;z-index:2}
+.pn-komposit .pn-base{max-width:66%;max-height:58%;object-fit:contain;object-position:top}
 .pn-body{padding:16px 24px 0}
 .pgrund{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.45;color:var(--grau);margin:16px 0;padding-left:15px;border-left:1px solid var(--rouge)}
 .vis{background:var(--nische);border-radius:var(--r);padding:16px 18px;margin:18px 0}
@@ -320,6 +323,9 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   };
 
   const shown = imgUrl || product.imageUrl;
+  const capUrl = product.capImages && product.capImages.length > 0 ? product.capImages[cap] : null;
+  // Cap nur über das Base-Bild legen, nicht über ein fertiges Rendering (das enthält den Verschluss schon).
+  const capUeberBase = !imgUrl && !!capUrl;
 
   return (
     <aside className="panel">
@@ -331,7 +337,16 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         </div>
       </div>
       <div className="pn-bild">
-        {shown ? <img src={shown} alt={product.name} /> : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        {shown ? (
+          capUeberBase ? (
+            <div className="pn-komposit">
+              <img className="pn-cap" src={capUrl!} alt="Verschluss" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img className="pn-base" src={shown} alt={product.name} />
+            </div>
+          ) : (
+            <img src={shown} alt={product.name} />
+          )
+        ) : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
       </div>
       <div className="pn-body">
         {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
