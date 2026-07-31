@@ -60,6 +60,10 @@ interface RenderConcept {
   rationale: string;
   produzierbar: { finish?: string[]; dekoration?: string[]; grafik_label?: string; farbkonzept?: string } | null;
   szene_id: string;
+  label?: { wortmarke: string; kategorie: string; ist_platzhalter: boolean };
+  palette?: { name: string; hex: string[]; pantone: string[] };
+  radar?: Record<string, number>;
+  zielprofil?: string[];
 }
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
@@ -69,6 +73,90 @@ function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (p.farbkonzept) parts.push(`Farbe: ${p.farbkonzept}`);
   if (p.grafik_label) parts.push(`Grafik/Label: ${p.grafik_label}`);
   return parts.join('\n');
+}
+
+/* ── Emotions-Radar (SVG) — 6 feste Achsen, ulba-Ästhetik ─────────── */
+const RADAR_AXES: { key: string; label: string }[] = [
+  { key: 'waerme', label: 'Wärme' },
+  { key: 'prestige', label: 'Prestige' },
+  { key: 'energie', label: 'Energie' },
+  { key: 'ruhe', label: 'Ruhe' },
+  { key: 'natuerlichkeit', label: 'Natur' },
+  { key: 'praezision', label: 'Präzision' },
+];
+function EmotionRadar({ radar }: { radar: Record<string, number> }) {
+  const size = 168, c = size / 2, rMax = 58;
+  const n = RADAR_AXES.length;
+  const pt = (i: number, val: number) => {
+    const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+    const r = (Math.max(0, Math.min(100, val)) / 100) * rMax;
+    return [c + r * Math.cos(ang), c + r * Math.sin(ang)];
+  };
+  const grid = [0.25, 0.5, 0.75, 1].map(f =>
+    RADAR_AXES.map((_, i) => pt(i, f * 100).join(',')).join(' ')
+  );
+  const shape = RADAR_AXES.map((a, i) => pt(i, radar[a.key] ?? 50).join(',')).join(' ');
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="radar-svg" role="img" aria-label="Emotions-Profil">
+      {grid.map((g, i) => (
+        <polygon key={i} points={g} fill="none" stroke="var(--linie)" strokeWidth="1" />
+      ))}
+      {RADAR_AXES.map((_, i) => {
+        const [x, y] = pt(i, 100);
+        return <line key={i} x1={c} y1={c} x2={x} y2={y} stroke="var(--linie)" strokeWidth="1" />;
+      })}
+      <polygon points={shape} fill="var(--rouge)" fillOpacity="0.12" stroke="var(--rouge)" strokeWidth="1.5" />
+      {RADAR_AXES.map((a, i) => {
+        const [x, y] = pt(i, 122);
+        return <text key={a.key} x={x} y={y} className="radar-lbl" textAnchor="middle" dominantBaseline="middle">{a.label}</text>;
+      })}
+    </svg>
+  );
+}
+
+/* ── DesignBoard — Style-Tile neben dem formtreuen Render ─────────── */
+function DesignBoard({ concept }: { concept: RenderConcept }) {
+  const label = concept.label;
+  const pal = concept.palette;
+  const radar = concept.radar;
+  const zp = concept.zielprofil || [];
+  const hasAny = label || (pal && pal.hex?.length) || radar;
+  if (!hasAny) return null;
+  return (
+    <div className="board">
+      <div className="board-kopf">Design-Direction</div>
+
+      {label && (
+        <div className="board-label">
+          <div className="bl-mark">{(label.wortmarke || '—').toUpperCase()}</div>
+          <div className="bl-kat">{label.kategorie}</div>
+          {label.ist_platzhalter && <div className="bl-hint">Platzhalter · eigenen Markennamen im Feld unten setzen</div>}
+        </div>
+      )}
+
+      {pal && pal.hex?.length > 0 && (
+        <div className="board-pal">
+          <div className="bp-name">{pal.name}</div>
+          <div className="bp-chips">
+            {pal.hex.map((h, i) => (
+              <div key={i} className="bp-chip">
+                <span className="bp-sw" style={{ background: h }} />
+                <span className="bp-hex">{h}</span>
+                {pal.pantone?.[i] && <span className="bp-pan">{pal.pantone[i]}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {radar && (
+        <div className="board-radar">
+          <EmotionRadar radar={radar} />
+          {zp.length > 0 && <div className="br-tags">{zp.join(' · ')}</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
@@ -300,6 +388,23 @@ const STYLES = `
 .pk-name{font-family:var(--serif);font-weight:800;font-size:20px;letter-spacing:-.01em;color:var(--tinte)}
 .pk-story{font-family:var(--serif);font-size:16px;line-height:1.4;color:var(--grau);margin-top:4px}
 .pk-rat{font-size:13px;color:var(--hell);margin-top:8px;line-height:1.45}
+.board{margin:16px 24px 2px;border:1px solid var(--linie);border-radius:var(--r);background:var(--nische);padding:16px 16px 18px}
+.board-kopf{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--hell);margin-bottom:12px}
+.board-label{text-align:center;padding:10px 0 14px;border-bottom:1px solid var(--linie)}
+.bl-mark{font-family:var(--serif);font-weight:800;font-size:26px;letter-spacing:.02em;color:var(--tinte);line-height:1}
+.bl-kat{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--grau);margin-top:6px}
+.bl-hint{font-size:11px;color:var(--hell);margin-top:8px;font-style:italic}
+.board-pal{padding:14px 0;border-bottom:1px solid var(--linie)}
+.bp-name{font-size:12px;color:var(--grau);margin-bottom:10px}
+.bp-chips{display:flex;gap:14px;flex-wrap:wrap}
+.bp-chip{display:flex;flex-direction:column;align-items:center;gap:4px}
+.bp-sw{width:40px;height:40px;border-radius:8px;border:1px solid rgba(0,0,0,.06)}
+.bp-hex{font-family:var(--mono);font-size:10px;color:var(--tinte);text-transform:uppercase}
+.bp-pan{font-family:var(--mono);font-size:9px;color:var(--hell)}
+.board-radar{display:flex;flex-direction:column;align-items:center;padding-top:14px}
+.radar-svg{width:168px;height:168px;overflow:visible}
+.radar-lbl{font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;fill:var(--grau);text-transform:uppercase}
+.br-tags{font-size:12px;color:var(--grau);margin-top:8px;text-align:center;font-style:italic}
 .vis{background:var(--nische);border-radius:var(--r);padding:16px 18px;margin:18px 0}
 .vis .top{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .vis .row{display:flex;gap:8px}
@@ -530,6 +635,8 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {concept.rationale && <div className="pk-rat">{concept.rationale}</div>}
         </div>
       )}
+
+      {renderIstAktiv && concept && <DesignBoard concept={concept} />}
 
       {varianten.length > 0 && (
         <div className="varstrip">
