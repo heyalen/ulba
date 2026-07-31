@@ -292,8 +292,8 @@ const STYLES = `
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
 .pn-akt{display:flex;gap:10px}
 .pn-zu{font-size:22px;color:var(--hell)} .pn-zu:hover{color:var(--rouge)}
-.pn-bild{margin:0 24px;height:min(54vh,560px);min-height:360px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-bild > img{max-width:92%;max-height:90%;object-fit:contain}
+.pn-bild{margin:0 24px;height:min(62vh,640px);min-height:440px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-bild > img{max-width:96%;max-height:95%;object-fit:contain}
 .pn-body{padding:16px 24px 0}
 .pgrund{font-family:var(--serif);font-style:normal;font-size:17px;line-height:1.45;color:var(--grau);margin:16px 0;padding-left:15px;border-left:1px solid var(--rouge)}
 .pn-konzept{margin:14px 24px 2px;padding-left:15px;border-left:2px solid var(--rouge)}
@@ -316,8 +316,8 @@ const STYLES = `
 .pn-caps-top .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
 .pn-cap-gross{margin:0 24px 14px;padding:0}
 .pn-cap-gross .lbl{font-family:var(--mono);font-size:10.5px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
-.pn-cap-gross .buehne{height:150px;background:#FFFFFF;border:1px solid var(--linie);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pn-cap-gross .buehne img{max-width:58%;max-height:84%;object-fit:contain}
+.pn-cap-gross .buehne{height:128px;background:#FFFFFF;border:1px solid var(--linie);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pn-cap-gross .buehne img{max-width:70%;max-height:86%;object-fit:contain}
 .pn-cap-gross .ph{font-size:34px;color:#d8d8d6}
 .capthumb{flex:none;width:82px;height:82px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}
 .capthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
@@ -549,7 +549,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       )}
 
       <div className="pn-body">
-        {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
         <div className="vis">
           <div className="top">Deine Richtung</div>
           <div className="row">
