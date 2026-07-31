@@ -1,11 +1,9 @@
 'use client';
-
 /* ══════════════════════════════════════════════════════════════════════
    ulba · page.tsx
    Thread-Verlaufsmodell: jeder Suchlauf ist ein Block im Verlauf.
    Verdrahtet gegen /api/search und /api/render.
    Favoriten/Projekte über localStorage.
-
    v3 — Render-Umbau: Render = Hero, Varianten-Strip, private Render-Historie,
         kein Auto-Render, kein Doppelbild.
    v4 — Cap→Render: caps [{id, imageUrl}], Cap-Großbild, selectedCapId beim Render.
@@ -13,8 +11,9 @@
         · caps jetzt [{id, name, imageUrl}] — Cap-Name für die Anfrage.
         · run() merkt sich renderingPrompt (Wunschwerte) zum aktuellen Render.
         · „Muster anfragen" schickt Wunsch-Render-URL, Wunschwerte und Cap-Name mit.
-          Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
-
+        Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
+   v6 — Konzept-Brief: /api/render liefert concept {name, story, rationale,
+        produzierbar, szene}. Rahmen ums Render + produzierbare Wunschwerte in die Anfrage.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -54,6 +53,24 @@ const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
 /* Ein Verschluss aus /api/search: id + name (für die Anfrage) + imageUrl (Anzeige). */
 interface CapRef { id: string; name: string; imageUrl: string }
 
+/* Konzept-Brief aus /api/render — Markenwelt hinter dem Render (Rahmen + Wunschwerte). */
+interface RenderConcept {
+  konzept_name: string;
+  story: string;
+  rationale: string;
+  produzierbar: { finish?: string[]; dekoration?: string[]; grafik_label?: string; farbkonzept?: string } | null;
+  szene_id: string;
+}
+function produzierbarText(p: RenderConcept['produzierbar']): string {
+  if (!p) return '';
+  const parts: string[] = [];
+  if (p.finish?.length) parts.push(`Finish: ${p.finish.join(', ')}`);
+  if (p.dekoration?.length) parts.push(`Dekoration: ${p.dekoration.join(', ')}`);
+  if (p.farbkonzept) parts.push(`Farbe: ${p.farbkonzept}`);
+  if (p.grafik_label) parts.push(`Grafik/Label: ${p.grafik_label}`);
+  return parts.join('\n');
+}
+
 // ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
 interface Result {
   id: string; name: string; score: number; reasoning: string;
@@ -61,8 +78,8 @@ interface Result {
   description?: string; imageUrl: string | null;
   capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
   capCount: number;
-  caps?: CapRef[];        // {id, name, imageUrl}
-  capImages?: string[];   // Fallback (nur URLs) — falls Backend noch alt ist
+  caps?: CapRef[]; // {id, name, imageUrl}
+  capImages?: string[]; // Fallback (nur URLs) — falls Backend noch alt ist
   supplier?: string;
   projekt?: string;
 }
@@ -73,9 +90,10 @@ type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; cl
 /* Kontext, den „Muster anfragen" ans Modal übergibt: Original + aktueller Wunsch. */
 interface SampleContext {
   product: Result;
-  renderUrl: string;   // aktueller Wunsch-Render (leer, wenn nur Rohteil angezeigt)
-  wishValues: string;  // renderingPrompt des letzten Renders (Hex/Finish/Dekor)
-  capLabel: string;    // lesbarer Name des gewählten Verschlusses
+  renderUrl: string; // aktueller Wunsch-Render (leer, wenn nur Rohteil angezeigt)
+  wishValues: string; // produzierbare Wunschwerte des letzten Renders (Finish/Dekor/Farbe)
+  capLabel: string; // lesbarer Name des gewählten Verschlusses
+  konzept: RenderConcept | null; // Markenwelt hinter dem Render (Rahmen + Wunschwerte)
 }
 
 interface Block {
@@ -266,6 +284,10 @@ const STYLES = `
 .pn-bild > img{max-width:92%;max-height:90%;object-fit:contain}
 .pn-body{padding:16px 24px 0}
 .pgrund{font-family:var(--serif);font-style:normal;font-size:17px;line-height:1.45;color:var(--grau);margin:16px 0;padding-left:15px;border-left:1px solid var(--rouge)}
+.pn-konzept{margin:14px 24px 2px;padding-left:15px;border-left:2px solid var(--rouge)}
+.pk-name{font-family:var(--serif);font-weight:800;font-size:20px;letter-spacing:-.01em;color:var(--tinte)}
+.pk-story{font-family:var(--serif);font-size:16px;line-height:1.4;color:var(--grau);margin-top:4px}
+.pk-rat{font-size:13px;color:var(--hell);margin-top:8px;line-height:1.45}
 .vis{background:var(--nische);border-radius:var(--r);padding:16px 18px;margin:18px 0}
 .vis .top{font-family:var(--mono);font-size:11px;color:var(--hell);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
 .vis .row{display:flex;gap:8px}
@@ -355,7 +377,6 @@ function cloneFilters(f: ParsedFilters): ParsedFilters {
   return { sizes: [...f.sizes], materials: [...f.materials], types: [...f.types], closures: [...f.closures] };
 }
 function hasDim(f: ParsedFilters, d: keyof ParsedFilters): boolean { return (f[d] || []).length > 0; }
-
 function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, T[]][] {
   const map = new Map<string, T[]>();
   for (const it of items) { const k = label(it) || 'Ohne Projekt'; if (!map.has(k)) map.set(k, []); map.get(k)!.push(it); }
@@ -371,12 +392,13 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [varianten, setVarianten] = useState<string[]>([]);
   const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
-  const [lastPrompt, setLastPrompt] = useState('');   // Wunschwerte des zuletzt generierten Renders
+  const [lastPrompt, setLastPrompt] = useState(''); // Wunschwerte des zuletzt generierten Renders
+  const [concept, setConcept] = useState<RenderConcept | null>(null);
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
 
-  const roh = product.imageUrl;   // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
-  const caps = getCaps(product);  // [{id,name,imageUrl}] — leer, wenn das Produkt keinen Cap hat
+  const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
+  const caps = getCaps(product); // [{id,name,imageUrl}] — leer, wenn das Produkt keinen Cap hat
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
   const run = async (brief: string) => {
@@ -398,6 +420,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         setHeroUrl(url);
         setLastPrompt(data.renderingPrompt || '');
         setCached(!!data.cached);
+        setConcept(data.concept || null);
         setVarianten(prev => {
           const next = prev.includes(url) ? prev : [...prev, url];
           saveRenderHist(product.id, next);
@@ -414,6 +437,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
     setCached(false);
     setRstatus('idle');
     setLastPrompt('');
+    setConcept(null);
     const hist = loadRenderHist(product.id);
     setVarianten(hist);
     setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
@@ -421,11 +445,14 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   }, [product.id, defaultQuery]);
 
   const anfrageStart = () => {
+    const prod = renderIstAktiv ? (concept?.produzierbar || null) : null;
+    const wt = produzierbarText(prod);
     onSample({
       product,
       renderUrl: renderIstAktiv ? (heroUrl as string) : '',
-      wishValues: renderIstAktiv ? lastPrompt : '',
+      wishValues: wt || (renderIstAktiv ? lastPrompt : ''),
       capLabel: caps[cap]?.name || '',
+      konzept: renderIstAktiv ? concept : null,
     });
   };
 
@@ -471,6 +498,14 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
             : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
       </div>
 
+      {renderIstAktiv && concept && (concept.konzept_name || concept.story) && (
+        <div className="pn-konzept">
+          {concept.konzept_name && <div className="pk-name">{concept.konzept_name}</div>}
+          {concept.story && <div className="pk-story">{concept.story}</div>}
+          {concept.rationale && <div className="pk-rat">{concept.rationale}</div>}
+        </div>
+      )}
+
       {varianten.length > 0 && (
         <div className="varstrip">
           <div className="lbl">Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</div>
@@ -490,7 +525,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 
       <div className="pn-body">
         {product.reasoning && <p className="pgrund">{product.reasoning}</p>}
-
         <div className="vis">
           <div className="top">Deine Richtung</div>
           <div className="row">
@@ -501,7 +535,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           </div>
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
         </div>
-
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
           {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
@@ -510,7 +543,6 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
           {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
         </div>
-
         {product.capabilities?.length > 0 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
         )}
@@ -524,9 +556,9 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   );
 }
 
-/* ── Muster-Anfrage-Modal: trägt Original + Wunsch (Render, Werte, Cap) ── */
+/* ── Muster-Anfrage-Modal: trägt Original + Wunsch (Render, Werte, Cap, Konzept) ── */
 function SampleModal({ ctx, onClose }: { ctx: SampleContext; onClose: () => void }) {
-  const { product, renderUrl, wishValues, capLabel } = ctx;
+  const { product, renderUrl, wishValues, capLabel, konzept } = ctx;
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
@@ -540,6 +572,8 @@ function SampleModal({ ctx, onClose }: { ctx: SampleContext; onClose: () => void
           productId: product.id, productName: product.name, supplier: product.supplier || '',
           brandName: firm || name, brandEmail: email, brief,
           renderUrl, wishValues, capLabel,
+          konzeptName: konzept?.konzept_name || '', story: konzept?.story || '',
+          produzierbar: konzept?.produzierbar || null,
         }),
       });
       if (!res.ok) throw new Error(); setStatus('done');
@@ -564,15 +598,18 @@ function SampleModal({ ctx, onClose }: { ctx: SampleContext; onClose: () => void
             </div>
 
             {/* Wunsch-Vorschau: was zusätzlich zum Original mitgeschickt wird */}
-            {(renderUrl || capLabel) && (
+            {(renderUrl || capLabel || konzept) && (
               <div className="mwunsch">
                 {renderUrl && <img src={renderUrl} alt="Wunsch-Render" />}
                 <div>
                   <div className="t">Deine Richtung geht mit</div>
                   <div className="v">
-                    {renderUrl ? 'Wunsch-Render' : 'Ohne Render'}
+                    {konzept?.konzept_name ? <strong>{konzept.konzept_name}</strong> : (renderUrl ? 'Wunsch-Render' : 'Ohne Render')}
                     {capLabel ? ` · Verschluss: ${capLabel}` : ''}
                   </div>
+                  {konzept?.produzierbar && produzierbarText(konzept.produzierbar) && (
+                    <div className="v" style={{ marginTop: 6, whiteSpace: 'pre-line', fontSize: 12 }}>{produzierbarText(konzept.produzierbar)}</div>
+                  )}
                 </div>
               </div>
             )}
@@ -671,6 +708,7 @@ export default function Home() {
   }, []);
 
   const isFav = (id: string) => favorites.some(f => f.productId === id);
+
   const quickFav = (product: Result) => {
     const proj = rootQuery.trim() || 'Ohne Projekt';
     const saved = favorites.some(f => f.productId === product.id);
@@ -809,8 +847,8 @@ export default function Home() {
         <header className="topbar">
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
-        <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
 
+        <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
           {view === 'start' && (
             <div className="start">
               <div className="st-mitte">
@@ -953,7 +991,6 @@ export default function Home() {
               <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
             </div>
           )}
-
         </div>
       </div>
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} />}
