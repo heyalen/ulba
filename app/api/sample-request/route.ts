@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       Konzept_Name: konzeptName || '',
       Produzierbar: produzierbar ? JSON.stringify(produzierbar) : '',
       Anfrage_Datum: new Date().toISOString().slice(0, 10),
+      Anfrage_Status: 'Neu',
     };
     if (lieferantIds.length > 0) fields['Lieferant'] = lieferantIds;
     if (renderUrl && String(renderUrl).trim()) fields['Wunsch-Render'] = renderUrl;
@@ -94,6 +95,42 @@ export async function POST(req: Request) {
     }
 
     return Response.json({ ok: true, id: data.id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+/* GET /api/sample-request?ids=rec1,rec2 — Live-Status genau der Anfragen, deren
+   Record-IDs der Client selbst hält (aus localStorage). Kein Login, kein Leak:
+   es werden nur die angefragten IDs zurückgegeben. */
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const ids = (url.searchParams.get('ids') || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => /^rec[A-Za-z0-9]{14}$/.test(s));
+
+  if (ids.length === 0) return Response.json({ requests: [] });
+
+  try {
+    const formula = `OR(${ids.map(id => `RECORD_ID()='${id}'`).join(',')})`;
+    const params = new URLSearchParams({ filterByFormula: formula, pageSize: '100' });
+    ['Anfrage_Status', 'Anfrage_Datum', 'Konzept_Name', 'Anfrage_Name'].forEach(f => params.append('fields[]', f));
+
+    const res = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE}/${MUSTERANFRAGE_TABLE}?${params}`,
+      { headers: { Authorization: `Bearer ${process.env.AIRTABLE_PAT}` } }
+    );
+    const data = await res.json();
+    if (!res.ok) return Response.json({ error: `Airtable: ${res.status}` }, { status: 502 });
+
+    const requests = (data.records || []).map((r: any) => ({
+      id: r.id,
+      status: r.fields?.['Anfrage_Status'] || 'Neu',
+      datum: r.fields?.['Anfrage_Datum'] || '',
+    }));
+    return Response.json({ requests });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
     return Response.json({ error: message }, { status: 500 });
