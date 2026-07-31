@@ -150,6 +150,18 @@ function saveRenderHist(systemId: string, urls: string[]) {
   } catch {}
 }
 
+/* Gesendete Musteranfragen — lokal gemerkt (kein Login), Status wird live nachgeladen. */
+const LS_REQUESTS = 'ulba_requests_v1';
+interface SentRequest {
+  id: string; productName: string; supplier: string; konzeptName: string;
+  renderUrl: string; sentAt: number; status?: string;
+}
+function loadRequests(): SentRequest[] {
+  try { const raw = localStorage.getItem(LS_REQUESTS); if (raw) return JSON.parse(raw); } catch {}
+  return [];
+}
+function saveRequests(r: SentRequest[]) { try { localStorage.setItem(LS_REQUESTS, JSON.stringify(r)); } catch {} }
+
 /* Caps normalisieren: bevorzugt caps[{id,name,url}], sonst aus capImages ableiten. */
 function getCaps(p: Result): CapRef[] {
   if (p.caps && p.caps.length > 0) return p.caps.filter(c => c && c.imageUrl);
@@ -360,6 +372,19 @@ const STYLES = `
 .varthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:7px}
 .varthumb .ph{font-size:26px;color:#d8d8d6}
 .vt-tag{position:absolute;bottom:0;left:0;right:0;font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell);background:rgba(255,255,255,.86);padding:2px 0;text-align:center}
+.anfr-liste{display:flex;flex-direction:column;gap:10px}
+.anfr-row{display:flex;align-items:center;gap:16px;border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);padding:12px 16px}
+.anfr-bild{flex:none;width:56px;height:56px;border-radius:10px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.anfr-bild img{max-width:100%;max-height:100%;object-fit:contain;padding:6px}
+.anfr-bild .ph{font-size:24px;color:#d8d8d6}
+.anfr-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.anfr-t{font-family:var(--serif);font-weight:800;font-size:16px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anfr-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
+.anfr-status{flex:none;font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:5px 11px;border-radius:999px;border:1px solid var(--linie);color:var(--grau)}
+.anfr-status.s-neu{background:#FFF7E6;color:#8a6d00;border-color:#F2E2B8}
+.anfr-status.s-weitergeleitet{background:#EAF2FF;color:#1a4b8a;border-color:#C9DEF9}
+.anfr-status.s-erledigt{background:#EAF7EE;color:#1a6b34;border-color:#C4E7CE}
+.anfr-status.s-abgebrochen{background:#FDECEC;color:#9a2323;border-color:#F5C9C9}
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
 @keyframes pnspin{to{transform:rotate(360deg)}}
@@ -557,7 +582,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 }
 
 /* ── Muster-Anfrage-Modal: trägt Original + Wunsch (Render, Werte, Cap, Konzept) ── */
-function SampleModal({ ctx, onClose }: { ctx: SampleContext; onClose: () => void }) {
+function SampleModal({ ctx, onClose, onSent }: { ctx: SampleContext; onClose: () => void; onSent: (r: SentRequest) => void }) {
   const { product, renderUrl, wishValues, capLabel, konzept } = ctx;
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [firm, setFirm] = useState(''); const [brief, setBrief] = useState('');
@@ -576,7 +601,20 @@ function SampleModal({ ctx, onClose }: { ctx: SampleContext; onClose: () => void
           produzierbar: konzept?.produzierbar || null,
         }),
       });
-      if (!res.ok) throw new Error(); setStatus('done');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error();
+      if (data?.id) {
+        onSent({
+          id: data.id,
+          productName: product.name,
+          supplier: product.supplier || '',
+          konzeptName: konzept?.konzept_name || '',
+          renderUrl,
+          sentAt: Date.now(),
+          status: 'Neu',
+        });
+      }
+      setStatus('done');
     } catch { setStatus('error'); }
   };
 
@@ -686,13 +724,37 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
+  const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
     setProjects(loadProjects());
     setFavorites(loadFavorites());
+    setSentRequests(loadRequests());
   }, []);
+
+  const handleSent = (r: SentRequest) => {
+    setSentRequests(prev => { const next = [r, ...prev.filter(x => x.id !== r.id)]; saveRequests(next); return next; });
+  };
+
+  // Live-Status der eigenen Anfragen holen, sobald der Tab geöffnet wird.
+  useEffect(() => {
+    if (view !== 'anfragen' || sentRequests.length === 0) return;
+    const ids = sentRequests.map(r => r.id).join(',');
+    fetch(`/api/sample-request?ids=${encodeURIComponent(ids)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!Array.isArray(d?.requests)) return;
+        const map = new Map<string, string>(d.requests.map((x: any) => [x.id, x.status]));
+        setSentRequests(prev => {
+          const next = prev.map(r => map.has(r.id) ? { ...r, status: map.get(r.id) } : r);
+          saveRequests(next); return next;
+        });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   useEffect(() => { if (mounted) saveProjects(projects); }, [projects, mounted]);
 
@@ -987,13 +1049,26 @@ export default function Home() {
 
           {view === 'anfragen' && (
             <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast — und wo es steht. Status kommt in Stufe 3 aus Airtable.</p></div>
-              <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
+              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast — und wo es steht. Status wird live aus Airtable geladen.</p></div>
+              {sentRequests.length === 0
+                ? <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
+                : <div className="anfr-liste">
+                  {sentRequests.map(r => (
+                    <div key={r.id} className="anfr-row">
+                      <div className="anfr-bild">{r.renderUrl ? <img src={r.renderUrl} alt={r.konzeptName || r.productName} /> : <span className="ph">◇</span>}</div>
+                      <div className="anfr-info">
+                        <span className="anfr-t">{r.konzeptName || r.productName}</span>
+                        <span className="anfr-s">{r.productName}{r.supplier ? ` · ${r.supplier}` : ''} · {new Date(r.sentAt).toLocaleDateString('de-CH')}</span>
+                      </div>
+                      <span className={`anfr-status s-${(r.status || 'Neu').toLowerCase()}`}>{r.status || 'Neu'}</span>
+                    </div>
+                  ))}
+                </div>}
             </div>
           )}
         </div>
       </div>
-      {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} />}
+      {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
     </div>
   );
 }
