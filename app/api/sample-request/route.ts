@@ -1,70 +1,101 @@
-import { NextRequest, NextResponse } from "next/server";
+/* app/api/sample-request/route.ts
+   Nimmt den POST aus dem SampleModal (page.tsx) und legt einen Musteranfrage-
+   Record in Airtable an. Original (System-Link) = verbindlich, Wunsch (Render +
+   produzierbare Werte + Konzept) = Intention.
 
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN!;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID!;
-const TABLE_ID = "tblIZnKIrr81MYSzr";
+   Lieferant-Link wird NICHT vom Client geraten, sondern aus dem System-Record
+   abgeleitet (record-id-basiert) — löst den offenen Punkt fldOJliIWZrAoc6Wf.
 
-// Field-IDs der Musteranfrage-Tabelle (aus Airtable-Schema verifiziert)
-const F = {
-  name: "fldGNGNcdTP37umjZ",       // Anfrage_Name
-  email: "fldcxIabIhWs2vwse",      // Anfrage_Email
-  firma: "fld1C7W9B95YxQGPo",      // Anfrage_Firma
-  system: "fldz4eI0w86Nd2XgW",     // System (Link → verbindliches Original-Packmittel)
-  status: "fldlVebHyqiN3yMXI",     // Anfrage_Status
-  datum: "fldfd6b4zxhnI68F2",      // Anfrage_Datum
-  notiz: "fldapwhmIssHbYCd1",      // Anfrage_Notiz (Briefing)
-  wunschRender: "fldOnX3P2IjsMWt3f", // Wunsch-Render (URL) — die Anmutung
-  wunschwerte: "fldMJV1m2aSY7PX8b",  // Wunschwerte (Long text) — Hex/Finish, produzierbar
-  cap: "fldTqWJoVSEt0avN6",          // Gewählter Verschluss (Single line text)
-} as const;
+   ENV in der ulba-Vercel-App nötig: AIRTABLE_PAT.
+*/
 
-export async function POST(req: NextRequest) {
+const AIRTABLE_BASE = 'app0QFyInfhvk66MC';
+const SYSTEM_TABLE = 'tblB1kWay9TvX3rGv';
+const MUSTERANFRAGE_TABLE = 'tblIZnKIrr81MYSzr';
+
+async function airtableFetch(table: string, recordId: string): Promise<any> {
+  const res = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${table}/${recordId}`,
+    { headers: { Authorization: `Bearer ${process.env.AIRTABLE_PAT}` } }
+  );
+  if (!res.ok) throw new Error(`Airtable ${table}/${recordId}: ${res.status}`);
+  return res.json();
+}
+
+export async function POST(req: Request) {
+  let payload: any;
+  try {
+    payload = await req.json();
+  } catch {
+    return Response.json({ error: 'Ungültiger Body' }, { status: 400 });
+  }
+
   const {
     productId,
-    productName,        // aktuell nicht persistiert (Original steckt im Link), aber angenommen
-    supplier,           // dito — Lieferant-Verknüpfung folgt in einem späteren Schritt
-    brandName,
-    brandEmail,
-    brief,
-    // NEU: Wunsch-Seite der Anfrage
-    renderUrl = "",     // gerendertes Wunschbild (Seedream-URL)
-    wishValues = "",    // Wunschwerte = renderingPrompt (konkrete Farb-/Finish-/Dekor-Werte)
-    capLabel = "",      // lesbarer Name des gewählten Verschlusses
-  } = await req.json();
+    brandName = '',
+    brandEmail = '',
+    brief = '',
+    renderUrl = '',
+    wishValues = '',
+    capLabel = '',
+    konzeptName = '',
+    produzierbar = null,
+  } = payload || {};
 
-  if (!brandEmail || !productId) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  if (!productId || !brandEmail || !String(brandEmail).trim()) {
+    return Response.json({ error: 'productId und brandEmail sind erforderlich' }, { status: 400 });
   }
 
-  const today = new Date().toISOString().split("T")[0];
-
-  // Nur gesetzte Zusatzfelder mitschicken — leere URL/Text nicht schreiben.
-  const fields: Record<string, any> = {
-    [F.name]: brandName || brandEmail,
-    [F.email]: brandEmail,
-    [F.firma]: brandName || "",
-    [F.system]: [productId],
-    [F.status]: "Neu",
-    [F.datum]: today,
-    [F.notiz]: brief || "",
-  };
-  if (renderUrl) fields[F.wunschRender] = renderUrl;
-  if (wishValues) fields[F.wunschwerte] = wishValues;
-  if (capLabel) fields[F.cap] = capLabel;
-
-  const res = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${TABLE_ID}`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ fields }),
+  try {
+    // Lieferant aus dem System-Record ableiten (record-id-basiert, nie geraten).
+    let lieferantIds: string[] = [];
+    try {
+      const sys = await airtableFetch(SYSTEM_TABLE, productId);
+      const link = sys?.fields?.['Lieferant'];
+      if (Array.isArray(link)) lieferantIds = link.filter((x: any) => typeof x === 'string');
+    } catch {
+      // System-Lookup darf die Anfrage nicht blockieren — ohne Lieferant-Link fortfahren.
     }
-  );
 
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("Airtable sample-request failed:", detail);
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    // Feld-Objekt aufbauen; riskante Feldtypen (url, links) nur bei Wert setzen,
+    // damit ein einzelner Fehlwert nicht den ganzen atomaren Write kippt.
+    const fields: Record<string, any> = {
+      Anfrage_Name: brandName || '(ohne Name)',
+      Anfrage_Email: brandEmail,
+      System: [productId],
+      Anfrage_Notiz: brief || '',
+      Wunschwerte: wishValues || '',
+      'Gewählter Verschluss': capLabel || '',
+      Konzept_Name: konzeptName || '',
+      Produzierbar: produzierbar ? JSON.stringify(produzierbar) : '',
+      Anfrage_Datum: new Date().toISOString().slice(0, 10),
+    };
+    if (lieferantIds.length > 0) fields['Lieferant'] = lieferantIds;
+    if (renderUrl && String(renderUrl).trim()) fields['Wunsch-Render'] = renderUrl;
+
+    const res = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE}/${MUSTERANFRAGE_TABLE}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.AIRTABLE_PAT}`,
+        },
+        body: JSON.stringify({ fields }),
+      }
+    );
+
+    const data = await res.json();
+    if (!res.ok || !data.id) {
+      return Response.json(
+        { error: `Airtable: ${JSON.stringify(data.error || data)}` },
+        { status: 502 }
+      );
+    }
+
+    return Response.json({ ok: true, id: data.id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+    return Response.json({ error: message }, { status: 500 });
   }
-  return NextResponse.json({ success: true });
 }
