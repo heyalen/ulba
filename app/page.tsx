@@ -545,6 +545,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   const [concept, setConcept] = useState<RenderConcept | null>(null);
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
+  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(null); // Cap-Recolor aus /api/render
 
   const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
   const caps = getCaps(product); // [{id,name,imageUrl}] — leer, wenn das Produkt keinen Cap hat
@@ -567,6 +568,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       const url: string | null = data.renderingUrl || null;
       if (url) {
         setHeroUrl(url);
+        setCapRenderUrl(data.capRenderingUrl || null);
         setLastPrompt(data.renderingPrompt || '');
         setCached(!!data.cached);
         setConcept(data.concept || null);
@@ -583,6 +585,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   useEffect(() => {
     setQuery(defaultQuery);
     setCap(0);
+    setCapRenderUrl(null);
     setCached(false);
     setRstatus('idle');
     setLastPrompt('');
@@ -620,7 +623,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           <div className="lbl">Passende Verschlüsse · {caps.length}</div>
           <div className="thumbs">
             {caps.map((c, i) => (
-              <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => setCap(i)}>
+              <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => { setCap(i); setCapRenderUrl(null); }}>
                 <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               </div>
             ))}
@@ -630,10 +633,10 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 
       {caps.length > 0 && (
         <div className="pn-cap-gross">
-          <div className="lbl">Gewählter Verschluss · {cap + 1}/{caps.length}{caps[cap]?.name ? ` · ${caps[cap].name}` : ''}</div>
+          <div className="lbl">Gewählter Verschluss · {cap + 1}/{caps.length}{caps[cap]?.name ? ` · ${caps[cap].name}` : ''}{capRenderUrl ? ' · in Farbe' : ''}</div>
           <div className="buehne">
-            {caps[cap]?.imageUrl
-              ? <img src={caps[cap].imageUrl} alt={caps[cap].name || `Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            {(capRenderUrl || caps[cap]?.imageUrl)
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               : <span className="ph">◇</span>}
           </div>
         </div>
