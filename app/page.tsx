@@ -636,9 +636,9 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
-          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 120, marginBottom: 2 }}>
+          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: 2 }}>
             {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxHeight: 168, maxWidth: 150, objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxWidth: '26%', maxHeight: 190, objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
           </div>
         )}
