@@ -546,6 +546,16 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(0);
   const [capRenderUrl, setCapRenderUrl] = useState<string | null>(null); // Cap-Recolor aus /api/render
+  const baseImgRef = useRef<HTMLImageElement>(null);
+  const [baseW, setBaseW] = useState(0); // tatsächlich angezeigte Flaschenbreite (px)
+  const measureBase = useCallback(() => {
+    const el = baseImgRef.current;
+    if (el) setBaseW(el.getBoundingClientRect().width);
+  }, []);
+  useEffect(() => {
+    window.addEventListener('resize', measureBase);
+    return () => window.removeEventListener('resize', measureBase);
+  }, [measureBase]);
 
   const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
   const caps = getCaps(product); // [{id,name,imageUrl}] — leer, wenn das Produkt keinen Cap hat
@@ -636,9 +646,9 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
-          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: 2 }}>
+          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
             {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxWidth: '26%', maxHeight: 190, objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ width: baseW ? Math.round(baseW * 0.4) : 88, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
           </div>
         )}
@@ -646,7 +656,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
           {rstatus === 'loading'
             ? <div className="pn-lade"><span className="pn-lade-sp" />Rendert deine Richtung …</div>
             : heroUrl
-              ? <img src={heroUrl} alt={product.name} />
+              ? <img ref={baseImgRef} src={heroUrl} alt={product.name} onLoad={measureBase} />
               : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
         </div>
       </div>
