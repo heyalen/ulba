@@ -620,7 +620,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 
       {caps.length > 0 && (
         <div className="pn-caps-top">
-          <div className="lbl">Passende Verschlüsse · {caps.length}</div>
+          <div className="lbl">Verschluss wählen · {caps.length}</div>
           <div className="thumbs">
             {caps.map((c, i) => (
               <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => { setCap(i); setCapRenderUrl(null); }}>
@@ -631,26 +631,34 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         </div>
       )}
 
-      {caps.length > 0 && (
-        <div className="pn-cap-gross">
-          <div className="lbl">Gewählter Verschluss · {cap + 1}/{caps.length}{caps[cap]?.name ? ` · ${caps[cap].name}` : ''}{capRenderUrl ? ' · in Farbe' : ''}</div>
-          <div className="buehne">
-            {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-              : <span className="ph">◇</span>}
-          </div>
-        </div>
-      )}
-
       {renderIstAktiv && concept && <FrameHead concept={concept} />}
 
-      <div className={`pn-bild${renderIstAktiv && concept ? ' im-frame' : ''}`}>
-        {rstatus === 'loading'
-          ? <div className="pn-lade"><span className="pn-lade-sp" />Rendert deine Richtung …</div>
-          : heroUrl
-            ? <img src={heroUrl} alt={product.name} />
-            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
+      <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {caps.length > 0 && (
+          <div className="pn-stack-cap" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 44, marginBottom: 2 }}>
+            {(capRenderUrl || caps[cap]?.imageUrl)
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxHeight: 74, maxWidth: '38%', objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
+          </div>
+        )}
+        <div className={`pn-bild${renderIstAktiv && concept ? ' im-frame' : ''}`} style={{ width: '100%' }}>
+          {rstatus === 'loading'
+            ? <div className="pn-lade"><span className="pn-lade-sp" />Rendert deine Richtung …</div>
+            : heroUrl
+              ? <img src={heroUrl} alt={product.name} />
+              : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        </div>
       </div>
+
+      {renderIstAktiv && concept && (
+        <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
+          <span>generiert aus</span>
+          <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
+          {caps.length > 0 && <><span>+</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{caps[cap]?.name || `Cap ${cap + 1}`}</strong></>}
+          {concept.konzept_name && <><span>·</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{concept.konzept_name}</strong></>}
+        </div>
+      )}
 
       {renderIstAktiv && concept && <SpecSheet concept={concept} />}
 
@@ -688,6 +696,16 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
             <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
           </div>
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
+          {renderIstAktiv && (
+            <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
+                <button key={n} type="button" onClick={() => run(`${query.trim()}, ${n}`)} disabled={rstatus === 'loading'}
+                  style={{ fontSize: 12, padding: '5px 11px', borderRadius: 14, border: '1px solid #e4e4e1', background: '#fff', color: '#55554f', cursor: rstatus === 'loading' ? 'default' : 'pointer' }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
