@@ -656,7 +656,14 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
 
       {varianten.length > 0 && (
         <div className="varstrip">
-          <div className="lbl">Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</div>
+          <div className="lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span>Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</span>
+            <button
+              onClick={() => { saveRenderHist(product.id, []); setVarianten([]); setHeroUrl(roh); setCapRenderUrl(null); setConcept(null); setCached(false); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9a9a97', padding: 0 }}
+              title="lokale Render-Historie dieses Produkts leeren"
+            >leeren</button>
+          </div>
           <div className="thumbs">
             <button className={`varthumb${heroUrl === roh ? ' an' : ''}`} onClick={() => setHeroUrl(roh)} title="Original-Rohteil">
               {roh ? <img src={roh} alt="Original" /> : <span className="ph">◇</span>}
