@@ -648,7 +648,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         {caps.length > 0 && (
           <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
             {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ width: baseW ? Math.round(baseW * 0.4) : 88, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ width: baseW ? Math.round(baseW * 0.34) : 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
           </div>
         )}
