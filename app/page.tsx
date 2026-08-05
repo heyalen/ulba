@@ -445,7 +445,7 @@ const STYLES = `
 .pn-cap-gross .ph{font-size:34px;color:#d8d8d6}
 .capthumb{flex:none;width:82px;height:82px;border-radius:12px;border:1px solid var(--linie);background:#FFFFFF;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}
 .capthumb.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
-.capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:9px}
+.capthumb img{max-width:100%;max-height:100%;object-fit:contain;padding:4px}
 .pn-aktion{position:sticky;bottom:0;display:flex;gap:9px;padding:16px 24px;background:linear-gradient(to top,var(--panel) 72%,transparent);margin-top:auto}
 .pn-aktion .cta{flex:1;background:var(--tinte);color:#fff;padding:14px;border-radius:999px;font-size:15px}
 .pn-aktion .cta:hover{background:var(--rouge)}
@@ -636,9 +636,9 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
       {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
-          <div className="pn-stack-cap" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 44, marginBottom: 2 }}>
+          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 120, marginBottom: 2 }}>
             {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxHeight: 74, maxWidth: '38%', objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ maxHeight: 168, maxWidth: 150, objectFit: 'contain', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
               : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
           </div>
         )}
