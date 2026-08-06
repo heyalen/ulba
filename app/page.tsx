@@ -1,4 +1,4 @@
-'use client';
+use client';
 /* ══════════════════════════════════════════════════════════════════════
    ulba · page.tsx
    Thread-Verlaufsmodell: jeder Suchlauf ist ein Block im Verlauf.
@@ -200,7 +200,12 @@ interface Block {
   categoryMatch: string;
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
+  capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
 }
+
+/* Cap-Wand aus /api/search: steuert das Verschluss-Panel (nicht den Hard Filter).
+   deprioritize_open_dropper = offenen Pipetten-Cap nach hinten + Hinweis, nie entfernen. */
+interface CapWall { deprioritize_open_dropper?: boolean }
 
 interface Project {
   id: string;
@@ -533,8 +538,8 @@ function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, 
 }
 
 /* ── Render-Panel rechts ── */
-function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, onSample, onClose }: {
-  product: Result; defaultQuery: string; isFav: boolean; inBoard: boolean;
+function RenderPanel({ product, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
+  product: Result; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
   onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(defaultQuery);
@@ -558,7 +563,15 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
   }, [measureBase]);
 
   const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
-  const caps = getCaps(product); // [{id,name,imageUrl}] — leer, wenn das Produkt keinen Cap hat
+  // Caps: bei oxidationsempfindlicher Formel wandert der offene Pipetten-Cap
+  // ans Ende (Cap-Wand) — NIE entfernt (bei getöntem Glas legitim), nur
+  // depriorisiert + Hinweis. Erkennung am Namen (Pipette/Dropper/Tropfer).
+  const capsRaw = getCaps(product);
+  const istPipette = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
+  const dropperDepri = !!capWall?.deprioritize_open_dropper && capsRaw.some(istPipette);
+  const caps = dropperDepri
+    ? [...capsRaw].sort((a, b) => (istPipette(a) ? 1 : 0) - (istPipette(b) ? 1 : 0))
+    : capsRaw;
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
   const run = async (brief: string) => {
@@ -632,12 +645,24 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, onFav, onBoard, on
         <div className="pn-caps-top">
           <div className="lbl">Verschluss wählen · {caps.length}</div>
           <div className="thumbs">
-            {caps.map((c, i) => (
-              <div key={i} className={`capthumb${cap === i ? ' an' : ''}`} onClick={() => { setCap(i); setCapRenderUrl(null); }}>
-                <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-              </div>
-            ))}
+            {caps.map((c, i) => {
+              const depri = dropperDepri && istPipette(c);
+              return (
+                <div key={i}
+                  className={`capthumb${cap === i ? ' an' : ''}`}
+                  style={depri ? { opacity: 0.5 } : undefined}
+                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
+                  onClick={() => { setCap(i); setCapRenderUrl(null); }}>
+                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                </div>
+              );
+            })}
           </div>
+          {dropperDepri && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
+              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
+            </div>
+          )}
         </div>
       )}
 
@@ -964,7 +989,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -1151,6 +1176,7 @@ export default function Home() {
               </main>
               {selected && (
                 <RenderPanel product={selected} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                  capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
               )}
             </div>
