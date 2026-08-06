@@ -1,4 +1,4 @@
-use client';
+'use client';
 /* ══════════════════════════════════════════════════════════════════════
    ulba · page.tsx
    Thread-Verlaufsmodell: jeder Suchlauf ist ein Block im Verlauf.
