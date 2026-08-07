@@ -179,6 +179,18 @@ interface Result {
   projekt?: string;
 }
 
+// ►►► design_looks aus /api/search: Look-Rezept + reales Gate-Base.
+//     brand/produkt sind aspirationale Referenzen → NIE im UI anzeigen.
+interface DesignLook {
+  code_id: string; code_name: string;
+  register: string; temp_laut: number | null; temp_ton: number | null;
+  body_behandlung: string; body_hex: string; body_hex_2: string;
+  farbverlauf: string; akzent_hex: string;
+  finish_body: string; cap_finish: string; cap_hex: string; typo_haltung: string;
+  axis_score: number; axis_why: string;
+  matched_base: { id: string; name: string; type: string; material: string[]; closure: string; image_url: string | null; supplier: string };
+}
+
 // ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
 type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; closures: string[] };
 
@@ -197,6 +209,7 @@ interface Block {
   query: string;
   filters: ParsedFilters;
   results: Result[];
+  looks: DesignLook[]; // Design-Looks (Rezept × Gate-Base) — Payoff-Reihe über dem Grid
   categoryMatch: string;
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
@@ -356,6 +369,21 @@ const STYLES = `
 .ebk-h{font-family:var(--serif);font-size:20px}
 .ebk-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
 .eb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.lk-block{margin:2px 0 22px}
+.lk-kopf{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.lk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.lk-look{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
+.lk-look:hover{border-color:var(--hell);transform:translateY(-2px)}
+.lk-klick{display:block;width:100%;text-align:left}
+.lk-bild{position:relative;display:flex;align-items:center;justify-content:center;height:150px;overflow:hidden}
+.lk-bild img{max-width:74%;max-height:80%;object-fit:contain;mix-blend-mode:multiply}
+.lk-score{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.92);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
+.lk-swatches{display:flex;align-items:center;gap:5px;padding:9px 12px 0}
+.lk-sw{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.08)}
+.lk-beh{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--hell);margin-left:auto}
+.lk-info{padding:6px 12px 12px}
+.lk-nm{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-meta{display:block;font-family:var(--mono);font-size:11px;color:var(--hell);margin-top:3px}
 .eb-grid.schmal{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
 .ek:hover{border-color:var(--hell);transform:translateY(-2px)}
@@ -881,6 +909,38 @@ function ScanBar() {
 }
 
 /* ── Ergebniskarte ── */
+/* ── LookKarte — ein Design-Look (Rezept) auf seinem realen Gate-Base.
+   Form = matched_base-Bild (Anker), Farbe = body_hex(+Verlauf)/akzent/cap.
+   brand/produkt bewusst NICHT gezeigt (aspirationale Referenz). Klick öffnet
+   den Render fürs Base. Das ist die Vorschau — der echte Render kommt aus /api/render. */
+function LookKarte({ look, onOpen }: { look: DesignLook; onOpen: () => void }) {
+  const bg = look.farbverlauf && look.farbverlauf !== 'kein' && look.body_hex_2
+    ? `linear-gradient(180deg, ${look.body_hex || '#efefec'}, ${look.body_hex_2})`
+    : (look.body_hex || '#f0f0ee');
+  return (
+    <div className="lk-look">
+      <button className="lk-klick" onClick={onOpen}>
+        <div className="lk-bild" style={{ background: bg }}>
+          {look.matched_base.image_url
+            ? <img src={look.matched_base.image_url} alt={look.code_name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
+            : <span className="ek-ph">◇</span>}
+          <span className="lk-score"><span className="em-z">{look.axis_score}</span><span className="em-l">Fit</span></span>
+        </div>
+        <div className="lk-swatches">
+          <span className="lk-sw" style={{ background: look.body_hex || '#eee' }} title="Body" />
+          {look.akzent_hex && <span className="lk-sw" style={{ background: look.akzent_hex }} title="Akzent" />}
+          {look.cap_hex && <span className="lk-sw" style={{ background: look.cap_hex }} title="Cap" />}
+          <span className="lk-beh">{(look.body_behandlung || '—').replace(/_/g, ' ')}</span>
+        </div>
+        <div className="lk-info">
+          <span className="lk-nm">{look.code_name}</span>
+          <span className="lk-meta">{look.register} · auf {look.matched_base.name}</span>
+        </div>
+      </button>
+    </div>
+  );
+}
+
 function Karte({ r, selected, isFav, onOpen, onFav }: {
   r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
 }) {
@@ -977,7 +1037,7 @@ export default function Home() {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       id = p.blockSeq + 1;
-      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, results: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, results: [], looks: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
     }));
     try {
       const body: any = { query };
@@ -989,7 +1049,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -1141,6 +1201,16 @@ export default function Home() {
                                   </div>
                                 )}
                                 <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                                {b.looks && b.looks.length > 0 && (
+                                  <div className="lk-block">
+                                    <div className="lk-kopf"><span className="ebk-h">{b.looks.length} Design-Looks</span><span className="ebk-s">Rezept × reales Teil · nach Fit</span></div>
+                                    <div className="lk-grid">
+                                      {b.looks.map(lk => (
+                                        <LookKarte key={lk.code_id} look={lk} onOpen={() => { const base = b.results.find(r => r.id === lk.matched_base.id); if (base) setSelected(base); }} />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
