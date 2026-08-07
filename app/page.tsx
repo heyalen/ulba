@@ -566,8 +566,8 @@ function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, 
 }
 
 /* ── Render-Panel rechts ── */
-function RenderPanel({ product, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
-  product: Result; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
+function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
+  product: Result; look?: DesignLook | null; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
   onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(defaultQuery);
@@ -610,6 +610,7 @@ function RenderPanel({ product, defaultQuery, isFav, inBoard, capWall, onFav, on
       const selectedCapId = caps[cap]?.id || null;
       const body: any = { systemId: product.id, query: q, tier: 'lite' };
       if (selectedCapId) body.selectedCapId = selectedCapId;
+      if (look?.code_id) body.forceCodeId = look.code_id; // geklickter Look pinnt den Design-Code
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -962,6 +963,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
   const [selected, setSelected] = useState<Result | null>(null);
+  const [selectedLook, setSelectedLook] = useState<DesignLook | null>(null); // geklickter Look → forceCodeId an /api/render
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1206,7 +1208,7 @@ export default function Home() {
                                     <div className="lk-kopf"><span className="ebk-h">{b.looks.length} Design-Looks</span><span className="ebk-s">Rezept × reales Teil · nach Fit</span></div>
                                     <div className="lk-grid">
                                       {b.looks.map(lk => (
-                                        <LookKarte key={lk.code_id} look={lk} onOpen={() => { const base = b.results.find(r => r.id === lk.matched_base.id); if (base) setSelected(base); }} />
+                                        <LookKarte key={lk.code_id} look={lk} onOpen={() => { const base = b.results.find(r => r.id === lk.matched_base.id); if (base) { setSelectedLook(lk); setSelected(base); } }} />
                                       ))}
                                     </div>
                                   </div>
@@ -1214,7 +1216,7 @@ export default function Home() {
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => { setSelectedLook(null); setSelected(r); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                   </div>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
@@ -1245,7 +1247,7 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <RenderPanel product={selected} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                <RenderPanel product={selected} look={selectedLook} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
                   capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
               )}
