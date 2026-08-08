@@ -18,7 +18,7 @@
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
@@ -369,21 +369,13 @@ const STYLES = `
 .ebk-h{font-family:var(--serif);font-size:20px}
 .ebk-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
 .eb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-.lk-block{margin:2px 0 22px}
-.lk-kopf{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
-.lk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
-.lk-look{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
-.lk-look:hover{border-color:var(--hell);transform:translateY(-2px)}
-.lk-klick{display:block;width:100%;text-align:left}
-.lk-bild{position:relative;display:flex;align-items:center;justify-content:center;height:150px;overflow:hidden}
-.lk-bild img{max-width:74%;max-height:80%;object-fit:contain;mix-blend-mode:multiply}
-.lk-score{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.92);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
-.lk-swatches{display:flex;align-items:center;gap:5px;padding:9px 12px 0}
-.lk-sw{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.08)}
-.lk-beh{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--hell);margin-left:auto}
-.lk-info{padding:6px 12px 12px}
-.lk-nm{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lk-meta{display:block;font-family:var(--mono);font-size:11px;color:var(--hell);margin-top:3px}
+/* Richtungs-Rail im Panel — Design-Codes als kompakte Chips, weiß/minimal */
+.pn-dirs{display:flex;flex-wrap:wrap;gap:7px}
+.pn-dir{display:flex;align-items:center;gap:7px;border:1px solid var(--linie);border-radius:20px;padding:5px 12px 5px 7px;background:#fff;cursor:pointer;font-size:13px;color:#3a3a37;transition:border-color .15s}
+.pn-dir:hover{border-color:var(--hell)}
+.pn-dir.an{border-color:var(--tinte)}
+.pn-dir .dot{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.1);flex:none}
+.pn-dir.auto .dot{background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f)}
 .eb-grid.schmal{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
 .ek:hover{border-color:var(--hell);transform:translateY(-2px)}
@@ -566,11 +558,16 @@ function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, 
 }
 
 /* ── Render-Panel rechts ── */
-function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
-  product: Result; look?: DesignLook | null; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
+function RenderPanel({ product, allLooks, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
   onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(defaultQuery);
+  // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
+  const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
+  // activeCode = gepinnter Design-Code (null = Auto/Haiku). Sticky über Teil-
+  // Wechsel: bleibt kleben, solange für das neue Teil kompatibel.
+  const [activeCode, setActiveCode] = useState<string | null>(compatLooks[0]?.code_id || null);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [varianten, setVarianten] = useState<string[]>([]);
   const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
@@ -602,7 +599,7 @@ function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onF
     : capsRaw;
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
-  const run = async (brief: string) => {
+  const run = async (brief: string, codeOverride?: string | null) => {
     const q = brief.trim();
     if (!q) return;
     setRstatus('loading');
@@ -610,7 +607,8 @@ function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onF
       const selectedCapId = caps[cap]?.id || null;
       const body: any = { systemId: product.id, query: q, tier: 'lite' };
       if (selectedCapId) body.selectedCapId = selectedCapId;
-      if (look?.code_id) body.forceCodeId = look.code_id; // geklickter Look pinnt den Design-Code
+      const code = codeOverride !== undefined ? codeOverride : activeCode;
+      if (code) body.forceCodeId = code; // gepinnte Richtung → Design-Code fix
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -645,6 +643,8 @@ function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onF
     const hist = loadRenderHist(product.id);
     setVarianten(hist);
     setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
+    // Richtung sticky: bleibt, wenn fürs neue Teil kompatibel — sonst dessen Best-Fit.
+    setActiveCode(prev => (prev && compatLooks.some(l => l.code_id === prev)) ? prev : (compatLooks[0]?.code_id || null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
@@ -692,6 +692,29 @@ function RenderPanel({ product, look, defaultQuery, isFav, inBoard, capWall, onF
               Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
             </div>
           )}
+        </div>
+      )}
+
+      {compatLooks.length > 0 && (
+        <div className="pn-caps-top">
+          <div className="lbl">Richtung · {compatLooks.length} für dieses Teil</div>
+          <div className="pn-dirs">
+            <button type="button" className={`pn-dir auto${activeCode === null ? ' an' : ''}`}
+              disabled={rstatus === 'loading'}
+              onClick={() => { setActiveCode(null); run(query, null); }}
+              title="ulba leitet die Richtung selbst ab">
+              <span className="dot" />Auto
+            </button>
+            {compatLooks.map(l => (
+              <button key={l.code_id} type="button"
+                className={`pn-dir${activeCode === l.code_id ? ' an' : ''}`}
+                disabled={rstatus === 'loading'}
+                onClick={() => { setActiveCode(l.code_id); run(query, l.code_id); }}
+                title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')}`}>
+                <span className="dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -910,37 +933,33 @@ function ScanBar() {
 }
 
 /* ── Ergebniskarte ── */
-/* ── LookKarte — ein Design-Look (Rezept) auf seinem realen Gate-Base.
-   Form = matched_base-Bild (Anker), Farbe = body_hex(+Verlauf)/akzent/cap.
-   brand/produkt bewusst NICHT gezeigt (aspirationale Referenz). Klick öffnet
-   den Render fürs Base. Das ist die Vorschau — der echte Render kommt aus /api/render. */
-function LookKarte({ look, onOpen }: { look: DesignLook; onOpen: () => void }) {
-  const bg = look.farbverlauf && look.farbverlauf !== 'kein' && look.body_hex_2
-    ? `linear-gradient(180deg, ${look.body_hex || '#efefec'}, ${look.body_hex_2})`
-    : (look.body_hex || '#f0f0ee');
-  return (
-    <div className="lk-look">
-      <button className="lk-klick" onClick={onOpen}>
-        <div className="lk-bild" style={{ background: bg }}>
-          {look.matched_base.image_url
-            ? <img src={look.matched_base.image_url} alt={look.code_name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
-            : <span className="ek-ph">◇</span>}
-          <span className="lk-score"><span className="em-z">{look.axis_score}</span><span className="em-l">Fit</span></span>
-        </div>
-        <div className="lk-swatches">
-          <span className="lk-sw" style={{ background: look.body_hex || '#eee' }} title="Body" />
-          {look.akzent_hex && <span className="lk-sw" style={{ background: look.akzent_hex }} title="Akzent" />}
-          {look.cap_hex && <span className="lk-sw" style={{ background: look.cap_hex }} title="Cap" />}
-          <span className="lk-beh">{(look.body_behandlung || '—').replace(/_/g, ' ')}</span>
-        </div>
-        <div className="lk-info">
-          <span className="lk-nm">{look.code_name}</span>
-          <span className="lk-meta">{look.register} · auf {look.matched_base.name}</span>
-        </div>
-      </button>
-    </div>
-  );
+/* Look-Gate (Client) — spiegelt baseSatisfies/checkAnforderung aus search.ts
+   & render.ts: welche Design-Codes kann DIESES reale Teil tragen? Damit die
+   Richtungs-Rail im Panel nur Produzierbares zeigt (kein stiller Fehlrender). */
+const PLASTIC_RE = /pet|petg|pp|hdpe|acryl|surlyn|kunststoff|plastic/i;
+function baseSatisfiesLook(base: Result, anforderungen: string[]): boolean {
+  const mat = (base.material || []).map(m => m.toLowerCase());
+  const caps = (base.capabilities || []).map(c => c.toLowerCase());
+  const isGlas = mat.some(m => m.includes('glas') || m.includes('glass'));
+  const isPlastic = mat.some(m => PLASTIC_RE.test(m));
+  const capHas = (t: string) => caps.some(c => c.includes(t));
+  return (anforderungen || []).every(aRaw => {
+    const a = aRaw.toLowerCase();
+    if (a.includes('klarglas')) return isGlas;
+    if (a.includes('einfaerb') || a.includes('einfärb')) return isPlastic || capHas('einfaerb') || capHas('lackierbar');
+    if (a.includes('frost')) return isPlastic || capHas('mattierbar');
+    if (a.includes('opak')) return isPlastic || capHas('einfaerb') || capHas('lackierbar');
+    return true; // Cap-Level (cap_weiss/metallcap) & Unbekanntes blockiert nicht
+  });
 }
+/* Kompatible Looks für ein Teil, nach Fit sortiert (Best-Fit zuerst). */
+function looksForBase(base: Result, all: DesignLook[]): DesignLook[] {
+  const seen = new Set<string>();
+  return all
+    .filter(l => { if (seen.has(l.code_id)) return false; seen.add(l.code_id); return baseSatisfiesLook(base, l.anforderungen as any || []); })
+    .sort((a, b) => b.axis_score - a.axis_score);
+}
+
 
 function Karte({ r, selected, isFav, onOpen, onFav }: {
   r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
@@ -963,7 +982,6 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
   const [selected, setSelected] = useState<Result | null>(null);
-  const [selectedLook, setSelectedLook] = useState<DesignLook | null>(null); // geklickter Look → forceCodeId an /api/render
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1203,20 +1221,10 @@ export default function Home() {
                                   </div>
                                 )}
                                 <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
-                                {b.looks && b.looks.length > 0 && (
-                                  <div className="lk-block">
-                                    <div className="lk-kopf"><span className="ebk-h">{b.looks.length} Design-Looks</span><span className="ebk-s">Rezept × reales Teil · nach Fit</span></div>
-                                    <div className="lk-grid">
-                                      {b.looks.map(lk => (
-                                        <LookKarte key={lk.code_id} look={lk} onOpen={() => { const base = b.results.find(r => r.id === lk.matched_base.id); if (base) { setSelectedLook(lk); setSelected(base); } }} />
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => { setSelectedLook(null); setSelected(r); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                   </div>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
@@ -1247,7 +1255,7 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <RenderPanel product={selected} look={selectedLook} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
                   capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
               )}
