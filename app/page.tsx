@@ -187,6 +187,7 @@ interface DesignLook {
   body_behandlung: string; body_hex: string; body_hex_2: string;
   farbverlauf: string; akzent_hex: string;
   finish_body: string; cap_finish: string; cap_hex: string; typo_haltung: string;
+  anforderungen: string[]; segment: string[];
   axis_score: number; axis_why: string;
   matched_base: { id: string; name: string; type: string; material: string[]; closure: string; image_url: string | null; supplier: string };
 }
@@ -956,7 +957,7 @@ function baseSatisfiesLook(base: Result, anforderungen: string[]): boolean {
 function looksForBase(base: Result, all: DesignLook[]): DesignLook[] {
   const seen = new Set<string>();
   return all
-    .filter(l => { if (seen.has(l.code_id)) return false; seen.add(l.code_id); return baseSatisfiesLook(base, l.anforderungen as any || []); })
+    .filter(l => { if (seen.has(l.code_id)) return false; seen.add(l.code_id); return baseSatisfiesLook(base, l.anforderungen || []); })
     .sort((a, b) => b.axis_score - a.axis_score);
 }
 
