@@ -619,6 +619,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   const initCode = (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) ? preferredCode : (compatLooks[0]?.code_id || null);
   const [activeCode, setActiveCode] = useState<string | null>(initCode);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [rerror, setRerror] = useState<string>(''); // echter Grund aus render.ts (data.error) statt Blindflug
   const [varianten, setVarianten] = useState<string[]>([]);
   const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
   const [lastPrompt, setLastPrompt] = useState(''); // Wunschwerte des zuletzt generierten Renders
@@ -653,6 +654,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     const q = brief.trim();
     if (!q) return;
     setRstatus('loading');
+    setRerror('');
     try {
       const selectedCapId = caps[cap]?.id || null;
       const body: any = { systemId: product.id, query: q, tier: 'lite' };
@@ -679,7 +681,10 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
         });
       }
       setRstatus('done');
-    } catch { setRstatus('error'); }
+    } catch (e) {
+      setRstatus('error');
+      setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
+    }
   };
 
   // ── FIX: Wolken-Klick wirkt bis zum Render durch ──────────────────────────
@@ -871,7 +876,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
               placeholder="z. B. warmes Beige, matt, dezent" />
             <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
           </div>
-          {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>Konnte nicht generieren — bitte erneut versuchen.</div>}
+          {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
           {renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
