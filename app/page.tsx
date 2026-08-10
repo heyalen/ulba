@@ -46,7 +46,7 @@ const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
 
 const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
   { dim: 'materials', label: 'Material', opt: ['Glass', 'PP', 'PETG', 'Acrylic', 'Aluminium'] },
-  { dim: 'sizes', label: 'Volumen', opt: ['15ml', '30ml', '50ml', '75ml', '100ml'] },
+  { dim: 'sizes', label: 'Volumen', opt: ['15ml', '30ml', '50ml', '75ml', '100ml', '200ml'] },
   { dim: 'closures', label: 'Verschluss', opt: ['ScrewCap', 'Pump', 'Dropper', 'Spray', 'FlipTop'] },
 ];
 
@@ -209,6 +209,7 @@ interface Block {
   intro: string;
   query: string;
   filters: ParsedFilters;
+  removed?: ParsedFilters; // per Chip-X entfernte Werte — bleiben über Verfeinerungen entfernt (Backend subtrahiert sie nach dem Union-Merge)
   results: Result[];
   looks: DesignLook[]; // Design-Looks (Rezept × Gate-Base) — Payoff-Reihe über dem Grid
   categoryMatch: string;
@@ -1147,17 +1148,23 @@ export default function Home() {
     }));
   };
 
-  const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string) => {
+  const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string, removed?: ParsedFilters) => {
+    const rem = removed || emptyFilters();
     let id = 0;
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       id = p.blockSeq + 1;
-      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, results: [], looks: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
     }));
     try {
       const body: any = { query };
       if (filters.sizes.length || filters.materials.length || filters.types.length || filters.closures.length) {
         body.active_filters = filters;
+      }
+      // Chip-X-Entfernungen mitschicken — sonst macht das Backend-Union-Merge
+      // (Query-Reparse der rootQuery) jedes Entfernen sofort wieder rückgängig.
+      if (rem.sizes.length || rem.materials.length || rem.types.length || rem.closures.length) {
+        body.removed_filters = rem;
       }
       const res = await fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -1187,23 +1194,31 @@ export default function Home() {
     if (!text.trim() || !active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
-    runSearch(active.id, `${rootQuery} ${text.trim()}`, filters, text.trim());
+    const removed = letzter?.removed ? cloneFilters(letzter.removed) : emptyFilters();
+    runSearch(active.id, `${rootQuery} ${text.trim()}`, filters, text.trim(), removed);
   };
 
   const waehleFacette = (dim: keyof ParsedFilters, wert: string) => {
     if (!active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
+    const removed = letzter?.removed ? cloneFilters(letzter.removed) : emptyFilters();
     if (!filters[dim].includes(wert)) filters[dim] = [...filters[dim], wert];
-    runSearch(active.id, rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`);
+    // Explizit gewählt schlägt früheres Entfernen: aus der removed-Liste nehmen.
+    removed[dim] = removed[dim].filter(v => v !== wert);
+    runSearch(active.id, rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`, removed);
   };
 
   const entferneFilter = (dim: keyof ParsedFilters, wert: string) => {
     if (!active) return;
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
+    const removed = letzter?.removed ? cloneFilters(letzter.removed) : emptyFilters();
     filters[dim] = filters[dim].filter(v => v !== wert);
-    runSearch(active.id, rootQuery, filters, `ohne ${wert}`);
+    // In die removed-Liste — sonst parst das Backend den Wert aus der rootQuery
+    // sofort wieder rein (Union-Merge) und das X wirkt nie.
+    if (!removed[dim].includes(wert)) removed[dim] = [...removed[dim], wert];
+    runSearch(active.id, rootQuery, filters, `ohne ${wert}`, removed);
   };
 
   const setBlockAlle = (blockId: number, alle: boolean) => {
