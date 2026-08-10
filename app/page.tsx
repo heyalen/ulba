@@ -369,6 +369,23 @@ const STYLES = `
 .eb-kopf{display:flex;align-items:baseline;gap:10px;margin:2px 0 12px}
 .ebk-h{font-family:var(--serif);font-size:20px}
 .ebk-s{font-family:var(--mono);font-size:11px;color:var(--hell)}
+/* Chat-Wolke — abgeleiteter „Welt"-Kopf: Best-Fit groß, Nachbarn mittel, ferne ausgegraut */
+.wolke{border:1px solid var(--linie);border-radius:14px;background:var(--nische);padding:14px 17px 12px;margin:2px 0 18px}
+.wolke-read{font-size:15px;line-height:1.5;margin-bottom:11px}
+.wolke-read b{font-weight:600;color:var(--rouge)}
+.wolke-cloud{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cw{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--linie);border-radius:22px;background:#fff;padding:6px 12px 6px 8px;cursor:pointer;font-size:13px;color:#3a3a37;transition:.15s}
+.cw:hover{border-color:var(--hell)}
+.cw.best{font-weight:600;font-size:15px;padding:8px 16px 8px 9px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.cw.an{border-color:var(--tinte);background:var(--tinte);color:#fff}
+.cw.an .cw-dot{border-color:#fff}
+.cw.an .cw-fit{color:#c9c9c9}
+.cw-dot{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.12);flex:none}
+.cw.best .cw-dot{width:19px;height:19px}
+.cw-fit{font-family:var(--mono);font-size:9px;color:var(--hell)}
+.cw.far{opacity:.42;font-size:11px;padding:4px 10px 4px 7px}
+.cw.far .cw-dot{width:11px;height:11px}
+.wolke-foot{font-family:var(--mono);font-size:10px;color:var(--hell);margin-top:10px}
 .eb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 /* Richtungs-Rail im Panel — Design-Codes als kompakte Chips, weiß/minimal */
 .pn-dirs{display:flex;flex-wrap:wrap;gap:7px}
@@ -558,17 +575,49 @@ function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, 
   return Array.from(map.entries());
 }
 
+/* ── Chat-Wolke — der abgeleitete „Welt"-Kopf im Ergebnis-Block.
+   Zeigt die Design-Codes als Wolke: Best-Fit groß, Nachbarn mittel, ferne
+   ausgegraut. Reiner Ableitungs-/Wow-Moment (kein Render, kostenlos, sofort).
+   Klick pinnt die bevorzugte Welt → wird beim Öffnen eines Teils vorgewählt. */
+function ChatWolke({ looks, pal, preferred, onPick }: {
+  looks: DesignLook[]; pal: string; preferred: string | null; onPick: (id: string) => void;
+}) {
+  if (!looks || looks.length === 0) return null;
+  const sorted = [...looks].sort((a, b) => b.axis_score - a.axis_score);
+  const near = sorted.slice(0, 4), far = sorted.slice(4);
+  const chip = (l: DesignLook, cls: string) => (
+    <button key={l.code_id} type="button"
+      className={`cw ${cls}${preferred === l.code_id ? ' an' : ''}`}
+      onClick={() => onPick(l.code_id)}
+      title={`${l.register} · Fit ${l.axis_score}`}>
+      <span className="cw-dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
+      <span className="cw-fit">{l.axis_score}</span>
+    </button>
+  );
+  return (
+    <div className="wolke">
+      <div className="wolke-read">Ich lese dich als <b>{pal}</b> · deine Welt:</div>
+      <div className="wolke-cloud">
+        {near.map((l, i) => chip(l, i === 0 ? 'best' : ''))}
+        {far.map(l => chip(l, 'far'))}
+      </div>
+      <div className="wolke-foot">deine Region hervorgehoben · ferne Welten ausgegraut · {looks.length} Welten</div>
+    </div>
+  );
+}
+
 /* ── Render-Panel rechts ── */
-function RenderPanel({ product, allLooks, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
-  product: Result; allLooks: DesignLook[]; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
+function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
   onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(defaultQuery);
   // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
   const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
-  // activeCode = gepinnter Design-Code (null = Auto/Haiku). Sticky über Teil-
-  // Wechsel: bleibt kleben, solange für das neue Teil kompatibel.
-  const [activeCode, setActiveCode] = useState<string | null>(compatLooks[0]?.code_id || null);
+  // activeCode = gepinnter Design-Code (null = Auto/Haiku). Startet auf der im
+  // Chat gewählten Welt (preferredCode), falls fürs Teil tragbar — sonst Best-Fit.
+  const initCode = (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) ? preferredCode : (compatLooks[0]?.code_id || null);
+  const [activeCode, setActiveCode] = useState<string | null>(initCode);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [varianten, setVarianten] = useState<string[]>([]);
   const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
@@ -644,8 +693,13 @@ function RenderPanel({ product, allLooks, defaultQuery, isFav, inBoard, capWall,
     const hist = loadRenderHist(product.id);
     setVarianten(hist);
     setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
-    // Richtung sticky: bleibt, wenn fürs neue Teil kompatibel — sonst dessen Best-Fit.
-    setActiveCode(prev => (prev && compatLooks.some(l => l.code_id === prev)) ? prev : (compatLooks[0]?.code_id || null));
+    // Richtung: bleibt sticky (wenn tragbar), sonst die im Chat gewählte Welt,
+    // sonst Best-Fit des Teils. Rendert NICHT automatisch — Nutzer klickt Generieren.
+    setActiveCode(prev => {
+      if (prev && compatLooks.some(l => l.code_id === prev)) return prev;
+      if (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) return preferredCode;
+      return compatLooks[0]?.code_id || null;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
@@ -698,11 +752,11 @@ function RenderPanel({ product, allLooks, defaultQuery, isFav, inBoard, capWall,
 
       {compatLooks.length > 0 && (
         <div className="pn-caps-top">
-          <div className="lbl">Richtung · {compatLooks.length} für dieses Teil</div>
+          <div className="lbl">Richtung · {compatLooks.length} für dieses Teil · Generieren zum Rendern</div>
           <div className="pn-dirs">
             <button type="button" className={`pn-dir auto${activeCode === null ? ' an' : ''}`}
               disabled={rstatus === 'loading'}
-              onClick={() => { setActiveCode(null); run(query, null); }}
+              onClick={() => setActiveCode(null)}
               title="ulba leitet die Richtung selbst ab">
               <span className="dot" />Auto
             </button>
@@ -710,7 +764,7 @@ function RenderPanel({ product, allLooks, defaultQuery, isFav, inBoard, capWall,
               <button key={l.code_id} type="button"
                 className={`pn-dir${activeCode === l.code_id ? ' an' : ''}`}
                 disabled={rstatus === 'loading'}
-                onClick={() => { setActiveCode(l.code_id); run(query, l.code_id); }}
+                onClick={() => setActiveCode(l.code_id)}
                 title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')}`}>
                 <span className="dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
               </button>
@@ -983,6 +1037,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
   const [selected, setSelected] = useState<Result | null>(null);
+  const [preferredCode, setPreferredCode] = useState<string | null>(null); // im Chat gewählte Welt → Panel-Vorwahl
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1221,6 +1276,7 @@ export default function Home() {
                                     ))}
                                   </div>
                                 )}
+                                <ChatWolke looks={b.looks} pal={pal} preferred={preferredCode} onPick={setPreferredCode} />
                                 <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
@@ -1256,7 +1312,7 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} preferredCode={preferredCode} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
                   capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
               )}
