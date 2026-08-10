@@ -682,6 +682,35 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     } catch { setRstatus('error'); }
   };
 
+  // ── FIX: Wolken-Klick wirkt bis zum Render durch ──────────────────────────
+  // Bug war: `activeCode` (das, was gerendert wird → forceCodeId) wurde nur beim
+  // Mount/Teilwechsel aus `preferredCode` abgeleitet. Klickte man in der Chat-
+  // Wolke eine andere Welt, während das Panel offen war, änderte sich nur
+  // `preferredCode` — `activeCode` blieb kleben, „Generieren" schickte den alten
+  // Code (→ immer der zuerst gerenderte Look zurück, z.B. Frosted statt Pink).
+  // Dieser Effect zieht einen BEWUSSTEN Welt-Wechsel nach: ändert sich
+  // preferredCode und ist die Welt fürs Teil tragbar, wird sie aktiv.
+  // Der Ref sorgt dafür, dass NUR ein echter Wechsel zählt (nicht schon der
+  // Mount und nicht ein Teilwechsel bei unverändertem preferredCode) →
+  // „Sticky über Teilwechsel" (Mount-Effect unten) bleibt unberührt.
+  const prevPreferred = useRef(preferredCode);
+  useEffect(() => {
+    if (preferredCode !== prevPreferred.current) {
+      prevPreferred.current = preferredCode;
+      if (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) {
+        setActiveCode(preferredCode);
+      }
+      // Inkompatible Wolken-Welt = bewusst KEIN stiller Look-Tausch: activeCode
+      // bleibt auf der tragbaren Richtung (kein „Fallback als Lüge"). Sichtbarer
+      // Hinweis dazu s. Rail unten (preferredMissFuersTeil).
+    }
+  }, [preferredCode, compatLooks]);
+
+  // Ehrlichkeit statt stiller No-Op: im Chat gewählte Welt, die dieses Teil nicht
+  // tragen kann → wird im Rail sichtbar gemacht statt lautlos ignoriert.
+  const preferredMissFuersTeil = !!preferredCode
+    && !compatLooks.some(l => l.code_id === preferredCode);
+
   useEffect(() => {
     setQuery(defaultQuery);
     setCap(0);
@@ -753,6 +782,11 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
       {compatLooks.length > 0 && (
         <div className="pn-caps-top">
           <div className="lbl">Richtung · {compatLooks.length} für dieses Teil · Generieren zum Rendern</div>
+          {preferredMissFuersTeil && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', margin: '2px 0 6px', letterSpacing: '.02em' }}>
+              Deine im Chat gewählte Welt trägt dieses Teil nicht — hier zählen die passenden Richtungen.
+            </div>
+          )}
           <div className="pn-dirs">
             <button type="button" className={`pn-dir auto${activeCode === null ? ' an' : ''}`}
               disabled={rstatus === 'loading'}
