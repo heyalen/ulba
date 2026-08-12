@@ -867,6 +867,9 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
             title="lauterer Look — gleiche Flasche, energischere Design-Direction">
             lauter →
           </button>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#c0392b', marginLeft: 6 }}>
+            [{concept.design_code.name} · laut {String(concept.design_code.laut)} · q:{String(!!concept.design_code.can_quieter)} · l:{String(!!concept.design_code.can_louder)}]
+          </span>
         </div>
       )}
 
