@@ -394,6 +394,7 @@ const STYLES = `
 .pn-dirs{display:flex;flex-wrap:wrap;gap:7px}
 .pn-dir{display:flex;align-items:center;gap:7px;border:1px solid var(--linie);border-radius:20px;padding:5px 12px 5px 7px;background:#fff;cursor:pointer;font-size:13px;color:#3a3a37;transition:border-color .15s}
 .pn-dir:hover{border-color:var(--hell)}
+.pn-dir:disabled{opacity:.3;cursor:default;pointer-events:none}
 .pn-dir.an{border-color:var(--tinte)}
 .pn-dir .dot{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.1);flex:none}
 .pn-dir.auto .dot{background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f)}
