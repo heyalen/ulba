@@ -186,7 +186,7 @@ interface Result {
 interface DesignLook {
   code_id: string; code_name: string;
   register: string; temp_laut: number | null; temp_ton: number | null;
-  body_behandlung: string; body_hex: string; body_hex_2: string;
+  body_behandlung: string; farbort: string; body_hex: string; body_hex_2: string;
   farbverlauf: string; akzent_hex: string;
   finish_body: string; cap_finish: string; cap_hex: string; typo_haltung: string;
   anforderungen: string[]; segment: string[];
@@ -397,6 +397,23 @@ const STYLES = `
 .pn-dir:disabled{opacity:.3;cursor:default;pointer-events:none}
 .pn-dir.an{border-color:var(--tinte)}
 .pn-dir .dot{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.1);flex:none}
+/* Look-Vorschau statt Farbkreis: man sieht die Richtung, bevor gerendert wird. */
+.lv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:2px}
+.lv-karte{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--linie);border-radius:10px;padding:8px 5px 7px;background:#fff;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.lv-karte:hover{border-color:var(--hell)}
+.lv-karte:disabled{opacity:.35;cursor:default;pointer-events:none}
+.lv-karte{position:relative}
+/* Selektion muss ohne Suchen erkennbar sein: der alte 1px-Randwechsel war
+   praktisch unsichtbar — man klickte eine Welt an und sah es nicht. */
+.lv-karte.an{border-color:var(--tinte);box-shadow:0 0 0 2px var(--tinte);background:#faf9f6}
+.lv-karte.an .lv-buehne{background:linear-gradient(180deg,#fff,#f2f1ec)}
+.lv-karte.an .lv-nm{font-weight:600;color:var(--tinte)}
+.lv-haken{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:var(--tinte);color:#fff;font-size:11px;line-height:18px;text-align:center;font-family:var(--mono)}
+.lv-buehne{display:flex;align-items:center;justify-content:center;height:56px;width:100%;background:linear-gradient(180deg,#fbfbfa,#f4f4f2);border-radius:6px}
+.lv-svg{height:52px;width:auto;display:block}
+.lv-autopunkt{width:26px;height:26px;border-radius:50%;background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f)}
+.lv-nm{font-size:11px;line-height:1.25;color:#3a3a37;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.lv-meta{font-family:var(--mono);font-size:9px;letter-spacing:.02em;color:var(--hell);text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .pn-dir.auto .dot{background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f)}
 .eb-grid.schmal{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
@@ -795,26 +812,47 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
 
       {compatLooks.length > 0 && (
         <div className="pn-caps-top">
-          <div className="lbl">Richtung · {compatLooks.length} für dieses Teil · Generieren zum Rendern</div>
+          <div className="lbl">
+            Richtung · {compatLooks.length} für dieses Teil ·{' '}
+            <strong style={{ color: 'var(--tinte)', fontWeight: 600 }}>
+              gewählt: {activeCode === null ? 'Auto' : (compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto')}
+            </strong>
+          </div>
+          {compatLooks.length === 1 && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', margin: '2px 0 6px', letterSpacing: '.02em' }}>
+              Nur eine Richtung trägt dieses Teil — die anderen Looks brauchen Material, das es nicht liefern kann.
+            </div>
+          )}
           {preferredMissFuersTeil && (
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', margin: '2px 0 6px', letterSpacing: '.02em' }}>
               Deine im Chat gewählte Welt trägt dieses Teil nicht — hier zählen die passenden Richtungen.
             </div>
           )}
-          <div className="pn-dirs">
-            <button type="button" className={`pn-dir auto${activeCode === null ? ' an' : ''}`}
+          <div className="lv-grid">
+            <button type="button" className={`lv-karte lv-auto${activeCode === null ? ' an' : ''}`}
+              aria-pressed={activeCode === null}
               disabled={rstatus === 'loading'}
               onClick={() => setActiveCode(null)}
               title="ulba leitet die Richtung selbst ab">
-              <span className="dot" />Auto
+              {activeCode === null && <span className="lv-haken" aria-hidden>✓</span>}
+              <span className="lv-buehne"><span className="lv-autopunkt" /></span>
+              <span className="lv-nm">Auto</span>
+              <span className="lv-meta">abgeleitet</span>
             </button>
             {compatLooks.map(l => (
               <button key={l.code_id} type="button"
-                className={`pn-dir${activeCode === l.code_id ? ' an' : ''}`}
+                className={`lv-karte${activeCode === l.code_id ? ' an' : ''}`}
+                aria-pressed={activeCode === l.code_id}
                 disabled={rstatus === 'loading'}
                 onClick={() => setActiveCode(l.code_id)}
-                title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')}`}>
-                <span className="dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
+                title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')} · laut ${l.temp_laut ?? '?'}`}>
+                {activeCode === l.code_id && <span className="lv-haken" aria-hidden>✓</span>}
+                <span className="lv-buehne"><LookVorschau look={l} /></span>
+                <span className="lv-nm">{l.code_name}</span>
+                <span className="lv-meta">
+                  {(l.body_behandlung || '').replace(/_/g, ' ') || '—'}
+                  {l.temp_laut != null && ` · laut ${l.temp_laut}`}
+                </span>
               </button>
             ))}
           </div>
@@ -908,7 +946,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
             <input value={query} onChange={e => setQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') run(query); }}
               placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : 'Generieren'}</button>
+            <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : (activeCode === null ? 'Generieren · Auto' : `Generieren · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
           </div>
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
           {renderIstAktiv && (
@@ -1081,6 +1119,71 @@ function baseSatisfiesLook(base: Result, anforderungen: string[]): boolean {
   });
 }
 /* Kompatible Looks für ein Teil, nach Fit sortiert (Best-Fit zuerst). */
+// ── Look-Vorschau: schematisch, sofort, ohne Render ───────────────────────
+// Farbkreise sagten nur, WELCHE Welt — nie, wie sie aussieht. Bei Pink Liquid
+// war der Punkt sogar #FFFFFF (das Glas, nicht das Serum): die Wahl war blind.
+// Diese Silhouette liest dieselben Felder wie render.ts (Body_Behandlung +
+// Farbort + Hex) und zeigt den Unterschied, BEVOR gerendert wird. Bewusst
+// schematisch gehalten — es ist eine Richtungsanzeige, kein Render-Versprechen.
+const istHex = (h?: string | null) => /^#?[0-9a-fA-F]{6}$/.test((h || '').trim());
+const hexOder = (h: string | null | undefined, fb: string) => (istHex(h) ? (h as string) : fb);
+
+function LookVorschau({ look }: { look: DesignLook }) {
+  const beh = (look.body_behandlung || 'opak_recolor').toLowerCase();
+  const bodyHex = hexOder(look.body_hex, '#E8E8E6');
+  const capHex = hexOder(look.cap_hex, '#D9D9D6');
+  // Bei Farbort 'liquid' ist Body_Hex haeufig das Glas (#FFF) — die echte
+  // Farbe steht dann im Akzent. Gleiche Ableitung wie in render.ts.
+  const farblos = (h: string) => {
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(h.trim());
+    if (!m) return true;
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    return mx === 0 ? true : (mx - mn) / mx < 0.15;
+  };
+  const fuellHex = farblos(bodyHex)
+    ? (istHex(look.akzent_hex) && !farblos(look.akzent_hex) ? look.akzent_hex
+      : !farblos(capHex) ? capHex : bodyHex)
+    : bodyHex;
+
+  const glasKante = '#C9CBC8';
+  let bodyFill = bodyHex, bodyOp = 1, bodyStroke = 'rgba(0,0,0,.14)';
+  let liquid: string | null = null;
+  if (beh === 'klar') {
+    bodyFill = '#FFFFFF'; bodyOp = 0.35; bodyStroke = glasKante;
+    if (look.farbort === 'liquid' || farblos(bodyHex)) liquid = fuellHex as string;
+  } else if (beh === 'klar_liquid_farbe') {
+    bodyFill = '#FFFFFF'; bodyOp = 0.35; bodyStroke = glasKante; liquid = fuellHex as string;
+  } else if (beh === 'frosted') {
+    bodyOp = 0.55; bodyStroke = glasKante;
+  } else if (beh === 'getoent' || beh === 'getönt') {
+    bodyOp = 0.62; bodyStroke = glasKante;
+  }
+
+  const bodyPfad = 'M8 15 q0 -3 3 -4 l4 -1.4 h10 l4 1.4 q3 1 3 4 v34 q0 3 -3 3 h-18 q-3 0 -3 -3 z';
+  const uid = look.code_id.slice(-6);
+  return (
+    <svg viewBox="0 0 40 56" className="lv-svg" aria-hidden focusable="false">
+      <defs>
+        <clipPath id={`lv-${uid}`}><path d={bodyPfad} /></clipPath>
+      </defs>
+      <rect x="14" y="1.5" width="12" height="7.5" rx="1.6" fill={capHex} stroke="rgba(0,0,0,.14)" strokeWidth=".6" />
+      <path d={bodyPfad} fill={bodyFill} fillOpacity={bodyOp} stroke={bodyStroke} strokeWidth=".9" />
+      {liquid && (
+        <g clipPath={`url(#lv-${uid})`}>
+          <rect x="0" y="22" width="40" height="34" fill={liquid} fillOpacity=".9" />
+        </g>
+      )}
+      {look.finish_body === 'glanz' && (
+        <g clipPath={`url(#lv-${uid})`}>
+          <rect x="11" y="17" width="2.4" height="28" rx="1.2" fill="#fff" fillOpacity=".55" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
 function looksForBase(base: Result, all: DesignLook[]): DesignLook[] {
   const seen = new Set<string>();
   return all
