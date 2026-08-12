@@ -64,6 +64,8 @@ interface RenderConcept {
   palette?: { name: string; hex: string[]; pantone: string[] };
   radar?: Record<string, number>;
   zielprofil?: string[];
+  // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
+  design_code?: { id: string; name: string; umleitung?: string | null; laut?: number | null; can_quieter?: boolean; can_louder?: boolean };
 }
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
@@ -651,7 +653,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     : capsRaw;
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
-  const run = async (brief: string, codeOverride?: string | null) => {
+  const run = async (brief: string, codeOverride?: string | null, nudge?: 'quieter' | 'louder') => {
     const q = brief.trim();
     if (!q) return;
     setRstatus('loading');
@@ -662,6 +664,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
       if (selectedCapId) body.selectedCapId = selectedCapId;
       const code = codeOverride !== undefined ? codeOverride : activeCode;
       if (code) body.forceCodeId = code; // gepinnte Richtung → Design-Code fix
+      if (nudge) body.lautNudge = nudge; // Achsen-Cursor: hüpf zum nächsten Code in Richtung
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -675,6 +678,10 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
         setLastPrompt(data.renderingPrompt || '');
         setCached(!!data.cached);
         setConcept(data.concept || null);
+        // Nach einem Nudge folgt der gepinnte Code dem Cursor: der Server hat auf
+        // den Nachbar-Code gehüpft, das ist ab jetzt die aktive Richtung. Nur bei
+        // Nudge — ein normaler Auto-Render darf die Auto-Wahl (null) nicht pinnen.
+        if (nudge && data.concept?.design_code?.id) setActiveCode(data.concept.design_code.id);
         setVarianten(prev => {
           const next = prev.includes(url) ? prev : [...prev, url];
           saveRenderHist(product.id, next);
@@ -839,6 +846,27 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
           <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
           {caps.length > 0 && <><span>+</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{caps[cap]?.name || `Cap ${cap + 1}`}</strong></>}
           {concept.konzept_name && <><span>·</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{concept.konzept_name}</strong></>}
+        </div>
+      )}
+
+      {/* Achsen-Cursor · Temp_Laut: hüpft auf den nächsten kuratierten Code in
+          Richtung — gleiche Flasche, ruhigerer/lauterer Look. Chip disabled,
+          wenn es in der Welt keinen Nachbar in die Richtung gibt (kein toter Klick). */}
+      {renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
+        <div className="pn-laut" style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
+          <button type="button" className="pn-dir"
+            disabled={rstatus === 'loading' || !concept.design_code.can_quieter}
+            onClick={() => run(query, concept!.design_code!.id, 'quieter')}
+            title="ruhigerer Look — gleiche Flasche, leisere Design-Direction">
+            ← leiser
+          </button>
+          <button type="button" className="pn-dir"
+            disabled={rstatus === 'loading' || !concept.design_code.can_louder}
+            onClick={() => run(query, concept!.design_code!.id, 'louder')}
+            title="lauterer Look — gleiche Flasche, energischere Design-Direction">
+            lauter →
+          </button>
         </div>
       )}
 
