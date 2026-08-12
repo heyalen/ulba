@@ -65,7 +65,7 @@ interface RenderConcept {
   radar?: Record<string, number>;
   zielprofil?: string[];
   // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
-  design_code?: { id: string; name: string; umleitung?: string | null; laut?: number | null; can_quieter?: boolean; can_louder?: boolean };
+  design_code?: { id: string; name: string; umleitung?: string | null; laut?: number | null; register?: string | null; can_quieter?: boolean; can_louder?: boolean };
 }
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
@@ -867,8 +867,9 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
             title="lauterer Look — gleiche Flasche, energischere Design-Direction">
             lauter →
           </button>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#c0392b', marginLeft: 6 }}>
-            [{concept.design_code.name} · laut {String(concept.design_code.laut)} · q:{String(!!concept.design_code.can_quieter)} · l:{String(!!concept.design_code.can_louder)}]
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.04em', color: '#9a9a97', marginLeft: 8, whiteSpace: 'nowrap' }}
+            title="Koordinate im Achsenraum: Design-Code · Welt (Register) · Position auf der Laut-Achse">
+            {concept.design_code.name}{concept.design_code.register ? ` · ${concept.design_code.register}` : ''} · laut {concept.design_code.laut}
           </span>
         </div>
       )}
