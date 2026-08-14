@@ -1440,7 +1440,7 @@ function ErgebnisPanel({ results, onSelect, selectedId, query }: {
             value={epInput}
             onChange={e => setEpInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') sendEp(); }}
-            placeholder="z. B. „nur Glas", „30ml", „mit Pumpe"" />
+            placeholder="z. B. nur Glas, 30ml, mit Pumpe" />
           <button className="go" onClick={sendEp}>↑</button>
         </div>
       </div>
