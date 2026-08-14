@@ -758,7 +758,10 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     setActiveCode(prev => {
       if (prev && compatLooks.some(l => l.code_id === prev)) return prev;
       if (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) return preferredCode;
-      return compatLooks[0]?.code_id || null;
+      // Default ist AUTO (null), nicht der Best-Fit-Pin: Ableitung ist das
+      // Produktversprechen — die Engine waehlt, solange der Nutzer nicht
+      // eingreift. Ein vorgepinnter Look war stille Auswahl statt Ableitung.
+      return null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
@@ -847,10 +850,10 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
                 onClick={() => setActiveCode(l.code_id)}
                 title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')} · laut ${l.temp_laut ?? '?'}`}>
                 {activeCode === l.code_id && <span className="lv-haken" aria-hidden>✓</span>}
-                <span className="lv-buehne"><LookVorschau look={l} /></span>
+                <span className="lv-buehne"><LookVorschau look={l} umgeleitet={!!l._umgeleitet} /></span>
                 <span className="lv-nm">{l.code_name}</span>
                 <span className="lv-meta">
-                  {(l.body_behandlung || '').replace(/_/g, ' ') || '—'}
+                  {l._umgeleitet ? 'als Füllung' : ((l.body_behandlung || '').replace(/_/g, ' ') || '—')}
                   {l.temp_laut != null && ` · laut ${l.temp_laut}`}
                 </span>
               </button>
@@ -1103,22 +1106,36 @@ function ScanBar() {
    & render.ts: welche Design-Codes kann DIESES reale Teil tragen? Damit die
    Richtungs-Rail im Panel nur Produzierbares zeigt (kein stiller Fehlrender). */
 const PLASTIC_RE = /pet|petg|pp|hdpe|acryl|surlyn|kunststoff|plastic/i;
-function baseSatisfiesLook(base: Result, anforderungen: string[]): boolean {
+// ── Gate-Angleichung Frontend ↔ Backend ───────────────────────────────────
+// Der alte binaere Filter (erfuellt/nicht) war STRENGER als render.ts: das
+// Backend leitet Koerper-Farb-Looks auf klarem Material in die Fluessigkeit
+// um (Typ B) und haelt sie waehlbar — das Frontend warf sie raus. Ergebnis:
+// "3 fuer dieses Teil" angezeigt, Auto rendert F've (Platz 4 von 8). Eine
+// Auswahl, an die sich die Engine nicht haelt, ist schlimmer als keine.
+// Jetzt: Dreiwege-Status mit exakt derselben Entscheidungslogik.
+type LookStatus = 'direkt' | 'umgeleitet' | 'blockiert';
+function lookStatusFuerBase(base: Result, look: DesignLook): LookStatus {
   const mat = (base.material || []).map(m => m.toLowerCase());
   const caps = (base.capabilities || []).map(c => c.toLowerCase());
   const isGlas = mat.some(m => m.includes('glas') || m.includes('glass'));
   const isPlastic = mat.some(m => PLASTIC_RE.test(m));
   const capHas = (t: string) => caps.some(c => c.includes(t));
-  return (anforderungen || []).every(aRaw => {
+  const koerperFaerbbar = isPlastic || capHas('einfaerb') || capHas('lackierbar');
+  let umgeleitet = false;
+  for (const aRaw of look.anforderungen || []) {
     const a = aRaw.toLowerCase();
-    if (a.includes('klarglas')) return isGlas;
-    if (a.includes('einfaerb') || a.includes('einfärb')) return isPlastic || capHas('einfaerb') || capHas('lackierbar');
-    if (a.includes('frost')) return isPlastic || capHas('mattierbar');
-    if (a.includes('opak')) return isPlastic || capHas('einfaerb') || capHas('lackierbar');
-    return true; // Cap-Level (cap_weiss/metallcap) & Unbekanntes blockiert nicht
-  });
+    if (a.includes('klarglas') && !isGlas) return 'blockiert';
+    if (a.includes('frost') && !(isPlastic || capHas('mattierbar'))) return 'blockiert';
+    if ((a.includes('einfaerb') || a.includes('einfärb') || a.includes('opak')) && !koerperFaerbbar) umgeleitet = true;
+  }
+  // Backend-Trigger ist, was der Code TUT, nicht nur die Anforderungs-Liste:
+  // getoenter/gefaerbter Koerper + Farbort 'koerper' braucht Faerbbarkeit.
+  const beh = (look.body_behandlung || '').toLowerCase();
+  if (['getönt', 'getoent', 'opak_recolor'].includes(beh)
+    && (look.farbort || 'koerper') === 'koerper' && !koerperFaerbbar) umgeleitet = true;
+  return umgeleitet ? 'umgeleitet' : 'direkt';
 }
-/* Kompatible Looks für ein Teil, nach Fit sortiert (Best-Fit zuerst). */
+/* Tragbare Looks fuer ein Teil (direkt + umgeleitet), nach Fit sortiert. */
 // ── Look-Vorschau: schematisch, sofort, ohne Render ───────────────────────
 // Farbkreise sagten nur, WELCHE Welt — nie, wie sie aussieht. Bei Pink Liquid
 // war der Punkt sogar #FFFFFF (das Glas, nicht das Serum): die Wahl war blind.
@@ -1128,7 +1145,7 @@ function baseSatisfiesLook(base: Result, anforderungen: string[]): boolean {
 const istHex = (h?: string | null) => /^#?[0-9a-fA-F]{6}$/.test((h || '').trim());
 const hexOder = (h: string | null | undefined, fb: string) => (istHex(h) ? (h as string) : fb);
 
-function LookVorschau({ look }: { look: DesignLook }) {
+function LookVorschau({ look, umgeleitet }: { look: DesignLook; umgeleitet?: boolean }) {
   const beh = (look.body_behandlung || 'opak_recolor').toLowerCase();
   const bodyHex = hexOder(look.body_hex, '#E8E8E6');
   const capHex = hexOder(look.cap_hex, '#D9D9D6');
@@ -1150,7 +1167,13 @@ function LookVorschau({ look }: { look: DesignLook }) {
   const glasKante = '#C9CBC8';
   let bodyFill = bodyHex, bodyOp = 1, bodyStroke = 'rgba(0,0,0,.14)';
   let liquid: string | null = null;
-  if (beh === 'klar') {
+  if (umgeleitet) {
+    // Typ-B-Umleitung: der Look-Koerper ist auf diesem Teil nicht faerbbar,
+    // die Farbe wandert in die Fluessigkeit. Vorschau zeigt das ehrlich —
+    // klares Gebinde, gefuellt — statt einen opaken Koerper zu versprechen.
+    bodyFill = '#FFFFFF'; bodyOp = 0.35; bodyStroke = glasKante;
+    liquid = fuellHex as string;
+  } else if (beh === 'klar') {
     bodyFill = '#FFFFFF'; bodyOp = 0.35; bodyStroke = glasKante;
     if (look.farbort === 'liquid' || farblos(bodyHex)) liquid = fuellHex as string;
   } else if (beh === 'klar_liquid_farbe') {
@@ -1184,11 +1207,18 @@ function LookVorschau({ look }: { look: DesignLook }) {
   );
 }
 
-function looksForBase(base: Result, all: DesignLook[]): DesignLook[] {
+export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
+function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
   const seen = new Set<string>();
-  return all
-    .filter(l => { if (seen.has(l.code_id)) return false; seen.add(l.code_id); return baseSatisfiesLook(base, l.anforderungen || []); })
-    .sort((a, b) => b.axis_score - a.axis_score);
+  const out: LookMitStatus[] = [];
+  for (const l of all) {
+    if (seen.has(l.code_id)) continue;
+    seen.add(l.code_id);
+    const st = lookStatusFuerBase(base, l);
+    if (st === 'blockiert') continue;
+    out.push(st === 'umgeleitet' ? { ...l, _umgeleitet: true } : l);
+  }
+  return out.sort((a, b) => b.axis_score - a.axis_score);
 }
 
 
