@@ -297,7 +297,68 @@ const STYLES = `
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
 }
-.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
+.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr 340px;overflow:hidden}
+/* Ergebnis-Panel rechts — KI-Chat für Hard Facts */
+.ep{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
+.ep-kopf{flex:none;border-bottom:1px solid var(--linie);padding:13px 20px;display:flex;align-items:center;gap:10px}
+.ep-kopf .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
+.ep-kopf .badge{font-size:9px;padding:2px 8px;border-radius:99px;background:#eef3f0;color:#2f7d52;letter-spacing:.03em}
+.ep-kopf .cnt{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--hell)}
+.ep-kopf .cnt b{color:var(--tinte)}
+.ep-scroll{flex:1;overflow-y:auto;padding:14px 14px 100px}
+.ep-scroll::-webkit-scrollbar{width:4px}.ep-scroll::-webkit-scrollbar-thumb{background:var(--linie);border-radius:4px}
+.ep-input{flex:none;padding:10px 14px 14px;border-top:1px solid var(--linie);background:var(--panel)}
+.ep-feld{display:flex;align-items:center;border:1px solid var(--linie);border-radius:12px;background:#fff;padding:3px 3px 3px 13px}
+.ep-feld input{flex:1;border:0;background:none;padding:10px 4px;outline:none;font:inherit;color:var(--tinte);font-size:13px}
+.ep-feld input::placeholder{color:var(--hell)}
+.ep-feld .go{width:30px;height:30px;border-radius:8px;background:var(--tinte);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ep-feld .go:hover{background:var(--rouge)}
+/* EP Chat-Nachrichten */
+.ep-umsg{display:flex;justify-content:flex-end;margin-bottom:10px;animation:auf .25s ease both}
+.ep-umsg span{background:var(--tinte);color:#fff;border-radius:12px 12px 3px 12px;padding:7px 12px;font-size:13px;max-width:88%}
+.ep-ai{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;animation:auf .25s ease both}
+.ep-av{width:20px;height:20px;border-radius:50%;flex:none;background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f);margin-top:2px}
+.ep-bd{flex:1;min-width:0}
+.ep-bd p{margin:0 0 6px;font-size:12.5px;color:#3a3a37;line-height:1.6}
+.ep-bd p b{color:var(--tinte)}
+/* EP Teile-Grid — 2-spaltig */
+.ep-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.ep-karte{border:1px solid var(--linie);border-radius:10px;overflow:hidden;background:#fff;cursor:pointer;transition:.15s;text-align:left;position:relative}
+.ep-karte:hover{border-color:var(--hell);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.ep-karte.an{border-color:var(--tinte);box-shadow:0 0 0 1.5px var(--tinte)}
+.ep-karte.top::after{content:'★';position:absolute;top:5px;right:6px;font-size:8px;color:var(--tinte)}
+.ep-bild{height:66px;background:var(--nische);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ep-bild img{max-width:76%;max-height:80%;object-fit:contain}
+.ep-bild .ph{font-size:28px;color:#d8d8d6}
+.ep-info{padding:6px 7px 7px}
+.ep-nm{font-weight:600;font-size:10.5px;line-height:1.2;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-sub{font-family:var(--mono);font-size:9px;color:var(--hell);line-height:1.3}
+.ep-score{font-family:var(--mono);font-size:9px;color:var(--rouge)}
+/* EP Filter-Tags (aktiv) */
+.ep-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.ep-tag{display:inline-flex;align-items:center;gap:5px;background:var(--tinte);color:#fff;padding:3px 7px 3px 9px;border-radius:99px;font-size:10px}
+.ep-tag button{color:rgba(255,255,255,.6);font-size:12px;line-height:1}
+.ep-tag button:hover{color:#fff}
+/* EP Suggestion-Chips */
+.ep-sugg{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.ep-chip{border:1px solid var(--linie);border-radius:99px;background:#fff;padding:4px 10px;font-size:10.5px;color:var(--grau);transition:.12s}
+.ep-chip:hover{border-color:var(--tinte);color:var(--tinte)}
+/* EP Fix-Filter */
+.ep-fix{display:inline-flex;align-items:center;gap:5px;background:#fbf6f7;border:1px solid #c9b8bd;color:var(--rouge);padding:3px 9px;border-radius:99px;font-size:10px;margin-bottom:6px}
+.ep-mehr{width:100%;text-align:center;font-size:10px;color:var(--hell);padding:6px;margin-top:3px;border:1px dashed var(--linie);border-radius:7px;cursor:pointer}
+.ep-mehr:hover{color:var(--tinte);border-color:var(--hell)}
+/* EP Tippt */
+.ep-tippt{display:flex;gap:4px;padding:3px 0}
+.ep-tippt span{width:5px;height:5px;border-radius:50%;background:var(--hell);animation:blink 1.2s infinite both}
+.ep-tippt span:nth-child(2){animation-delay:.18s}.ep-tippt span:nth-child(3){animation-delay:.36s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+/* Chat-Detail-Karte (selected → im Thread) */
+.cd-karte{border:1px solid var(--linie);border-radius:13px;overflow:hidden;background:#fff;margin:4px 0 12px;animation:auf .25s ease both}
+.cd-kopf{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--linie)}
+.cd-kopf .zu{width:22px;height:22px;border-radius:6px;border:1px solid var(--linie);font-size:12px;color:var(--grau);display:flex;align-items:center;justify-content:center}
+.cd-kopf .zu:hover{border-color:var(--tinte)}
+.cd-kopf h4{font-family:var(--serif);font-weight:800;font-size:15px;flex:1;letter-spacing:-.01em}
+.cd-kopf .sup{font-family:var(--mono);font-size:9.5px;color:var(--hell)}
 .ulba *{box-sizing:border-box}
 .ulba button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ulba input,.ulba textarea{font:inherit}
@@ -349,8 +410,7 @@ const STYLES = `
 .tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid transparent;background:var(--nische)}
 .tr-pill:hover{background:var(--linie2);color:var(--tinte)}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
-.chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
-.chat.split{grid-template-columns:minmax(420px,1fr) 720px}
+.chat{display:flex;flex-direction:column;height:100%;width:100%;min-height:0;overflow:hidden}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .thread-inner{max-width:900px;margin:0 auto;width:100%}
@@ -540,10 +600,9 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
+  .ep{display:none}
   .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
   .nav.offen{transform:none}
-  .chat.split{grid-template-columns:1fr}
-  .chat.split .cs-main{display:none}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 .nav-marke,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t{font-weight:800;letter-spacing:-.015em}
@@ -1246,6 +1305,149 @@ function Karte({ r, selected, isFav, onOpen, onFav }: {
   );
 }
 
+/* ── ErgebnisPanel rechts — KI-Chat für Hard Facts ─────────────────
+   Reagiert stumm auf Suchergebnisse aus dem Brief-Chat.
+   Eigener Input für Hard-Fact-Filter: „nur Glas", „30ml", „mit Pumpe".
+   Klick auf ein Teil → Detail erscheint im Thread der Mitte (onSelect).
+   ──────────────────────────────────────────────────────────────────── */
+const HARD_RE = /\d+\s*ml|glas|glass|airless|pumpe|pump|tropfer|dropper|tube|tiegel|jar|pcr|recyc|nachfüll|refill|material|volumen|alu|miron|klarglas|violett|matt|frosted|pe\b/i;
+
+interface EpMsg { type: 'user' | 'ai'; text?: string; results?: Result[]; showAll?: boolean; tags?: string[] }
+
+function ErgebnisPanel({ results, onSelect, selectedId, query }: {
+  results: Result[]; onSelect: (r: Result) => void; selectedId: string | null; query: string;
+}) {
+  const [epInput, setEpInput] = useState('');
+  const [msgs, setMsgs] = useState<EpMsg[]>([]);
+  const [filt, setFilt] = useState<{ mat: string[]; sys: string[]; vol: number[] }>({ mat: [], sys: [], vol: [] });
+  const epScrollRef = useRef<HTMLDivElement>(null);
+
+  // Wenn neue Ergebnisse reinkommen → stumm im Panel aktualisieren
+  useEffect(() => {
+    setMsgs([{ type: 'ai', text: `**${results.length}** passende Systeme für deine Suche — klick eins an, ich zeig dir Original und Renders im Brief.`, results, showAll: false }]);
+    setFilt({ mat: [], sys: [], vol: [] });
+  }, [results]);
+
+  useEffect(() => {
+    if (epScrollRef.current) epScrollRef.current.scrollTop = epScrollRef.current.scrollHeight;
+  }, [msgs]);
+
+  const gefiltert = (list: Result[]) => list.filter(r => {
+    if (filt.mat.length && !filt.mat.some(m => (r.material || []).some(rm => rm.toLowerCase().includes(m.toLowerCase())))) return false;
+    if (filt.sys.length && !filt.sys.some(s => (r.type || '').toLowerCase().includes(s.toLowerCase()) || (r.closure || '').toLowerCase().includes(s.toLowerCase()))) return false;
+    if (filt.vol.length && !filt.vol.some(v => (r.availableSizes || []).some(sz => sz.includes(String(v))))) return false;
+    return true;
+  });
+
+  const aktTags = [...filt.mat.map(m => `Material: ${m}`), ...filt.sys.map(s => `System: ${s}`), ...filt.vol.map(v => `${v}ml`)];
+
+  const removeTag = (tag: string) => {
+    setFilt(prev => ({
+      mat: prev.mat.filter(m => !tag.includes(m)),
+      sys: prev.sys.filter(s => !tag.includes(s)),
+      vol: prev.vol.filter(v => !tag.includes(String(v))),
+    }));
+  };
+
+  const sendEp = () => {
+    const v = epInput.trim(); if (!v) return;
+    setEpInput('');
+    const lc = v.toLowerCase();
+    const newFilt = { ...filt };
+    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = [...new Set([...newFilt.vol, n])]; });
+    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = [...new Set([...newFilt.mat, 'Glas', 'Glass'])];
+    if (/klarglas|clear/i.test(v)) newFilt.mat = [...new Set([...newFilt.mat, 'Glass'])];
+    if (/airless/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Airless'])];
+    if (/pumpe|pump/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Pump', 'Pumpe'])];
+    if (/tropfer|dropper/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Dropper'])];
+    if (/tube/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Tube'])];
+    if (/tiegel|jar/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Jar'])];
+    setFilt(newFilt);
+    const hits = gefiltert(results);
+    setMsgs(prev => [
+      ...prev,
+      { type: 'user', text: v },
+      { type: 'ai', text: `**${hits.length}** Treffer für „${v}" — alle bestellbar. Klick ein Teil für Details im Brief.`, results: hits, showAll: false, tags: aktTags },
+    ]);
+  };
+
+  const toggleShowAll = (idx: number) => {
+    setMsgs(prev => prev.map((m, i) => i === idx ? { ...m, showAll: !m.showAll } : m));
+  };
+
+  const lastResults = results;
+
+  return (
+    <aside className="ep">
+      <div className="ep-kopf">
+        <span className="t">Packmittel</span>
+        <span className="badge">Hard Facts</span>
+        <span className="cnt"><b>{gefiltert(lastResults).length}</b> / {lastResults.length}</span>
+      </div>
+      <div className="ep-scroll" ref={epScrollRef}>
+        {msgs.map((m, idx) => m.type === 'user' ? (
+          <div key={idx} className="ep-umsg"><span>{m.text}</span></div>
+        ) : (
+          <div key={idx} className="ep-ai">
+            <div className="ep-av" />
+            <div className="ep-bd">
+              {aktTags.length > 0 && idx === msgs.length - 1 && (
+                <div className="ep-tags">
+                  {aktTags.map((t, i) => (
+                    <span key={i} className="ep-tag">{t}<button onClick={() => removeTag(t)}>×</button></span>
+                  ))}
+                </div>
+              )}
+              {m.text && <p dangerouslySetInnerHTML={{ __html: m.text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />}
+              {m.results && m.results.length > 0 && (() => {
+                const shown = m.showAll ? m.results : m.results.slice(0, 8);
+                const rest = m.results.length - shown.length;
+                return (
+                  <>
+                    <div className="ep-grid">
+                      {shown.map(r => (
+                        <button key={r.id} className={`ep-karte${selectedId === r.id ? ' an' : ''}${r.score >= 88 ? ' top' : ''}`} onClick={() => onSelect(r)}>
+                          <div className="ep-bild">
+                            {r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ph">◇</span>}
+                          </div>
+                          <div className="ep-info">
+                            <div className="ep-nm">{r.name}</div>
+                            <div className="ep-sub">{r.availableSizes?.[0] || ''}{r.material?.[0] ? ` · ${r.material[0]}` : ''}</div>
+                            <div className="ep-score">{r.score} Match</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    {rest > 0 && <button className="ep-mehr" onClick={() => toggleShowAll(idx)}>+ {rest} weitere</button>}
+                    {m.showAll && m.results.length > 8 && <button className="ep-mehr" onClick={() => toggleShowAll(idx)}>Weniger ↑</button>}
+                  </>
+                );
+              })()}
+              {idx === msgs.length - 1 && m.results && (
+                <div className="ep-sugg">
+                  {['30ml', '50ml', 'Glas', 'Airless', 'Pumpe', 'nachfüllbar'].filter(s => !aktTags.some(t => t.toLowerCase().includes(s.toLowerCase()))).slice(0, 5).map(s => (
+                    <button key={s} className="ep-chip" onClick={() => { setEpInput(s); setTimeout(() => sendEp(), 0); }}>{s}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ep-input">
+        <div className="ep-feld">
+          <input
+            value={epInput}
+            onChange={e => setEpInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') sendEp(); }}
+            placeholder="z. B. „nur Glas", „30ml", „mit Pumpe"" />
+          <button className="go" onClick={sendEp}>↑</button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
@@ -1448,6 +1650,16 @@ export default function Home() {
     return <div className="ulba"><style>{STYLES}</style>{nav}<div className="main" /></div>;
   }
 
+  // Letzte Ergebnisse für das Ergebnis-Panel sammeln
+  const lastBlock = blocks.length ? blocks[blocks.length - 1] : null;
+  const epResults = lastBlock?.status === 'done' ? lastBlock.results : [];
+
+  // Detail im Chat-Thread (selected) — wird inline gezeigt, nicht im Panel
+  const handleEpSelect = (r: Result) => {
+    setSelected(prev => prev?.id === r.id ? null : r);
+    setView('chat');
+  };
+
   return (
     <div className="ulba">
       <style>{STYLES}</style>
@@ -1475,7 +1687,7 @@ export default function Home() {
           )}
 
           {view === 'chat' && active && (
-            <div className={`chat${selected ? ' split' : ''}`}>
+            <div className="chat">
               <main className="cs-main">
                 <div className="thread" ref={threadRef}>
                   <div className="thread-inner">
@@ -1541,9 +1753,19 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} preferredCode={preferredCode} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
-                  capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
-                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
+                <div style={{ padding: '0 clamp(16px,4vw,54px) 20px' }}>
+                  <div className="cd-karte">
+                    <div className="cd-kopf">
+                      <button className="zu" onClick={() => setSelected(null)}>×</button>
+                      <h4>{selected.name}</h4>
+                      <span className="sup">{selected.id} · {specText(selected)}</span>
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                        <button className={`favherz${isFav(selected.id) ? ' an' : ''}`} style={{ position: 'static' }} onClick={() => quickFav(selected)}>{isFav(selected.id) ? '♥' : '♡'}</button>
+                      </div>
+                    </div>
+                    <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} preferredCode={preferredCode} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)} capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall} onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -1617,6 +1839,12 @@ export default function Home() {
           )}
         </div>
       </div>
+      <ErgebnisPanel
+        results={epResults}
+        onSelect={handleEpSelect}
+        selectedId={selected?.id || null}
+        query={rootQuery}
+      />
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
     </div>
   );
