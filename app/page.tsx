@@ -680,8 +680,17 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
       const selectedCapId = caps[cap]?.id || null;
       const body: any = { systemId: product.id, query: q, tier: 'lite' };
       if (selectedCapId) body.selectedCapId = selectedCapId;
-      const code = codeOverride !== undefined ? codeOverride : activeCode;
-      if (code) body.forceCodeId = code; // gepinnte Richtung → Design-Code fix
+      // Auto = die ABLEITUNG DER WOLKE, nicht Haikus Neuwahl im Backend.
+      // activeCode === null ("Auto") hiess bisher: forceCodeId leer -> Haiku
+      // waehlt den Code im Render frei. Ergebnis: die Wolke leitete z.B.
+      // Transparent Balance ab, Auto rendert F've (tech-premium, blau, laut 5)
+      // — zwei Gehirne, die nicht reden, und die Wolken-Ableitung war wertlos.
+      // Fix: bei Auto pinnen wir den Wolken-Sieger (compatLooks[0], bereits
+      // nach axis_score sortiert = der oben angezeigte Treffer). Haiku leitet
+      // weiter Palette/Story/Radar ab — nur die RICHTUNG gibt die Wolke vor.
+      let code = codeOverride !== undefined ? codeOverride : activeCode;
+      if (!code && codeOverride === undefined) code = compatLooks[0]?.code_id || null;
+      if (code) body.forceCodeId = code; // gepinnt ODER Wolken-Sieger bei Auto
       if (nudge) body.lautNudge = nudge; // Achsen-Cursor: hüpf zum nächsten Code in Richtung
       const res = await fetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
