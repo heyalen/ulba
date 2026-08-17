@@ -224,6 +224,23 @@ interface Block {
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
+  commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
+}
+
+/* Ein Look-Turn im Verlauf: welches Teil, welcher Verschluss, und auf welchem Brief
+   der Render basiert (Text + Justierung). Bleibt im Projekt, wie ein Suchblock. */
+interface LookCommit {
+  id: number;
+  productId: string;
+  cap: number;
+  ts: number;
+  brief?: string;      // finaler Brief-Text beim „Rendern →" (leer = noch im Brief)
+  justier?: string[];  // gewählte Justierungs-Chips
+  // Render-Ergebnis (persistiert, damit der Turn nach Projektwechsel vollständig steht):
+  heroUrl?: string | null;
+  capRenderUrl?: string | null;
+  lastPrompt?: string;
+  concept?: RenderConcept | null;
 }
 
 /* Cap-Wand aus /api/search: steuert das Verschluss-Panel (nicht den Hard Filter).
@@ -471,6 +488,8 @@ const STYLES = `
 .lt-chip:hover{border-color:var(--hell)}
 .lt-chip.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
 .lt-brieftext{font-family:var(--mono);font-size:11px;color:var(--grau);margin-top:8px}
+.msg-commit{margin-top:18px}
+.msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
@@ -751,11 +770,15 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 /* ── Look-Turn im Chat: der Render-Motor (unverändert) in einer Chat-Karte.
    Erscheint nach „Design rendern →" im Detail-Panel. Rendert einmal automatisch
    (der Commit IST die Bestätigung), danach Nudges/Achsen-Cursor/Varianten wie zuvor. ── */
-function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, onSample, onClose }: {
+function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, savedBrief, savedJustier, saved, onBrief, onRender, onSample, onClose }: {
   product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; capWall?: CapWall;
-  initialCap: number; onSample: (ctx: SampleContext) => void; onClose: () => void;
+  initialCap: number; savedBrief?: string; savedJustier?: string[];
+  saved?: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>;
+  onBrief: (brief: string, justier: string[]) => void;
+  onRender: (r: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>) => void;
+  onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
-  const [query, setQuery] = useState(defaultQuery);
+  const [query, setQuery] = useState(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
   // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
   const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
   // activeCode = gepinnter Design-Code (null = Auto/Haiku). Startet auf der im
@@ -765,12 +788,12 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [rerror, setRerror] = useState<string>(''); // echter Grund aus render.ts (data.error) statt Blindflug
   const [varianten, setVarianten] = useState<string[]>([]);
-  const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
-  const [lastPrompt, setLastPrompt] = useState(''); // Wunschwerte des zuletzt generierten Renders
-  const [concept, setConcept] = useState<RenderConcept | null>(null);
+  const [heroUrl, setHeroUrl] = useState<string | null>(saved?.heroUrl || product.imageUrl);
+  const [lastPrompt, setLastPrompt] = useState(saved?.lastPrompt || ''); // Wunschwerte des zuletzt generierten Renders
+  const [concept, setConcept] = useState<RenderConcept | null>(saved?.concept || null);
   const [cached, setCached] = useState(false);
   const [cap, setCap] = useState(initialCap);
-  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(null); // Cap-Recolor aus /api/render
+  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(saved?.capRenderUrl || null); // Cap-Recolor aus /api/render
   const baseImgRef = useRef<HTMLImageElement>(null);
   const [baseW, setBaseW] = useState(0); // tatsächlich angezeigte Flaschenbreite (px)
   const measureBase = useCallback(() => {
@@ -871,16 +894,17 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     && !compatLooks.some(l => l.code_id === preferredCode);
 
   useEffect(() => {
-    setQuery(defaultQuery);
+    setQuery(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
     setCap(initialCap);
-    setCapRenderUrl(null);
+    setCapRenderUrl(saved?.capRenderUrl || null);
     setCached(false);
     setRstatus('idle');
-    setLastPrompt('');
-    setConcept(null);
+    setLastPrompt(saved?.lastPrompt || '');
+    setConcept(saved?.concept || null);
     const hist = loadRenderHist(product.id);
     setVarianten(hist);
-    setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
+    // Persistierter Render dieses Turns hat Vorrang; sonst letzter aus der Historie; sonst Rohteil.
+    setHeroUrl(saved?.heroUrl || (hist.length > 0 ? hist[hist.length - 1] : product.imageUrl));
     // Richtung: bleibt sticky (wenn tragbar), sonst die im Chat gewählte Welt,
     // sonst Best-Fit des Teils. Rendert NICHT automatisch — Nutzer klickt Generieren.
     setActiveCode(prev => {
@@ -897,14 +921,25 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
   // Feiner Brief VOR dem Render (Handoff §2, Schritt 5): Zielgruppe · Emotion ·
   // Veredelung als Justierung der Behauptung — jede Wahl ist ein Achsen-Delta,
   // das in den Brief-Text einfließt. Erst „Rendern →" zündet den (teuren) Render.
-  const [justier, setJustier] = useState<string[]>([]);
+  const [justier, setJustier] = useState<string[]>(savedJustier || []);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
   // briefDone kippt erst beim Klick auf „Rendern →" — NICHT abhängig von alten Renders
   // in der localStorage-Historie (sonst würde ein Teil mit Historie den Brief überspringen).
-  const [briefDone, setBriefDone] = useState(false);
+  // Render-Ergebnis in den Commit persistieren — als Effekt auf 'done', damit run() unangetastet bleibt.
+  const lastPersisted = useRef<string | null>(null);
+  useEffect(() => {
+    if (rstatus !== 'done' || !renderIstAktiv || !heroUrl) return;
+    const sig = `${heroUrl}|${capRenderUrl || ''}|${concept?.konzept_name || ''}`;
+    if (lastPersisted.current === sig) return;
+    lastPersisted.current = sig;
+    onRender({ heroUrl, capRenderUrl, lastPrompt, concept });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rstatus, heroUrl, capRenderUrl, concept, lastPrompt]);
+
+  const [briefDone, setBriefDone] = useState(!!savedBrief); // persistierter Brief = Turn war schon im Render
   const briefPhase = !briefDone;
-  const starteRender = () => { setBriefDone(true); run(briefText); };
+  const starteRender = () => { setBriefDone(true); onBrief(briefText, justier); run(briefText); };
   const bestLook = compatLooks[0] || null;
 
   const anfrageStart = () => {
@@ -1091,6 +1126,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
             <button className="gen" onClick={starteRender} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
           </div>
           {briefPhase && justier.length > 0 && <div className="lt-brieftext">Brief: {briefText}</div>}
+          {!briefPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
           {!briefPhase && renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -1372,10 +1408,9 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
-  const lookRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
   const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
-  const [committed, setCommitted] = useState<{ product: Result; cap: number } | null>(null); // Look-Turn im Chat
+  const [scrollToCommit, setScrollToCommit] = useState<number | null>(null); // frisch angelegter Look-Turn → hinscrollen
   const [preferredCode, setPreferredCode] = useState<string | null>(null); // im Chat gewählte Welt → Panel-Vorwahl
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1485,7 +1520,7 @@ export default function Home() {
     const id = neueProjektId();
     const neu: Project = { id, name: q.slice(0, 48), createdAt: Date.now(), rootQuery: q, blocks: [], board: [], blockSeq: 0 };
     setProjects(prev => [neu, ...prev]);
-    setActiveId(id); setSelected(null); setCommitted(null); setInput(''); setView('chat');
+    setActiveId(id); setSelected(null); setInput(''); setView('chat');
     runSearch(id, q, emptyFilters(), q);
   };
 
@@ -1526,14 +1561,34 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (committed && lookRef.current) {
-      const t = setTimeout(() => lookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260);
-      return () => clearTimeout(t);
-    }
-  }, [committed]);
+    if (scrollToCommit == null) return;
+    const t = setTimeout(() => {
+      document.getElementById(`commit-${scrollToCommit}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setScrollToCommit(null);
+    }, 260);
+    return () => clearTimeout(t);
+  }, [scrollToCommit]);
 
-  const neuesProjekt = () => { setActiveId(null); setSelected(null); setCommitted(null); setInput(''); setView('start'); };
-  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setCommitted(null); setView('chat'); };
+  // Teil ins Design legen: Commit unter den Block, in dem das Teil steht (persistiert im Projekt).
+  const commitTeil = (product: Result, cap: number) => {
+    if (!active) return;
+    const blk = active.blocks.find(b => b.results.some(r => r.id === product.id)) || active.blocks[active.blocks.length - 1];
+    if (!blk) return;
+    const id = Date.now();
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blk.id ? { ...b, commits: [...(b.commits || []), { id, productId: product.id, cap, ts: id }] } : b) }));
+    setScrollToCommit(id);
+  };
+  const patchCommit = (commitId: number, patch: Partial<LookCommit>) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.map(c => c.id === commitId ? { ...c, ...patch } : c) } : b) }));
+  };
+  const removeCommit = (commitId: number) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.filter(c => c.id !== commitId) } : b) }));
+  };
+
+  const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
+  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setProjects(prev => prev.filter(p => p.id !== id));
@@ -1658,19 +1713,25 @@ export default function Home() {
                                 )}
                               </div>
                             )}
+                            {(b.commits || []).map(c => {
+                              const prod = b.results.find(r => r.id === c.productId) || board.find(r => r.id === c.productId);
+                              if (!prod) return null;
+                              return (
+                                <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
+                                  <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
+                                  <LookTurn product={prod} allLooks={b.looks} preferredCode={preferredCode} defaultQuery={rootQuery}
+                                    capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier}
+                                    saved={{ heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl, lastPrompt: c.lastPrompt, concept: c.concept }}
+                                    onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
+                                    onRender={r => patchCommit(c.id, r)}
+                                    onSample={setSampleCtx} onClose={() => removeCommit(c.id)} />
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
                     })}
-                    {committed && (
-                      <div className="msg-ulba" ref={lookRef}>
-                        <LookTurn key={committed.product.id + ':' + committed.cap} product={committed.product}
-                          allLooks={blocks.find(b => b.results.some(r => r.id === committed.product.id))?.looks || []}
-                          preferredCode={preferredCode} defaultQuery={rootQuery}
-                          capWall={blocks.find(b => b.results.some(r => r.id === committed.product.id))?.capWall}
-                          initialCap={committed.cap} onSample={setSampleCtx} onClose={() => setCommitted(null)} />
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="refine">
@@ -1685,7 +1746,7 @@ export default function Home() {
                   cap={selectedCap} onCap={setSelectedCap}
                   isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
-                  onCommit={() => { setCommitted({ product: selected, cap: selectedCap }); setSelected(null); }}
+                  onCommit={() => { commitTeil(selected, selectedCap); setSelected(null); }}
                   onClose={() => setSelected(null)} />
               )}
             </div>
