@@ -14,6 +14,10 @@
         Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
    v6 — Konzept-Brief: /api/render liefert concept {name, story, rationale,
         produzierbar, szene}. Rahmen ums Render + produzierbare Wunschwerte in die Anfrage.
+   v7 — Panel/Chat-Split: Panel = Detail-Inspektor (Teil, Verschluss, Specs, Paket).
+        „Design rendern →" schließt das Panel und öffnet den LookTurn im Chat-Verlauf,
+        der den unveränderten Render-Motor trägt (Auto-Render nach Commit, Achsen-Cursor,
+        Varianten, Konzept-Brief, Muster anfragen). Score-Badges → Empfehlung/kuratiert.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -448,6 +452,12 @@ const STYLES = `
 .scan-fill{height:100%;background:var(--rouge);border-radius:999px;transition:width .17s ease}
 .eb-scan{border:1px solid var(--linie);border-radius:13px;background:var(--panel);padding:15px 18px;max-width:560px;margin-bottom:8px}
 .panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
+/* Look-Turn: Render-Motor als Chat-Karte (gleiche pn-* Bausteine wie das Panel) */
+.lookturn{border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);max-width:720px;margin:14px 0 6px;padding:0 0 4px;display:flex;flex-direction:column;overflow:hidden}
+.lookturn .pn-kopf{padding-top:18px}
+.lt-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);margin-bottom:4px}
+.lookturn .pn-aktion{position:static;background:var(--panel);margin-top:4px}
+.lookturn .cta:disabled{opacity:.45;cursor:default}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
@@ -628,10 +638,109 @@ function ChatWolke({ looks, pal, preferred, onPick }: {
   );
 }
 
-/* ── Render-Panel rechts ── */
-function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
-  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
-  onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
+/* ── Caps für ein Teil inkl. Cap-Wand (aus /api/search): offener Pipetten-Cap wird
+   bei oxidationsempfindlicher Formel ans Ende sortiert — NIE entfernt, nur depriorisiert. ── */
+const istPipetteCap = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
+function capsFuer(product: Result, capWall?: CapWall): { caps: CapRef[]; dropperDepri: boolean } {
+  const capsRaw = getCaps(product);
+  const dropperDepri = !!capWall?.deprioritize_open_dropper && capsRaw.some(istPipetteCap);
+  const caps = dropperDepri
+    ? [...capsRaw].sort((a, b) => (istPipetteCap(a) ? 1 : 0) - (istPipetteCap(b) ? 1 : 0))
+    : capsRaw;
+  return { caps, dropperDepri };
+}
+
+/* ── Detail-Panel rechts: Inspektor. Teil ansehen, Verschluss wählen, Specs.
+   Kein Render hier — „Design rendern →" schließt das Panel und öffnet den Look-Turn im Chat. ── */
+function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onCommit, onClose }: {
+  product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
+  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onCommit: () => void; onClose: () => void;
+}) {
+  const { caps, dropperDepri } = capsFuer(product, capWall);
+  const istPipette = istPipetteCap;
+  const capIdx = Math.min(cap, Math.max(0, caps.length - 1));
+  return (
+    <aside className="panel">
+      <div className="pn-kopf">
+        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
+        <div className="pn-akt">
+          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
+          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
+        </div>
+      </div>
+
+      {caps.length > 0 && (
+        <div className="pn-caps-top">
+          <div className="lbl">Verschluss wählen · {caps.length}</div>
+          <div className="thumbs">
+            {caps.map((c, i) => {
+              const depri = dropperDepri && istPipette(c);
+              return (
+                <div key={i}
+                  className={`capthumb${capIdx === i ? ' an' : ''}`}
+                  style={depri ? { opacity: 0.5 } : undefined}
+                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
+                  onClick={() => onCap(i)}>
+                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                </div>
+              );
+            })}
+          </div>
+          {dropperDepri && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
+              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Gestapelte Bühne: gewählter Cap oben, Rohteil unten — blanko, kein Look. */}
+      <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {caps.length > 0 && (
+          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
+            {caps[capIdx]?.imageUrl
+              ? <img src={caps[capIdx].imageUrl} alt={caps[capIdx]?.name || `Verschluss ${capIdx + 1}`} style={{ width: 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
+          </div>
+        )}
+        <div className="pn-bild" style={{ width: '100%' }}>
+          {product.imageUrl
+            ? <img src={product.imageUrl} alt={product.name} />
+            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        </div>
+      </div>
+      <div className="pn-prov" style={{ textAlign: 'center', fontSize: 12, color: '#9a9a97', marginTop: 8, fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>
+        blanko · reales Teil · der Look entsteht im Chat
+      </div>
+
+      <div className="pn-body">
+        <div className="specs">
+          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
+          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
+          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
+          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
+          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
+          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
+        </div>
+        {product.capabilities?.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+        )}
+      </div>
+
+      <div className="pn-aktion">
+        <button className="cta" onClick={onCommit}>Design rendern →</button>
+        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
+      </div>
+    </aside>
+  );
+}
+
+/* ── Look-Turn im Chat: der Render-Motor (unverändert) in einer Chat-Karte.
+   Erscheint nach „Design rendern →" im Detail-Panel. Rendert einmal automatisch
+   (der Commit IST die Bestätigung), danach Nudges/Achsen-Cursor/Varianten wie zuvor. ── */
+function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; capWall?: CapWall;
+  initialCap: number; onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(defaultQuery);
   // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
@@ -647,7 +756,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   const [lastPrompt, setLastPrompt] = useState(''); // Wunschwerte des zuletzt generierten Renders
   const [concept, setConcept] = useState<RenderConcept | null>(null);
   const [cached, setCached] = useState(false);
-  const [cap, setCap] = useState(0);
+  const [cap, setCap] = useState(initialCap);
   const [capRenderUrl, setCapRenderUrl] = useState<string | null>(null); // Cap-Recolor aus /api/render
   const baseImgRef = useRef<HTMLImageElement>(null);
   const [baseW, setBaseW] = useState(0); // tatsächlich angezeigte Flaschenbreite (px)
@@ -664,12 +773,8 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   // Caps: bei oxidationsempfindlicher Formel wandert der offene Pipetten-Cap
   // ans Ende (Cap-Wand) — NIE entfernt (bei getöntem Glas legitim), nur
   // depriorisiert + Hinweis. Erkennung am Namen (Pipette/Dropper/Tropfer).
-  const capsRaw = getCaps(product);
-  const istPipette = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
-  const dropperDepri = !!capWall?.deprioritize_open_dropper && capsRaw.some(istPipette);
-  const caps = dropperDepri
-    ? [...capsRaw].sort((a, b) => (istPipette(a) ? 1 : 0) - (istPipette(b) ? 1 : 0))
-    : capsRaw;
+  const { caps, dropperDepri } = capsFuer(product, capWall);
+  const istPipette = istPipetteCap;
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
   const run = async (brief: string, codeOverride?: string | null, nudge?: 'quieter' | 'louder') => {
@@ -754,7 +859,7 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
 
   useEffect(() => {
     setQuery(defaultQuery);
-    setCap(0);
+    setCap(initialCap);
     setCapRenderUrl(null);
     setCached(false);
     setRstatus('idle');
@@ -776,6 +881,15 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
+  // Commit = Bestätigung: einmal automatisch rendern (Auto = Wolken-Ableitung).
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    run(defaultQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const anfrageStart = () => {
     const prod = renderIstAktiv ? (concept?.produzierbar || null) : null;
     const wt = produzierbarText(prod);
@@ -789,39 +903,13 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   };
 
   return (
-    <aside className="panel">
+    <section className="lookturn">
       <div className="pn-kopf">
-        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
+        <div><div className="lt-eyebrow">Design · auf dem realen Teil</div><h3 className="serif">{product.name}{caps.length > 0 && caps[cap]?.name ? ` + ${caps[cap].name}` : ''}</h3><span className="pn-spec">{specText(product)}</span></div>
         <div className="pn-akt">
-          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
-
-      {caps.length > 0 && (
-        <div className="pn-caps-top">
-          <div className="lbl">Verschluss wählen · {caps.length}</div>
-          <div className="thumbs">
-            {caps.map((c, i) => {
-              const depri = dropperDepri && istPipette(c);
-              return (
-                <div key={i}
-                  className={`capthumb${cap === i ? ' an' : ''}`}
-                  style={depri ? { opacity: 0.5 } : undefined}
-                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
-                  onClick={() => { setCap(i); setCapRenderUrl(null); }}>
-                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-                </div>
-              );
-            })}
-          </div>
-          {dropperDepri && (
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
-              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
-            </div>
-          )}
-        </div>
-      )}
 
       {compatLooks.length > 0 && (
         <div className="pn-caps-top">
@@ -973,24 +1061,12 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
             </div>
           )}
         </div>
-        <div className="specs">
-          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
-          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
-          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
-          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
-          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
-          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
-        </div>
-        {product.capabilities?.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
-        )}
       </div>
 
-      <div className="pn-aktion">
-        <button className="cta" onClick={anfrageStart}>Muster anfragen →</button>
-        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
+      <div className="pn-aktion lt-aktion">
+        <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
       </div>
-    </aside>
+    </section>
   );
 }
 
@@ -1252,7 +1328,10 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
-  const [selected, setSelected] = useState<Result | null>(null);
+  const lookRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
+  const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
+  const [committed, setCommitted] = useState<{ product: Result; cap: number } | null>(null); // Look-Turn im Chat
   const [preferredCode, setPreferredCode] = useState<string | null>(null); // im Chat gewählte Welt → Panel-Vorwahl
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1362,7 +1441,7 @@ export default function Home() {
     const id = neueProjektId();
     const neu: Project = { id, name: q.slice(0, 48), createdAt: Date.now(), rootQuery: q, blocks: [], board: [], blockSeq: 0 };
     setProjects(prev => [neu, ...prev]);
-    setActiveId(id); setSelected(null); setInput(''); setView('chat');
+    setActiveId(id); setSelected(null); setCommitted(null); setInput(''); setView('chat');
     runSearch(id, q, emptyFilters(), q);
   };
 
@@ -1402,8 +1481,15 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
   };
 
-  const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
-  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
+  useEffect(() => {
+    if (committed && lookRef.current) {
+      const t = setTimeout(() => lookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260);
+      return () => clearTimeout(t);
+    }
+  }, [committed]);
+
+  const neuesProjekt = () => { setActiveId(null); setSelected(null); setCommitted(null); setInput(''); setView('start'); };
+  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setCommitted(null); setView('chat'); };
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setProjects(prev => prev.filter(p => p.id !== id));
@@ -1511,7 +1597,7 @@ export default function Home() {
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    {zeige.map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                   </div>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
@@ -1532,6 +1618,15 @@ export default function Home() {
                         </div>
                       );
                     })}
+                    {committed && (
+                      <div className="msg-ulba" ref={lookRef}>
+                        <LookTurn key={committed.product.id + ':' + committed.cap} product={committed.product}
+                          allLooks={blocks.find(b => b.results.some(r => r.id === committed.product.id))?.looks || []}
+                          preferredCode={preferredCode} defaultQuery={rootQuery}
+                          capWall={blocks.find(b => b.results.some(r => r.id === committed.product.id))?.capWall}
+                          initialCap={committed.cap} onSample={setSampleCtx} onClose={() => setCommitted(null)} />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="refine">
@@ -1542,9 +1637,12 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} preferredCode={preferredCode} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
-                  capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
-                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
+                <DetailPanel product={selected} capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
+                  cap={selectedCap} onCap={setSelectedCap}
+                  isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
+                  onCommit={() => { setCommitted({ product: selected, cap: selectedCap }); setSelected(null); }}
+                  onClose={() => setSelected(null)} />
               )}
             </div>
           )}
