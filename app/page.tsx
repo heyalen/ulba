@@ -18,6 +18,8 @@
         „Design rendern →" schließt das Panel und öffnet den LookTurn im Chat-Verlauf,
         der den unveränderten Render-Motor trägt (Auto-Render nach Commit, Achsen-Cursor,
         Varianten, Konzept-Brief, Muster anfragen). Score-Badges → Empfehlung/kuratiert.
+        LookTurn hat zwei Phasen: Brief (Lesart + Rail + Justierung, kein Bild) → „Rendern →"
+        → Render-Phase (Bühne, Achsen-Cursor, Nudges, Muster). Kein Auto-Render.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -458,6 +460,17 @@ const STYLES = `
 .lt-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);margin-bottom:4px}
 .lookturn .pn-aktion{position:static;background:var(--panel);margin-top:4px}
 .lookturn .cta:disabled{opacity:.45;cursor:default}
+.lt-lesart{padding:6px 24px 10px;font-size:14.5px;line-height:1.5;color:#3a3a37}
+.lt-lesart b{font-weight:600;color:var(--tinte)}
+.lt-weil{color:var(--grau)}
+.lt-alt{font-family:var(--mono);font-size:11px;color:var(--hell)}
+.lt-just{display:flex;flex-direction:column;gap:8px;margin:2px 0 12px}
+.lt-just-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lt-just-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell);min-width:78px}
+.lt-chip{font-size:12.5px;padding:5px 12px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f;cursor:pointer;transition:.12s}
+.lt-chip:hover{border-color:var(--hell)}
+.lt-chip.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
+.lt-brieftext{font-family:var(--mono);font-size:11px;color:var(--grau);margin-top:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
@@ -881,14 +894,14 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
-  // Commit = Bestätigung: einmal automatisch rendern (Auto = Wolken-Ableitung).
-  const autoRan = useRef(false);
-  useEffect(() => {
-    if (autoRan.current) return;
-    autoRan.current = true;
-    run(defaultQuery);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Feiner Brief VOR dem Render (Handoff §2, Schritt 5): Zielgruppe · Emotion ·
+  // Veredelung als Justierung der Behauptung — jede Wahl ist ein Achsen-Delta,
+  // das in den Brief-Text einfließt. Erst „Rendern →" zündet den (teuren) Render.
+  const [justier, setJustier] = useState<string[]>([]);
+  const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
+  const briefPhase = !renderIstAktiv && rstatus !== 'loading'; // noch kein Render → Brief sichtbar
+  const bestLook = compatLooks[0] || null;
 
   const anfrageStart = () => {
     const prod = renderIstAktiv ? (concept?.produzierbar || null) : null;
@@ -910,6 +923,14 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
+
+      {bestLook && (
+        <div className="lt-lesart">
+          Für <b>{product.name}</b> lese ich <b>{bestLook.code_name}</b>
+          {bestLook.axis_why ? <> — <span className="lt-weil">weil {bestLook.axis_why}</span></> : null}
+          {compatLooks.length > 1 && <span className="lt-alt"> · {compatLooks.length - 1} weitere Richtungen tragen dieses Teil</span>}
+        </div>
+      )}
 
       {compatLooks.length > 0 && (
         <div className="pn-caps-top">
@@ -962,7 +983,9 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
 
       {renderIstAktiv && concept && <FrameHead concept={concept} />}
 
-      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
+      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged.
+          In der Brief-Phase (noch kein Render) bleibt sie zu: erst verstehen, dann sehen. */}
+      {!briefPhase && (
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
           <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
@@ -979,6 +1002,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
               : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
         </div>
       </div>
+      )}
 
       {renderIstAktiv && concept && (
         <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
@@ -997,13 +1021,13 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
           <button type="button" className="pn-dir"
             disabled={rstatus === 'loading' || !concept.design_code.can_quieter}
-            onClick={() => run(query, concept!.design_code!.id, 'quieter')}
+            onClick={() => run(briefText, concept!.design_code!.id, 'quieter')}
             title="ruhigerer Look — gleiche Flasche, leisere Design-Direction">
             ← leiser
           </button>
           <button type="button" className="pn-dir"
             disabled={rstatus === 'loading' || !concept.design_code.can_louder}
-            onClick={() => run(query, concept!.design_code!.id, 'louder')}
+            onClick={() => run(briefText, concept!.design_code!.id, 'louder')}
             title="lauterer Look — gleiche Flasche, energischere Design-Direction">
             lauter →
           </button>
@@ -1042,18 +1066,32 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
 
       <div className="pn-body">
         <div className="vis">
-          <div className="top">Deine Richtung</div>
+          <div className="top">{briefPhase ? 'Dein Brief — justieren, dann rendern' : 'Deine Richtung'}</div>
+          {briefPhase && (
+            <div className="lt-just">
+              <div className="lt-just-row"><span className="lt-just-lbl">Zielgruppe</span>
+                {['jünger', 'höher', 'breiter'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+              <div className="lt-just-row"><span className="lt-just-lbl">Emotion</span>
+                {['wärmer', 'kühler', 'klinischer', 'weicher', 'edler', 'mehr Energie'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+              <div className="lt-just-row"><span className="lt-just-lbl">Veredelung</span>
+                {['Metallic-Akzent', 'Soft-Touch', 'geprägtes Logo', 'clean reduziert'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+            </div>
+          )}
           <div className="row">
             <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') run(query); }}
+              onKeyDown={e => { if (e.key === 'Enter') run(briefText); }}
               placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : (activeCode === null ? 'Generieren · Auto' : `Generieren · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
+            <button className="gen" onClick={() => run(briefText)} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
           </div>
+          {briefPhase && justier.length > 0 && <div className="lt-brieftext">Brief: {briefText}</div>}
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
           {renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
-                <button key={n} type="button" onClick={() => run(`${query.trim()}, ${n}`)} disabled={rstatus === 'loading'}
+                <button key={n} type="button" onClick={() => run(`${briefText}, ${n}`)} disabled={rstatus === 'loading'}
                   style={{ fontSize: 12, padding: '5px 11px', borderRadius: 14, border: '1px solid #e4e4e1', background: '#fff', color: '#55554f', cursor: rstatus === 'loading' ? 'default' : 'pointer' }}>
                   {n}
                 </button>
@@ -1063,9 +1101,11 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       </div>
 
-      <div className="pn-aktion lt-aktion">
-        <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
-      </div>
+      {renderIstAktiv && (
+        <div className="pn-aktion lt-aktion">
+          <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
+        </div>
+      )}
     </section>
   );
 }
