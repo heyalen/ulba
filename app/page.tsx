@@ -429,6 +429,8 @@ const STYLES = `
 .ek-match{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:var(--porzellan);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
 .em-z{font-family:var(--mono);font-size:15px;color:var(--rouge);line-height:1}
 .em-l{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-top:1px}
+.ek.lead{border-color:var(--tinte)}
+.ek-lead{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:var(--tinte);border-radius:7px;padding:4px 8px}
 .favherz{position:absolute;top:9px;left:10px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--linie);font-size:13px;color:var(--hell);display:flex;align-items:center;justify-content:center}
 .favherz:hover,.favherz.an{color:var(--rouge)}
 .eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
@@ -610,9 +612,8 @@ function ChatWolke({ looks, pal, preferred, onPick }: {
     <button key={l.code_id} type="button"
       className={`cw ${cls}${preferred === l.code_id ? ' an' : ''}`}
       onClick={() => onPick(l.code_id)}
-      title={`${l.register} · Fit ${l.axis_score}`}>
+      title={l.register}>
       <span className="cw-dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
-      <span className="cw-fit">{l.axis_score}</span>
     </button>
   );
   return (
@@ -1231,16 +1232,16 @@ function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
 }
 
 
-function Karte({ r, selected, isFav, onOpen, onFav }: {
-  r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
+function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
+  r: Result; selected: boolean; isFav: boolean; isLead?: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
 }) {
   return (
-    <div className={`ek${selected ? ' an' : ''}`}>
+    <div className={`ek${selected ? ' an' : ''}${isLead ? ' lead' : ''}`}>
       <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
       <button className="ek-klick" onClick={onOpen}>
         <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ek-ph">◇</span>}</div>
         <div className="ek-info"><span className="ek-nm">{r.name}</span><span className="ek-spec">{specText(r)}</span></div>
-        <span className="ek-match"><span className="em-z">{r.score}</span><span className="em-l">Match</span></span>
+        {isLead && <span className="ek-lead">Empfehlung</span>}
       </button>
     </div>
   );
@@ -1506,11 +1507,11 @@ export default function Home() {
                                   </div>
                                 )}
                                 <ChatWolke looks={b.looks} pal={pal} preferred={preferredCode} onPick={setPreferredCode} />
-                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} Systeme für dich</span><span className="ebk-s">von ulba kuratiert · gelesen als {pal}</span></div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    {zeige.map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                   </div>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
