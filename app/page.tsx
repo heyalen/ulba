@@ -5,15 +5,15 @@
    Verdrahtet gegen /api/search und /api/render.
    Favoriten/Projekte über localStorage.
    v3 — Render-Umbau: Render = Hero, Varianten-Strip, private Render-Historie,
-       kein Auto-Render, kein Doppelbild.
+        kein Auto-Render, kein Doppelbild.
    v4 — Cap→Render: caps [{id, imageUrl}], Cap-Großbild, selectedCapId beim Render.
    v5 — Anfrage trägt Original + Wunsch (Schritt 3):
-       · caps jetzt [{id, name, imageUrl}] — Cap-Name für die Anfrage.
-       · run() merkt sich renderingPrompt (Wunschwerte) zum aktuellen Render.
-       · „Muster anfragen" schickt Wunsch-Render-URL, Wunschwerte und Cap-Name mit.
-       Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
+        · caps jetzt [{id, name, imageUrl}] — Cap-Name für die Anfrage.
+        · run() merkt sich renderingPrompt (Wunschwerte) zum aktuellen Render.
+        · „Muster anfragen" schickt Wunsch-Render-URL, Wunschwerte und Cap-Name mit.
+        Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
    v6 — Konzept-Brief: /api/render liefert concept {name, story, rationale,
-       produzierbar, szene}. Rahmen ums Render + produzierbare Wunschwerte in die Anfrage.
+        produzierbar, szene}. Rahmen ums Render + produzierbare Wunschwerte in die Anfrage.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -1353,15 +1353,17 @@ function ErgebnisPanel({ results, onSelect, selectedId, query }: {
     const v = epInput.trim(); if (!v) return;
     setEpInput('');
     const lc = v.toLowerCase();
+    const uniqNum = (arr: number[]) => arr.filter((x, i) => arr.indexOf(x) === i);
+    const uniqStr = (arr: string[]) => arr.filter((x, i) => arr.indexOf(x) === i);
     const newFilt = { ...filt };
-    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = Array.from(new Set([...newFilt.vol, n])); });
-    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glas', 'Glass']));
-    if (/klarglas|clear/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glass']));
-    if (/airless/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Airless']));
-    if (/pumpe|pump/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Pump', 'Pumpe']));
-    if (/tropfer|dropper/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Dropper']));
-    if (/tube/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Tube']));
-    if (/tiegel|jar/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Jar']));
+    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = uniqNum([...newFilt.vol, n]); });
+    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = uniqStr([...newFilt.mat, 'Glas', 'Glass']);
+    if (/klarglas|clear/i.test(v)) newFilt.mat = uniqStr([...newFilt.mat, 'Glass']);
+    if (/airless/i.test(v)) newFilt.sys = uniqStr([...newFilt.sys, 'Airless']);
+    if (/pumpe|pump/i.test(v)) newFilt.sys = uniqStr([...newFilt.sys, 'Pump', 'Pumpe']);
+    if (/tropfer|dropper/i.test(v)) newFilt.sys = uniqStr([...newFilt.sys, 'Dropper']);
+    if (/tube/i.test(v)) newFilt.sys = uniqStr([...newFilt.sys, 'Tube']);
+    if (/tiegel|jar/i.test(v)) newFilt.sys = uniqStr([...newFilt.sys, 'Jar']);
     setFilt(newFilt);
     const hits = gefiltert(results);
     setMsgs(prev => [
