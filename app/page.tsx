@@ -900,7 +900,11 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
   const [justier, setJustier] = useState<string[]>([]);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
-  const briefPhase = !renderIstAktiv && rstatus !== 'loading'; // noch kein Render → Brief sichtbar
+  // briefDone kippt erst beim Klick auf „Rendern →" — NICHT abhängig von alten Renders
+  // in der localStorage-Historie (sonst würde ein Teil mit Historie den Brief überspringen).
+  const [briefDone, setBriefDone] = useState(false);
+  const briefPhase = !briefDone;
+  const starteRender = () => { setBriefDone(true); run(briefText); };
   const bestLook = compatLooks[0] || null;
 
   const anfrageStart = () => {
@@ -981,7 +985,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       )}
 
-      {renderIstAktiv && concept && <FrameHead concept={concept} />}
+      {!briefPhase && renderIstAktiv && concept && <FrameHead concept={concept} />}
 
       {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged.
           In der Brief-Phase (noch kein Render) bleibt sie zu: erst verstehen, dann sehen. */}
@@ -1004,7 +1008,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
       </div>
       )}
 
-      {renderIstAktiv && concept && (
+      {!briefPhase && renderIstAktiv && concept && (
         <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
           <span>generiert aus</span>
           <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
@@ -1016,7 +1020,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
       {/* Achsen-Cursor · Temp_Laut: hüpft auf den nächsten kuratierten Code in
           Richtung — gleiche Flasche, ruhigerer/lauterer Look. Chip disabled,
           wenn es in der Welt keinen Nachbar in die Richtung gibt (kein toter Klick). */}
-      {renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
+      {!briefPhase && renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
         <div className="pn-laut" style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
           <button type="button" className="pn-dir"
@@ -1038,9 +1042,9 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       )}
 
-      {renderIstAktiv && concept && <SpecSheet concept={concept} />}
+      {!briefPhase && renderIstAktiv && concept && <SpecSheet concept={concept} />}
 
-      {varianten.length > 0 && (
+      {!briefPhase && varianten.length > 0 && (
         <div className="varstrip">
           <div className="lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span>Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</span>
@@ -1082,13 +1086,13 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
           )}
           <div className="row">
             <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') run(briefText); }}
+              onKeyDown={e => { if (e.key === 'Enter') starteRender(); }}
               placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={() => run(briefText)} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
+            <button className="gen" onClick={starteRender} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
           </div>
           {briefPhase && justier.length > 0 && <div className="lt-brieftext">Brief: {briefText}</div>}
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
-          {renderIstAktiv && (
+          {!briefPhase && renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
                 <button key={n} type="button" onClick={() => run(`${briefText}, ${n}`)} disabled={rstatus === 'loading'}
@@ -1101,7 +1105,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       </div>
 
-      {renderIstAktiv && (
+      {!briefPhase && renderIstAktiv && (
         <div className="pn-aktion lt-aktion">
           <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
         </div>
