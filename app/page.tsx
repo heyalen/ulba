@@ -1381,14 +1381,14 @@ function ErgebnisPanel({ results, onSelect, selectedId, query }: {
     setEpInput('');
     const lc = v.toLowerCase();
     const newFilt = { ...filt };
-    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = [...new Set([...newFilt.vol, n])]; });
-    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = [...new Set([...newFilt.mat, 'Glas', 'Glass'])];
-    if (/klarglas|clear/i.test(v)) newFilt.mat = [...new Set([...newFilt.mat, 'Glass'])];
-    if (/airless/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Airless'])];
-    if (/pumpe|pump/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Pump', 'Pumpe'])];
-    if (/tropfer|dropper/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Dropper'])];
-    if (/tube/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Tube'])];
-    if (/tiegel|jar/i.test(v)) newFilt.sys = [...new Set([...newFilt.sys, 'Jar'])];
+    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = Array.from(new Set([...newFilt.vol, n])); });
+    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glas', 'Glass']));
+    if (/klarglas|clear/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glass']));
+    if (/airless/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Airless']));
+    if (/pumpe|pump/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Pump', 'Pumpe']));
+    if (/tropfer|dropper/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Dropper']));
+    if (/tube/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Tube']));
+    if (/tiegel|jar/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Jar']));
     setFilt(newFilt);
     const hits = gefiltert(results);
     setMsgs(prev => [
