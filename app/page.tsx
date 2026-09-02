@@ -14,6 +14,14 @@
         Original bleibt das verbindliche Teil (System-Link), Wunsch ist Intention.
    v6 — Konzept-Brief: /api/render liefert concept {name, story, rationale,
         produzierbar, szene}. Rahmen ums Render + produzierbare Wunschwerte in die Anfrage.
+   v7 — Panel/Chat-Split: Panel = Detail-Inspektor (Teil, Verschluss, Specs, Paket).
+        „Design rendern →" schließt das Panel und öffnet den LookTurn im Chat-Verlauf,
+        der den unveränderten Render-Motor trägt (Auto-Render nach Commit, Achsen-Cursor,
+        Varianten, Konzept-Brief, Muster anfragen). Score-Badges → Empfehlung/kuratiert.
+        LookTurn hat zwei Phasen: Brief (Lesart + Rail + Justierung, kein Bild) → „Rendern →"
+        → Render-Phase (Bühne, Achsen-Cursor, Nudges, Muster). Kein Auto-Render.
+   v8 — Sichtbares „Weil": abgeleitete Identität (Register + Laut) wird im
+        Achsen-Cursor als Herleitungssatz gezeigt statt als Koordinate/Zahl.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -244,6 +252,23 @@ interface Block {
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
+  commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
+}
+
+/* Ein Look-Turn im Verlauf: welches Teil, welcher Verschluss, und auf welchem Brief
+   der Render basiert (Text + Justierung). Bleibt im Projekt, wie ein Suchblock. */
+interface LookCommit {
+  id: number;
+  productId: string;
+  cap: number;
+  ts: number;
+  brief?: string;      // finaler Brief-Text beim „Rendern →" (leer = noch im Brief)
+  justier?: string[];  // gewählte Justierungs-Chips
+  // Render-Ergebnis (persistiert, damit der Turn nach Projektwechsel vollständig steht):
+  heroUrl?: string | null;
+  capRenderUrl?: string | null;
+  lastPrompt?: string;
+  concept?: RenderConcept | null;
 }
 
 /* Cap-Wand aus /api/search: steuert das Verschluss-Panel (nicht den Hard Filter).
@@ -323,68 +348,7 @@ const STYLES = `
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
 }
-.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr 340px;overflow:hidden}
-/* Ergebnis-Panel rechts — KI-Chat für Hard Facts */
-.ep{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
-.ep-kopf{flex:none;border-bottom:1px solid var(--linie);padding:13px 20px;display:flex;align-items:center;gap:10px}
-.ep-kopf .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
-.ep-kopf .badge{font-size:9px;padding:2px 8px;border-radius:99px;background:#eef3f0;color:#2f7d52;letter-spacing:.03em}
-.ep-kopf .cnt{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--hell)}
-.ep-kopf .cnt b{color:var(--tinte)}
-.ep-scroll{flex:1;overflow-y:auto;padding:14px 14px 100px}
-.ep-scroll::-webkit-scrollbar{width:4px}.ep-scroll::-webkit-scrollbar-thumb{background:var(--linie);border-radius:4px}
-.ep-input{flex:none;padding:10px 14px 14px;border-top:1px solid var(--linie);background:var(--panel)}
-.ep-feld{display:flex;align-items:center;border:1px solid var(--linie);border-radius:12px;background:#fff;padding:3px 3px 3px 13px}
-.ep-feld input{flex:1;border:0;background:none;padding:10px 4px;outline:none;font:inherit;color:var(--tinte);font-size:13px}
-.ep-feld input::placeholder{color:var(--hell)}
-.ep-feld .go{width:30px;height:30px;border-radius:8px;background:var(--tinte);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
-.ep-feld .go:hover{background:var(--rouge)}
-/* EP Chat-Nachrichten */
-.ep-umsg{display:flex;justify-content:flex-end;margin-bottom:10px;animation:auf .25s ease both}
-.ep-umsg span{background:var(--tinte);color:#fff;border-radius:12px 12px 3px 12px;padding:7px 12px;font-size:13px;max-width:88%}
-.ep-ai{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;animation:auf .25s ease both}
-.ep-av{width:20px;height:20px;border-radius:50%;flex:none;background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f);margin-top:2px}
-.ep-bd{flex:1;min-width:0}
-.ep-bd p{margin:0 0 6px;font-size:12.5px;color:#3a3a37;line-height:1.6}
-.ep-bd p b{color:var(--tinte)}
-/* EP Teile-Grid — 2-spaltig */
-.ep-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
-.ep-karte{border:1px solid var(--linie);border-radius:10px;overflow:hidden;background:#fff;cursor:pointer;transition:.15s;text-align:left;position:relative}
-.ep-karte:hover{border-color:var(--hell);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.05)}
-.ep-karte.an{border-color:var(--tinte);box-shadow:0 0 0 1.5px var(--tinte)}
-.ep-karte.top::after{content:'★';position:absolute;top:5px;right:6px;font-size:8px;color:var(--tinte)}
-.ep-bild{height:66px;background:var(--nische);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.ep-bild img{max-width:76%;max-height:80%;object-fit:contain}
-.ep-bild .ph{font-size:28px;color:#d8d8d6}
-.ep-info{padding:6px 7px 7px}
-.ep-nm{font-weight:600;font-size:10.5px;line-height:1.2;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ep-sub{font-family:var(--mono);font-size:9px;color:var(--hell);line-height:1.3}
-.ep-score{font-family:var(--mono);font-size:9px;color:var(--rouge)}
-/* EP Filter-Tags (aktiv) */
-.ep-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
-.ep-tag{display:inline-flex;align-items:center;gap:5px;background:var(--tinte);color:#fff;padding:3px 7px 3px 9px;border-radius:99px;font-size:10px}
-.ep-tag button{color:rgba(255,255,255,.6);font-size:12px;line-height:1}
-.ep-tag button:hover{color:#fff}
-/* EP Suggestion-Chips */
-.ep-sugg{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
-.ep-chip{border:1px solid var(--linie);border-radius:99px;background:#fff;padding:4px 10px;font-size:10.5px;color:var(--grau);transition:.12s}
-.ep-chip:hover{border-color:var(--tinte);color:var(--tinte)}
-/* EP Fix-Filter */
-.ep-fix{display:inline-flex;align-items:center;gap:5px;background:#fbf6f7;border:1px solid #c9b8bd;color:var(--rouge);padding:3px 9px;border-radius:99px;font-size:10px;margin-bottom:6px}
-.ep-mehr{width:100%;text-align:center;font-size:10px;color:var(--hell);padding:6px;margin-top:3px;border:1px dashed var(--linie);border-radius:7px;cursor:pointer}
-.ep-mehr:hover{color:var(--tinte);border-color:var(--hell)}
-/* EP Tippt */
-.ep-tippt{display:flex;gap:4px;padding:3px 0}
-.ep-tippt span{width:5px;height:5px;border-radius:50%;background:var(--hell);animation:blink 1.2s infinite both}
-.ep-tippt span:nth-child(2){animation-delay:.18s}.ep-tippt span:nth-child(3){animation-delay:.36s}
-@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
-/* Chat-Detail-Karte (selected → im Thread) */
-.cd-karte{border:1px solid var(--linie);border-radius:13px;overflow:hidden;background:#fff;margin:4px 0 12px;animation:auf .25s ease both}
-.cd-kopf{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--linie)}
-.cd-kopf .zu{width:22px;height:22px;border-radius:6px;border:1px solid var(--linie);font-size:12px;color:var(--grau);display:flex;align-items:center;justify-content:center}
-.cd-kopf .zu:hover{border-color:var(--tinte)}
-.cd-kopf h4{font-family:var(--serif);font-weight:800;font-size:15px;flex:1;letter-spacing:-.01em}
-.cd-kopf .sup{font-family:var(--mono);font-size:9.5px;color:var(--hell)}
+.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
 .ulba button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ulba input,.ulba textarea{font:inherit}
@@ -436,7 +400,8 @@ const STYLES = `
 .tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid transparent;background:var(--nische)}
 .tr-pill:hover{background:var(--linie2);color:var(--tinte)}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
-.chat{display:flex;flex-direction:column;height:100%;width:100%;min-height:0;overflow:hidden}
+.chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
+.chat.split{grid-template-columns:minmax(420px,1fr) 720px}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .thread-inner{max-width:900px;margin:0 auto;width:100%}
@@ -515,6 +480,8 @@ const STYLES = `
 .ek-match{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;align-items:center;background:var(--porzellan);border:1px solid var(--linie);border-radius:9px;padding:4px 8px}
 .em-z{font-family:var(--mono);font-size:15px;color:var(--rouge);line-height:1}
 .em-l{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-top:1px}
+.ek.lead{border-color:var(--tinte)}
+.ek-lead{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:var(--tinte);border-radius:7px;padding:4px 8px}
 .favherz{position:absolute;top:9px;left:10px;z-index:3;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--linie);font-size:13px;color:var(--hell);display:flex;align-items:center;justify-content:center}
 .favherz:hover,.favherz.an{color:var(--rouge)}
 .eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
@@ -532,6 +499,25 @@ const STYLES = `
 .scan-fill{height:100%;background:var(--rouge);border-radius:999px;transition:width .17s ease}
 .eb-scan{border:1px solid var(--linie);border-radius:13px;background:var(--panel);padding:15px 18px;max-width:560px;margin-bottom:8px}
 .panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
+/* Look-Turn: Render-Motor als Chat-Karte (gleiche pn-* Bausteine wie das Panel) */
+.lookturn{border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);max-width:720px;margin:14px 0 6px;padding:0 0 4px;display:flex;flex-direction:column;overflow:hidden}
+.lookturn .pn-kopf{padding-top:18px}
+.lt-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);margin-bottom:4px}
+.lookturn .pn-aktion{position:static;background:var(--panel);margin-top:4px}
+.lookturn .cta:disabled{opacity:.45;cursor:default}
+.lt-lesart{padding:6px 24px 10px;font-size:14.5px;line-height:1.5;color:#3a3a37}
+.lt-lesart b{font-weight:600;color:var(--tinte)}
+.lt-weil{color:var(--grau)}
+.lt-alt{font-family:var(--mono);font-size:11px;color:var(--hell)}
+.lt-just{display:flex;flex-direction:column;gap:8px;margin:2px 0 12px}
+.lt-just-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lt-just-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell);min-width:78px}
+.lt-chip{font-size:12.5px;padding:5px 12px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f;cursor:pointer;transition:.12s}
+.lt-chip:hover{border-color:var(--hell)}
+.lt-chip.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
+.lt-brieftext{font-family:var(--mono);font-size:11px;color:var(--grau);margin-top:8px}
+.msg-commit{margin-top:18px}
+.msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
 .pn-kopf h3{font-family:var(--serif);font-size:24px}
 .pn-spec{font-family:var(--mono);font-size:11.5px;color:var(--grau)}
@@ -626,9 +612,10 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .ep{display:none}
   .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
   .nav.offen{transform:none}
+  .chat.split{grid-template-columns:1fr}
+  .chat.split .cs-main{display:none}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 .nav-marke,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t{font-weight:800;letter-spacing:-.015em}
@@ -695,9 +682,8 @@ function ChatWolke({ looks, pal, preferred, onPick }: {
     <button key={l.code_id} type="button"
       className={`cw ${cls}${preferred === l.code_id ? ' an' : ''}`}
       onClick={() => onPick(l.code_id)}
-      title={`${l.register} · Fit ${l.axis_score}`}>
+      title={l.register}>
       <span className="cw-dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
-      <span className="cw-fit">{l.axis_score}</span>
     </button>
   );
   return (
@@ -712,12 +698,115 @@ function ChatWolke({ looks, pal, preferred, onPick }: {
   );
 }
 
-/* ── Render-Panel rechts ── */
-function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, inBoard, capWall, onFav, onBoard, onSample, onClose }: {
-  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; isFav: boolean; inBoard: boolean; capWall?: CapWall;
-  onFav: () => void; onBoard: () => void; onSample: (ctx: SampleContext) => void; onClose: () => void;
+/* ── Caps für ein Teil inkl. Cap-Wand (aus /api/search): offener Pipetten-Cap wird
+   bei oxidationsempfindlicher Formel ans Ende sortiert — NIE entfernt, nur depriorisiert. ── */
+const istPipetteCap = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
+function capsFuer(product: Result, capWall?: CapWall): { caps: CapRef[]; dropperDepri: boolean } {
+  const capsRaw = getCaps(product);
+  const dropperDepri = !!capWall?.deprioritize_open_dropper && capsRaw.some(istPipetteCap);
+  const caps = dropperDepri
+    ? [...capsRaw].sort((a, b) => (istPipetteCap(a) ? 1 : 0) - (istPipetteCap(b) ? 1 : 0))
+    : capsRaw;
+  return { caps, dropperDepri };
+}
+
+/* ── Detail-Panel rechts: Inspektor. Teil ansehen, Verschluss wählen, Specs.
+   Kein Render hier — „Design rendern →" schließt das Panel und öffnet den Look-Turn im Chat. ── */
+function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onCommit, onClose }: {
+  product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
+  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onCommit: () => void; onClose: () => void;
 }) {
-  const [query, setQuery] = useState(defaultQuery);
+  const { caps, dropperDepri } = capsFuer(product, capWall);
+  const istPipette = istPipetteCap;
+  const capIdx = Math.min(cap, Math.max(0, caps.length - 1));
+  return (
+    <aside className="panel">
+      <div className="pn-kopf">
+        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
+        <div className="pn-akt">
+          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
+          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
+        </div>
+      </div>
+
+      {caps.length > 0 && (
+        <div className="pn-caps-top">
+          <div className="lbl">Verschluss wählen · {caps.length}</div>
+          <div className="thumbs">
+            {caps.map((c, i) => {
+              const depri = dropperDepri && istPipette(c);
+              return (
+                <div key={i}
+                  className={`capthumb${capIdx === i ? ' an' : ''}`}
+                  style={depri ? { opacity: 0.5 } : undefined}
+                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
+                  onClick={() => onCap(i)}>
+                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                </div>
+              );
+            })}
+          </div>
+          {dropperDepri && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
+              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Gestapelte Bühne: gewählter Cap oben, Rohteil unten — blanko, kein Look. */}
+      <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {caps.length > 0 && (
+          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
+            {caps[capIdx]?.imageUrl
+              ? <img src={caps[capIdx].imageUrl} alt={caps[capIdx]?.name || `Verschluss ${capIdx + 1}`} style={{ width: 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
+          </div>
+        )}
+        <div className="pn-bild" style={{ width: '100%' }}>
+          {product.imageUrl
+            ? <img src={product.imageUrl} alt={product.name} />
+            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        </div>
+      </div>
+      <div className="pn-prov" style={{ textAlign: 'center', fontSize: 12, color: '#9a9a97', marginTop: 8, fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>
+        blanko · reales Teil · der Look entsteht im Chat
+      </div>
+
+      <div className="pn-body">
+        <div className="specs">
+          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
+          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
+          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
+          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
+          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
+          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
+        </div>
+        {product.capabilities?.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+        )}
+      </div>
+
+      <div className="pn-aktion">
+        <button className="cta" onClick={onCommit}>Design rendern →</button>
+        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
+      </div>
+    </aside>
+  );
+}
+
+/* ── Look-Turn im Chat: der Render-Motor (unverändert) in einer Chat-Karte.
+   Erscheint nach „Design rendern →" im Detail-Panel. Rendert einmal automatisch
+   (der Commit IST die Bestätigung), danach Nudges/Achsen-Cursor/Varianten wie zuvor. ── */
+function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, savedBrief, savedJustier, saved, onBrief, onRender, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; capWall?: CapWall;
+  initialCap: number; savedBrief?: string; savedJustier?: string[];
+  saved?: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>;
+  onBrief: (brief: string, justier: string[]) => void;
+  onRender: (r: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>) => void;
+  onSample: (ctx: SampleContext) => void; onClose: () => void;
+}) {
+  const [query, setQuery] = useState(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
   // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
   const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
   // activeCode = gepinnter Design-Code (null = Auto/Haiku). Startet auf der im
@@ -727,12 +816,12 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [rerror, setRerror] = useState<string>(''); // echter Grund aus render.ts (data.error) statt Blindflug
   const [varianten, setVarianten] = useState<string[]>([]);
-  const [heroUrl, setHeroUrl] = useState<string | null>(product.imageUrl);
-  const [lastPrompt, setLastPrompt] = useState(''); // Wunschwerte des zuletzt generierten Renders
-  const [concept, setConcept] = useState<RenderConcept | null>(null);
+  const [heroUrl, setHeroUrl] = useState<string | null>(saved?.heroUrl || product.imageUrl);
+  const [lastPrompt, setLastPrompt] = useState(saved?.lastPrompt || ''); // Wunschwerte des zuletzt generierten Renders
+  const [concept, setConcept] = useState<RenderConcept | null>(saved?.concept || null);
   const [cached, setCached] = useState(false);
-  const [cap, setCap] = useState(0);
-  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(null); // Cap-Recolor aus /api/render
+  const [cap, setCap] = useState(initialCap);
+  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(saved?.capRenderUrl || null); // Cap-Recolor aus /api/render
   const baseImgRef = useRef<HTMLImageElement>(null);
   const [baseW, setBaseW] = useState(0); // tatsächlich angezeigte Flaschenbreite (px)
   const measureBase = useCallback(() => {
@@ -748,12 +837,8 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   // Caps: bei oxidationsempfindlicher Formel wandert der offene Pipetten-Cap
   // ans Ende (Cap-Wand) — NIE entfernt (bei getöntem Glas legitim), nur
   // depriorisiert + Hinweis. Erkennung am Namen (Pipette/Dropper/Tropfer).
-  const capsRaw = getCaps(product);
-  const istPipette = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
-  const dropperDepri = !!capWall?.deprioritize_open_dropper && capsRaw.some(istPipette);
-  const caps = dropperDepri
-    ? [...capsRaw].sort((a, b) => (istPipette(a) ? 1 : 0) - (istPipette(b) ? 1 : 0))
-    : capsRaw;
+  const { caps, dropperDepri } = capsFuer(product, capWall);
+  const istPipette = istPipetteCap;
   const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
 
   const run = async (brief: string, codeOverride?: string | null, nudge?: 'quieter' | 'louder') => {
@@ -837,16 +922,17 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     && !compatLooks.some(l => l.code_id === preferredCode);
 
   useEffect(() => {
-    setQuery(defaultQuery);
-    setCap(0);
-    setCapRenderUrl(null);
+    setQuery(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
+    setCap(initialCap);
+    setCapRenderUrl(saved?.capRenderUrl || null);
     setCached(false);
     setRstatus('idle');
-    setLastPrompt('');
-    setConcept(null);
+    setLastPrompt(saved?.lastPrompt || '');
+    setConcept(saved?.concept || null);
     const hist = loadRenderHist(product.id);
     setVarianten(hist);
-    setHeroUrl(hist.length > 0 ? hist[hist.length - 1] : product.imageUrl);
+    // Persistierter Render dieses Turns hat Vorrang; sonst letzter aus der Historie; sonst Rohteil.
+    setHeroUrl(saved?.heroUrl || (hist.length > 0 ? hist[hist.length - 1] : product.imageUrl));
     // Richtung: bleibt sticky (wenn tragbar), sonst die im Chat gewählte Welt,
     // sonst Best-Fit des Teils. Rendert NICHT automatisch — Nutzer klickt Generieren.
     setActiveCode(prev => {
@@ -859,6 +945,30 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
+
+  // Feiner Brief VOR dem Render (Handoff §2, Schritt 5): Zielgruppe · Emotion ·
+  // Veredelung als Justierung der Behauptung — jede Wahl ist ein Achsen-Delta,
+  // das in den Brief-Text einfließt. Erst „Rendern →" zündet den (teuren) Render.
+  const [justier, setJustier] = useState<string[]>(savedJustier || []);
+  const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
+  // briefDone kippt erst beim Klick auf „Rendern →" — NICHT abhängig von alten Renders
+  // in der localStorage-Historie (sonst würde ein Teil mit Historie den Brief überspringen).
+  // Render-Ergebnis in den Commit persistieren — als Effekt auf 'done', damit run() unangetastet bleibt.
+  const lastPersisted = useRef<string | null>(null);
+  useEffect(() => {
+    if (rstatus !== 'done' || !renderIstAktiv || !heroUrl) return;
+    const sig = `${heroUrl}|${capRenderUrl || ''}|${concept?.konzept_name || ''}`;
+    if (lastPersisted.current === sig) return;
+    lastPersisted.current = sig;
+    onRender({ heroUrl, capRenderUrl, lastPrompt, concept });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rstatus, heroUrl, capRenderUrl, concept, lastPrompt]);
+
+  const [briefDone, setBriefDone] = useState(!!savedBrief); // persistierter Brief = Turn war schon im Render
+  const briefPhase = !briefDone;
+  const starteRender = () => { setBriefDone(true); onBrief(briefText, justier); run(briefText); };
+  const bestLook = compatLooks[0] || null;
 
   const anfrageStart = () => {
     const prod = renderIstAktiv ? (concept?.produzierbar || null) : null;
@@ -873,37 +983,19 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
   };
 
   return (
-    <aside className="panel">
+    <section className="lookturn">
       <div className="pn-kopf">
-        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
+        <div><div className="lt-eyebrow">Design · auf dem realen Teil</div><h3 className="serif">{product.name}{caps.length > 0 && caps[cap]?.name ? ` + ${caps[cap].name}` : ''}</h3><span className="pn-spec">{specText(product)}</span></div>
         <div className="pn-akt">
-          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
       </div>
 
-      {caps.length > 0 && (
-        <div className="pn-caps-top">
-          <div className="lbl">Verschluss wählen · {caps.length}</div>
-          <div className="thumbs">
-            {caps.map((c, i) => {
-              const depri = dropperDepri && istPipette(c);
-              return (
-                <div key={i}
-                  className={`capthumb${cap === i ? ' an' : ''}`}
-                  style={depri ? { opacity: 0.5 } : undefined}
-                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
-                  onClick={() => { setCap(i); setCapRenderUrl(null); }}>
-                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-                </div>
-              );
-            })}
-          </div>
-          {dropperDepri && (
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
-              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
-            </div>
-          )}
+      {bestLook && (
+        <div className="lt-lesart">
+          Für <b>{product.name}</b> lese ich <b>{bestLook.code_name}</b>
+          {bestLook.axis_why ? <> — <span className="lt-weil">weil {bestLook.axis_why}</span></> : null}
+          {compatLooks.length > 1 && <span className="lt-alt"> · {compatLooks.length - 1} weitere Richtungen tragen dieses Teil</span>}
         </div>
       )}
 
@@ -956,9 +1048,11 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
         </div>
       )}
 
-      {renderIstAktiv && concept && <FrameHead concept={concept} />}
+      {!briefPhase && renderIstAktiv && concept && <FrameHead concept={concept} />}
 
-      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged. */}
+      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged.
+          In der Brief-Phase (noch kein Render) bleibt sie zu: erst verstehen, dann sehen. */}
+      {!briefPhase && (
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
           <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
@@ -975,8 +1069,9 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
               : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
         </div>
       </div>
+      )}
 
-      {renderIstAktiv && concept && (
+      {!briefPhase && renderIstAktiv && concept && (
         <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
           <span>generiert aus</span>
           <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
@@ -988,18 +1083,18 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
       {/* Achsen-Cursor · Temp_Laut: hüpft auf den nächsten kuratierten Code in
           Richtung — gleiche Flasche, ruhigerer/lauterer Look. Chip disabled,
           wenn es in der Welt keinen Nachbar in die Richtung gibt (kein toter Klick). */}
-      {renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
+      {!briefPhase && renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
         <div className="pn-laut" style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
           <button type="button" className="pn-dir"
             disabled={rstatus === 'loading' || !concept.design_code.can_quieter}
-            onClick={() => run(query, concept!.design_code!.id, 'quieter')}
+            onClick={() => run(briefText, concept!.design_code!.id, 'quieter')}
             title="ruhigerer Look — gleiche Flasche, leisere Design-Direction">
             ← leiser
           </button>
           <button type="button" className="pn-dir"
             disabled={rstatus === 'loading' || !concept.design_code.can_louder}
-            onClick={() => run(query, concept!.design_code!.id, 'louder')}
+            onClick={() => run(briefText, concept!.design_code!.id, 'louder')}
             title="lauterer Look — gleiche Flasche, energischere Design-Direction">
             lauter →
           </button>
@@ -1011,9 +1106,9 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
         </div>
       )}
 
-      {renderIstAktiv && concept && <SpecSheet concept={concept} />}
+      {!briefPhase && renderIstAktiv && concept && <SpecSheet concept={concept} />}
 
-      {varianten.length > 0 && (
+      {!briefPhase && varianten.length > 0 && (
         <div className="varstrip">
           <div className="lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span>Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</span>
@@ -1039,18 +1134,33 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
 
       <div className="pn-body">
         <div className="vis">
-          <div className="top">Deine Richtung</div>
+          <div className="top">{briefPhase ? 'Dein Brief — justieren, dann rendern' : 'Deine Richtung'}</div>
+          {briefPhase && (
+            <div className="lt-just">
+              <div className="lt-just-row"><span className="lt-just-lbl">Zielgruppe</span>
+                {['jünger', 'höher', 'breiter'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+              <div className="lt-just-row"><span className="lt-just-lbl">Emotion</span>
+                {['wärmer', 'kühler', 'klinischer', 'weicher', 'edler', 'mehr Energie'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+              <div className="lt-just-row"><span className="lt-just-lbl">Veredelung</span>
+                {['Metallic-Akzent', 'Soft-Touch', 'geprägtes Logo', 'clean reduziert'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
+              </div>
+            </div>
+          )}
           <div className="row">
             <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') run(query); }}
+              onKeyDown={e => { if (e.key === 'Enter') starteRender(); }}
               placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={() => run(query)} disabled={rstatus === 'loading' || !query.trim()}>{rstatus === 'loading' ? 'Generiert …' : (activeCode === null ? 'Generieren · Auto' : `Generieren · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
+            <button className="gen" onClick={starteRender} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
           </div>
+          {briefPhase && justier.length > 0 && <div className="lt-brieftext">Brief: {briefText}</div>}
+          {!briefPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
-          {renderIstAktiv && (
+          {!briefPhase && renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
-                <button key={n} type="button" onClick={() => run(`${query.trim()}, ${n}`)} disabled={rstatus === 'loading'}
+                <button key={n} type="button" onClick={() => run(`${briefText}, ${n}`)} disabled={rstatus === 'loading'}
                   style={{ fontSize: 12, padding: '5px 11px', borderRadius: 14, border: '1px solid #e4e4e1', background: '#fff', color: '#55554f', cursor: rstatus === 'loading' ? 'default' : 'pointer' }}>
                   {n}
                 </button>
@@ -1058,24 +1168,14 @@ function RenderPanel({ product, allLooks, preferredCode, defaultQuery, isFav, in
             </div>
           )}
         </div>
-        <div className="specs">
-          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
-          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
-          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
-          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
-          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
-          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
-        </div>
-        {product.capabilities?.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
-        )}
       </div>
 
-      <div className="pn-aktion">
-        <button className="cta" onClick={anfrageStart}>Muster anfragen →</button>
-        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
-      </div>
-    </aside>
+      {!briefPhase && renderIstAktiv && (
+        <div className="pn-aktion lt-aktion">
+          <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1317,161 +1417,18 @@ function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
 }
 
 
-function Karte({ r, selected, isFav, onOpen, onFav }: {
-  r: Result; selected: boolean; isFav: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
+function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
+  r: Result; selected: boolean; isFav: boolean; isLead?: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
 }) {
   return (
-    <div className={`ek${selected ? ' an' : ''}`}>
+    <div className={`ek${selected ? ' an' : ''}${isLead ? ' lead' : ''}`}>
       <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
       <button className="ek-klick" onClick={onOpen}>
         <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ek-ph">◇</span>}</div>
         <div className="ek-info"><span className="ek-nm">{r.name}</span><span className="ek-spec">{specText(r)}</span></div>
-        <span className="ek-match"><span className="em-z">{r.score}</span><span className="em-l">Match</span></span>
+        {isLead && <span className="ek-lead">Empfehlung</span>}
       </button>
     </div>
-  );
-}
-
-/* ── ErgebnisPanel rechts — KI-Chat für Hard Facts ─────────────────
-   Reagiert stumm auf Suchergebnisse aus dem Brief-Chat.
-   Eigener Input für Hard-Fact-Filter: „nur Glas", „30ml", „mit Pumpe".
-   Klick auf ein Teil → Detail erscheint im Thread der Mitte (onSelect).
-   ──────────────────────────────────────────────────────────────────── */
-const HARD_RE = /\d+\s*ml|glas|glass|airless|pumpe|pump|tropfer|dropper|tube|tiegel|jar|pcr|recyc|nachfüll|refill|material|volumen|alu|miron|klarglas|violett|matt|frosted|pe\b/i;
-
-interface EpMsg { type: 'user' | 'ai'; text?: string; results?: Result[]; showAll?: boolean; tags?: string[] }
-
-function ErgebnisPanel({ results, onSelect, selectedId, query }: {
-  results: Result[]; onSelect: (r: Result) => void; selectedId: string | null; query: string;
-}) {
-  const [epInput, setEpInput] = useState('');
-  const [msgs, setMsgs] = useState<EpMsg[]>([]);
-  const [filt, setFilt] = useState<{ mat: string[]; sys: string[]; vol: number[] }>({ mat: [], sys: [], vol: [] });
-  const epScrollRef = useRef<HTMLDivElement>(null);
-
-  // Wenn neue Ergebnisse reinkommen → stumm im Panel aktualisieren
-  useEffect(() => {
-    setMsgs([{ type: 'ai', text: `**${results.length}** passende Systeme für deine Suche — klick eins an, ich zeig dir Original und Renders im Brief.`, results, showAll: false }]);
-    setFilt({ mat: [], sys: [], vol: [] });
-  }, [results]);
-
-  useEffect(() => {
-    if (epScrollRef.current) epScrollRef.current.scrollTop = epScrollRef.current.scrollHeight;
-  }, [msgs]);
-
-  const gefiltert = (list: Result[]) => list.filter(r => {
-    if (filt.mat.length && !filt.mat.some(m => (r.material || []).some(rm => rm.toLowerCase().includes(m.toLowerCase())))) return false;
-    if (filt.sys.length && !filt.sys.some(s => (r.type || '').toLowerCase().includes(s.toLowerCase()) || (r.closure || '').toLowerCase().includes(s.toLowerCase()))) return false;
-    if (filt.vol.length && !filt.vol.some(v => (r.availableSizes || []).some(sz => sz.includes(String(v))))) return false;
-    return true;
-  });
-
-  const aktTags = [...filt.mat.map(m => `Material: ${m}`), ...filt.sys.map(s => `System: ${s}`), ...filt.vol.map(v => `${v}ml`)];
-
-  const removeTag = (tag: string) => {
-    setFilt(prev => ({
-      mat: prev.mat.filter(m => !tag.includes(m)),
-      sys: prev.sys.filter(s => !tag.includes(s)),
-      vol: prev.vol.filter(v => !tag.includes(String(v))),
-    }));
-  };
-
-  const sendEp = () => {
-    const v = epInput.trim(); if (!v) return;
-    setEpInput('');
-    const lc = v.toLowerCase();
-    const newFilt = { ...filt };
-    [15, 30, 50, 100, 150, 200].forEach(n => { if (new RegExp(n + '\\s*ml').test(lc)) newFilt.vol = Array.from(new Set([...newFilt.vol, n])); });
-    if (/glas|glass/i.test(v) && !/klar/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glas', 'Glass']));
-    if (/klarglas|clear/i.test(v)) newFilt.mat = Array.from(new Set([...newFilt.mat, 'Glass']));
-    if (/airless/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Airless']));
-    if (/pumpe|pump/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Pump', 'Pumpe']));
-    if (/tropfer|dropper/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Dropper']));
-    if (/tube/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Tube']));
-    if (/tiegel|jar/i.test(v)) newFilt.sys = Array.from(new Set([...newFilt.sys, 'Jar']));
-    setFilt(newFilt);
-    const hits = gefiltert(results);
-    setMsgs(prev => [
-      ...prev,
-      { type: 'user', text: v },
-      { type: 'ai', text: `**${hits.length}** Treffer für „${v}" — alle bestellbar. Klick ein Teil für Details im Brief.`, results: hits, showAll: false, tags: aktTags },
-    ]);
-  };
-
-  const toggleShowAll = (idx: number) => {
-    setMsgs(prev => prev.map((m, i) => i === idx ? { ...m, showAll: !m.showAll } : m));
-  };
-
-  const lastResults = results;
-
-  return (
-    <aside className="ep">
-      <div className="ep-kopf">
-        <span className="t">Packmittel</span>
-        <span className="badge">Hard Facts</span>
-        <span className="cnt"><b>{gefiltert(lastResults).length}</b> / {lastResults.length}</span>
-      </div>
-      <div className="ep-scroll" ref={epScrollRef}>
-        {msgs.map((m, idx) => m.type === 'user' ? (
-          <div key={idx} className="ep-umsg"><span>{m.text}</span></div>
-        ) : (
-          <div key={idx} className="ep-ai">
-            <div className="ep-av" />
-            <div className="ep-bd">
-              {aktTags.length > 0 && idx === msgs.length - 1 && (
-                <div className="ep-tags">
-                  {aktTags.map((t, i) => (
-                    <span key={i} className="ep-tag">{t}<button onClick={() => removeTag(t)}>×</button></span>
-                  ))}
-                </div>
-              )}
-              {m.text && <p dangerouslySetInnerHTML={{ __html: m.text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />}
-              {m.results && m.results.length > 0 && (() => {
-                const shown = m.showAll ? m.results : m.results.slice(0, 8);
-                const rest = m.results.length - shown.length;
-                return (
-                  <>
-                    <div className="ep-grid">
-                      {shown.map(r => (
-                        <button key={r.id} className={`ep-karte${selectedId === r.id ? ' an' : ''}${r.score >= 88 ? ' top' : ''}`} onClick={() => onSelect(r)}>
-                          <div className="ep-bild">
-                            {r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ph">◇</span>}
-                          </div>
-                          <div className="ep-info">
-                            <div className="ep-nm">{r.name}</div>
-                            <div className="ep-sub">{r.availableSizes?.[0] || ''}{r.material?.[0] ? ` · ${r.material[0]}` : ''}</div>
-                            <div className="ep-score">{r.score} Match</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    {rest > 0 && <button className="ep-mehr" onClick={() => toggleShowAll(idx)}>+ {rest} weitere</button>}
-                    {m.showAll && m.results.length > 8 && <button className="ep-mehr" onClick={() => toggleShowAll(idx)}>Weniger ↑</button>}
-                  </>
-                );
-              })()}
-              {idx === msgs.length - 1 && m.results && (
-                <div className="ep-sugg">
-                  {['30ml', '50ml', 'Glas', 'Airless', 'Pumpe', 'nachfüllbar'].filter(s => !aktTags.some(t => t.toLowerCase().includes(s.toLowerCase()))).slice(0, 5).map(s => (
-                    <button key={s} className="ep-chip" onClick={() => { setEpInput(s); setTimeout(() => sendEp(), 0); }}>{s}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="ep-input">
-        <div className="ep-feld">
-          <input
-            value={epInput}
-            onChange={e => setEpInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') sendEp(); }}
-            placeholder="z. B. nur Glas, 30ml, mit Pumpe" />
-          <button className="go" onClick={sendEp}>↑</button>
-        </div>
-      </div>
-    </aside>
   );
 }
 
@@ -1480,7 +1437,9 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
-  const [selected, setSelected] = useState<Result | null>(null);
+  const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
+  const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
+  const [scrollToCommit, setScrollToCommit] = useState<number | null>(null); // frisch angelegter Look-Turn → hinscrollen
   const [preferredCode, setPreferredCode] = useState<string | null>(null); // im Chat gewählte Welt → Panel-Vorwahl
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1630,6 +1589,33 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
   };
 
+  useEffect(() => {
+    if (scrollToCommit == null) return;
+    const t = setTimeout(() => {
+      document.getElementById(`commit-${scrollToCommit}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setScrollToCommit(null);
+    }, 260);
+    return () => clearTimeout(t);
+  }, [scrollToCommit]);
+
+  // Teil ins Design legen: Commit unter den Block, in dem das Teil steht (persistiert im Projekt).
+  const commitTeil = (product: Result, cap: number) => {
+    if (!active) return;
+    const blk = active.blocks.find(b => b.results.some(r => r.id === product.id)) || active.blocks[active.blocks.length - 1];
+    if (!blk) return;
+    const id = Date.now();
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blk.id ? { ...b, commits: [...(b.commits || []), { id, productId: product.id, cap, ts: id }] } : b) }));
+    setScrollToCommit(id);
+  };
+  const patchCommit = (commitId: number, patch: Partial<LookCommit>) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.map(c => c.id === commitId ? { ...c, ...patch } : c) } : b) }));
+  };
+  const removeCommit = (commitId: number) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.filter(c => c.id !== commitId) } : b) }));
+  };
+
   const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
   const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
@@ -1677,16 +1663,6 @@ export default function Home() {
     return <div className="ulba"><style>{STYLES}</style>{nav}<div className="main" /></div>;
   }
 
-  // Letzte Ergebnisse für das Ergebnis-Panel sammeln
-  const lastBlock = blocks.length ? blocks[blocks.length - 1] : null;
-  const epResults = lastBlock?.status === 'done' ? lastBlock.results : [];
-
-  // Detail im Chat-Thread (selected) — wird inline gezeigt, nicht im Panel
-  const handleEpSelect = (r: Result) => {
-    setSelected(prev => prev?.id === r.id ? null : r);
-    setView('chat');
-  };
-
   return (
     <div className="ulba">
       <style>{STYLES}</style>
@@ -1714,7 +1690,7 @@ export default function Home() {
           )}
 
           {view === 'chat' && active && (
-            <div className="chat">
+            <div className={`chat${selected ? ' split' : ''}`}>
               <main className="cs-main">
                 <div className="thread" ref={threadRef}>
                   <div className="thread-inner">
@@ -1745,11 +1721,11 @@ export default function Home() {
                                   </div>
                                 )}
                                 <ChatWolke looks={b.looks} pal={pal} preferred={preferredCode} onPick={setPreferredCode} />
-                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} beste Treffer</span><span className="ebk-s">nach Match · gelesen als {pal}</span></div>
+                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} Systeme für dich</span><span className="ebk-s">von ulba kuratiert · gelesen als {pal}</span></div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => setSelected(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    {zeige.map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                   </div>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
@@ -1766,6 +1742,21 @@ export default function Home() {
                                 )}
                               </div>
                             )}
+                            {(b.commits || []).map(c => {
+                              const prod = b.results.find(r => r.id === c.productId) || board.find(r => r.id === c.productId);
+                              if (!prod) return null;
+                              return (
+                                <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
+                                  <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
+                                  <LookTurn product={prod} allLooks={b.looks} preferredCode={preferredCode} defaultQuery={rootQuery}
+                                    capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier}
+                                    saved={{ heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl, lastPrompt: c.lastPrompt, concept: c.concept }}
+                                    onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
+                                    onRender={r => patchCommit(c.id, r)}
+                                    onSample={setSampleCtx} onClose={() => removeCommit(c.id)} />
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1780,19 +1771,12 @@ export default function Home() {
                 </div>
               </main>
               {selected && (
-                <div style={{ padding: '0 clamp(16px,4vw,54px) 20px' }}>
-                  <div className="cd-karte">
-                    <div className="cd-kopf">
-                      <button className="zu" onClick={() => setSelected(null)}>×</button>
-                      <h4>{selected.name}</h4>
-                      <span className="sup">{selected.id} · {specText(selected)}</span>
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                        <button className={`favherz${isFav(selected.id) ? ' an' : ''}`} style={{ position: 'static' }} onClick={() => quickFav(selected)}>{isFav(selected.id) ? '♥' : '♡'}</button>
-                      </div>
-                    </div>
-                    <RenderPanel product={selected} allLooks={blocks.find(b => b.results.some(r => r.id === selected.id))?.looks || []} preferredCode={preferredCode} defaultQuery={rootQuery} isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)} capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall} onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)} onSample={setSampleCtx} onClose={() => setSelected(null)} />
-                  </div>
-                </div>
+                <DetailPanel product={selected} capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
+                  cap={selectedCap} onCap={setSelectedCap}
+                  isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
+                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
+                  onCommit={() => { commitTeil(selected, selectedCap); setSelected(null); }}
+                  onClose={() => setSelected(null)} />
               )}
             </div>
           )}
@@ -1866,12 +1850,6 @@ export default function Home() {
           )}
         </div>
       </div>
-      <ErgebnisPanel
-        results={epResults}
-        onSelect={handleEpSelect}
-        selectedId={selected?.id || null}
-        query={rootQuery}
-      />
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
     </div>
   );
