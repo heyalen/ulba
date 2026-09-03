@@ -22,6 +22,15 @@
         → Render-Phase (Bühne, Achsen-Cursor, Nudges, Muster). Kein Auto-Render.
    v8 — Sichtbares „Weil": abgeleitete Identität (Register + Laut) wird im
         Achsen-Cursor als Herleitungssatz gezeigt statt als Koordinate/Zahl.
+   v9 — Ableitung statt Auswahl (Agentur-Flow). Der Look-Turn hat drei Phasen:
+        ① Brief   — nur Worte. Keine Justierungs-Chips, keine Richtungs-Rail.
+        ② Behauptung — /api/render mit dryRun:true. Eine benannte Richtung in
+          Prosa, mit dem Weil aus den eigenen Worten des Nutzers, dem Wirkstoff,
+          der Zielgruppe und der Palette. KEIN Bild — das Bild beweist erst
+          danach. Kostet keinen Render (kein fal.ai-Call).
+        ③ Render  — der Beweis, plus Bewegung (leiser/lauter, Nudges).
+        Die Richtungs-Rail ist nicht mehr Teil des Weges, sondern liegt hinter
+        „andere Richtung?" NACH dem Render — Korrektur, nicht Auswahl.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -73,7 +82,13 @@ interface RenderConcept {
   radar?: Record<string, number>;
   zielprofil?: string[];
   // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
-  design_code?: { id: string; name: string; umleitung?: string | null; laut?: number | null; register?: string | null; can_quieter?: boolean; can_louder?: boolean };
+  design_code?: {
+    id: string; name: string; umleitung?: string | null;
+    laut?: number | null; register?: string | null;
+    can_quieter?: boolean; can_louder?: boolean;
+    // v27-Backend: Material für die Behauptung.
+    beschreibung?: string | null; wirkstoff_welt?: string[]; zielgruppe?: string[];
+  };
 }
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
@@ -103,12 +118,96 @@ function lautWort(l: number): string {
   if (l <= 8) return 'laut';
   return 'sehr laut';
 }
+/* Wirkstoff- und Zielgruppen-Tags in Agentursprache. Die Tags sind
+   Datenbank-Vokabular (GenZ_DTC, Vitamin_C_Glow) — im Screen darf nur
+   stehen, was ein Mensch auch sagen würde. */
+const WIRKSTOFF_SPRACHE: Record<string, string> = {
+  'Vitamin_C_Glow':      'Vitamin C',
+  'Retinol_Anti_Aging':  'Retinol',
+  'Hyaluron_Hydration':  'Hyaluron',
+  'Sensitiv_Barriere':   'Barrierepflege',
+  'Akne_Klaerung':       'Klärung',
+  'Botanisch_Natur':     'Botanik',
+  'Sonne_Schutz':        'Sonnenschutz',
+  'Haar':                'Haarpflege',
+  'Duft':                'Duft',
+  'Universal':           'universell',
+};
+const ZIELGRUPPE_SPRACHE: Record<string, string> = {
+  'Quiet_Luxury':    'Quiet Luxury',
+  'Klinisch_Derma':  'klinische Derma-Käuferin',
+  'GenZ_DTC':        'junge DTC-Käuferin',
+  'Clean_Botanical': 'Clean-Botanical-Käuferin',
+};
+const spracheAus = (map: Record<string, string>, tags?: string[]): string[] =>
+  (tags || []).map(t => map[t] || t.replace(/_/g, ' '));
+
 function identitaetSatz(register?: string | null, laut?: number | null): string {
   const teile: string[] = [];
   if (register && REGISTER_SPRACHE[register]) teile.push(REGISTER_SPRACHE[register]);
   else if (register) teile.push(register.replace(/-/g, ' '));
   if (laut != null) teile.push(lautWort(laut));
   return teile.join(' · ');
+}
+
+/* ── Die Behauptung (Phase ②) ────────────────────────────────────────
+   Der Agentur-Moment: EINE benannte Richtung, hergeleitet, in Prosa, ohne
+   Bild. Alles hier kommt aus dem dryRun-Concept — es ist derselbe Code, den
+   der Render danach benutzt, deshalb kann der Screen nie etwas anderes
+   behaupten als das Bild zeigt.
+   Bewusst NICHT gezeigt: design_code.beschreibung. Die beschreibt das
+   Referenzprodukt des Codes (bei Golden Ritual: goldener Zylinder), nicht
+   das gewählte Teil — sie würde ein Gebinde versprechen, das der Nutzer
+   nicht gewählt hat. Sie liegt im Payload für die Haiku-Verwebung (Stufe 2). */
+function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
+  concept: RenderConcept; teilName: string; briefWorte: string;
+  onZeigen: () => void; laden: boolean;
+}) {
+  const dc = concept.design_code;
+  const wirk = spracheAus(WIRKSTOFF_SPRACHE, dc?.wirkstoff_welt);
+  const ziel = spracheAus(ZIELGRUPPE_SPRACHE, dc?.zielgruppe);
+  const hex = concept.palette?.hex || [];
+  // Die Umleitung ist keine Fußnote, sondern eine Design-Entscheidung: auf
+  // klarem Glas wandert die Farbe in die Formel. Wer das verschweigt, lässt
+  // den Nutzer über das Bild rätseln.
+  const umgeleitet = !!dc?.umleitung;
+  return (
+    <div className="behaupt">
+      <div className="bh-eyebrow">Unsere Richtung</div>
+      <h4 className="bh-titel">{concept.konzept_name}</h4>
+      {concept.story && <p className="bh-story">{concept.story}</p>}
+
+      <div className="bh-weil">
+        <span className="bh-weil-lbl">weil</span>
+        <div className="bh-weil-txt">
+          {briefWorte && <>du <b>{briefWorte}</b> gesagt hast</>}
+          {ziel.length > 0 && <> · ihr sprecht <b>{ziel.join(' & ')}</b></>}
+          {wirk.length > 0 && <> · <b>{wirk.join(' & ')}</b> als Wirkstoff-Welt</>}
+          {dc?.register && <> · das heißt <b>{identitaetSatz(dc.register, dc.laut)}</b></>}
+        </div>
+      </div>
+
+      {umgeleitet && (
+        <div className="bh-hinweis">
+          <b>{teilName}</b> ist klar und nicht einfärbbar — die Farbe legen wir
+          deshalb in die Formel statt in die Wand. Das Gebinde bleibt
+          transparent, die Flüssigkeit trägt den Ton. Machbarkeit bestätigen
+          wir per Muster.
+        </div>
+      )}
+
+      {hex.length > 0 && (
+        <div className="bh-pal">
+          {hex.map((h, i) => <span key={i} className="bh-sw" style={{ background: h }} title={h} />)}
+          <span className="bh-pal-nm">{concept.palette?.name}</span>
+        </div>
+      )}
+
+      <button className="bh-cta" onClick={onZeigen} disabled={laden}>
+        {laden ? 'Rendert …' : 'Zeig es mir →'}
+      </button>
+    </div>
+  );
 }
 
 /* ── Emotions-Balken (animiert, 0–10) — dynamisch statt statisch ──── */
@@ -516,6 +615,25 @@ const STYLES = `
 .lt-chip:hover{border-color:var(--hell)}
 .lt-chip.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
 .lt-brieftext{font-family:var(--mono);font-size:11px;color:var(--grau);margin-top:8px}
+/* Behauptung — der Agentur-Screen vor dem Bild */
+.behaupt{margin:2px 24px 16px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;padding:22px 24px 20px}
+.bh-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--rouge)}
+.bh-titel{font-family:var(--serif);font-weight:800;font-size:29px;line-height:1.05;letter-spacing:-.015em;color:var(--tinte);margin-top:7px}
+.bh-story{font-family:var(--serif);font-size:16px;line-height:1.45;color:var(--grau);margin-top:9px;max-width:52ch}
+.bh-weil{display:flex;gap:11px;margin-top:17px;padding-top:15px;border-top:1px solid var(--linie2)}
+.bh-weil-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--hell);padding-top:3px;flex:none}
+.bh-weil-txt{font-size:14px;line-height:1.55;color:var(--grau);max-width:56ch}
+.bh-weil-txt b{font-weight:600;color:var(--tinte)}
+.bh-hinweis{font-size:13px;line-height:1.5;color:var(--grau);margin-top:14px;padding:11px 14px;background:var(--nische);border-radius:10px;border-left:2px solid var(--rouge)}
+.bh-hinweis b{font-weight:600;color:var(--tinte)}
+.bh-pal{display:flex;align-items:center;gap:7px;margin-top:16px}
+.bh-sw{width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,0,0,.07)}
+.bh-pal-nm{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--hell);margin-left:5px}
+.bh-cta{margin-top:20px;background:var(--tinte);color:#fff;border-radius:999px;padding:14px 30px;font-size:15px}
+.bh-cta:hover{background:var(--rouge)} .bh-cta:disabled{opacity:.5;cursor:default}
+.lt-abl{display:flex;justify-content:center;margin:0 24px 14px}
+.lt-abl button{border:1px solid var(--linie);border-radius:999px;padding:8px 18px;font-size:12.5px;color:var(--grau);background:#fff}
+.lt-abl button:hover{border-color:var(--tinte);color:var(--tinte)}
 .msg-commit{margin-top:18px}
 .msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
@@ -927,6 +1045,10 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     setCapRenderUrl(saved?.capRenderUrl || null);
     setCached(false);
     setRstatus('idle');
+    setPhase(savedBrief ? 'render' : 'brief');
+    setDryConcept(null);
+    setDryStatus('idle');
+    setRailOffen(false);
     setLastPrompt(saved?.lastPrompt || '');
     setConcept(saved?.concept || null);
     const hist = loadRenderHist(product.id);
@@ -965,9 +1087,51 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rstatus, heroUrl, capRenderUrl, concept, lastPrompt]);
 
-  const [briefDone, setBriefDone] = useState(!!savedBrief); // persistierter Brief = Turn war schon im Render
-  const briefPhase = !briefDone;
-  const starteRender = () => { setBriefDone(true); onBrief(briefText, justier); run(briefText); };
+  // Drei Phasen statt zwei: Brief → Behauptung → Render. Ein persistierter
+  // Brief heißt, der Turn war schon durch — dann direkt in die Render-Phase.
+  const [phase, setPhase] = useState<'brief' | 'behauptung' | 'render'>(savedBrief ? 'render' : 'brief');
+  const briefPhase = phase === 'brief';
+  const renderPhase = phase === 'render';
+  const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
+  const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [railOffen, setRailOffen] = useState(false);
+
+  // Phase ①→②: ableiten OHNE zu rendern. Gleicher Endpunkt, gleiche
+  // Code-Wahl, nur ohne Bild (dryRun) — deshalb kostenlos und schnell.
+  const ableiten = async () => {
+    const q = briefText.trim();
+    if (!q) return;
+    setDryStatus('loading'); setRerror('');
+    try {
+      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true };
+      const selectedCapId = caps[cap]?.id || null;
+      if (selectedCapId) body.selectedCapId = selectedCapId;
+      // In der Ableitung wird NICHT gepinnt: die Engine soll frei wählen.
+      // Ein forceCodeId hier wäre Auswahl durch die Hintertür.
+      const res = await fetch(RENDER_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Ableitung fehlgeschlagen');
+      setDryConcept(data.concept || null);
+      // Die abgeleitete Richtung wird die aktive — der Render danach nimmt
+      // genau diesen Code, sonst würde das Bild die Behauptung widerlegen.
+      if (data.concept?.design_code?.id) setActiveCode(data.concept.design_code.id);
+      setDryStatus('idle');
+      setPhase('behauptung');
+    } catch (e) {
+      setDryStatus('error');
+      setRerror(e instanceof Error ? e.message : 'Ableitung fehlgeschlagen');
+    }
+  };
+
+  // Phase ②→③: jetzt erst das (teure) Bild.
+  const starteRender = () => {
+    setPhase('render');
+    onBrief(briefText, justier);
+    run(briefText, dryConcept?.design_code?.id || undefined);
+  };
   const bestLook = compatLooks[0] || null;
 
   const anfrageStart = () => {
@@ -991,15 +1155,20 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       </div>
 
-      {bestLook && (
+      {briefPhase && bestLook && (
         <div className="lt-lesart">
-          Für <b>{product.name}</b> lese ich <b>{bestLook.code_name}</b>
-          {bestLook.axis_why ? <> — <span className="lt-weil">weil {bestLook.axis_why}</span></> : null}
-          {compatLooks.length > 1 && <span className="lt-alt"> · {compatLooks.length - 1} weitere Richtungen tragen dieses Teil</span>}
+          <b>{product.name}</b> kann <b>{compatLooks.length}</b> Richtung{compatLooks.length === 1 ? '' : 'en'} tragen.
+          <span className="lt-alt"> Welche es wird, sagt dein Brief.</span>
         </div>
       )}
 
-      {compatLooks.length > 0 && (
+      {/* Die Richtungs-Rail ist kein Schritt im Weg mehr. Sie erscheint erst
+          NACH dem Render und nur auf Wunsch — Korrektur einer Behauptung,
+          nicht Auswahl aus einem Menü. */}
+      {renderPhase && compatLooks.length > 0 && !railOffen && (
+        <div className="lt-abl"><button onClick={() => setRailOffen(true)}>andere Richtung? · {compatLooks.length} tragen dieses Teil</button></div>
+      )}
+      {renderPhase && railOffen && compatLooks.length > 0 && (
         <div className="pn-caps-top">
           <div className="lbl">
             Richtung · {compatLooks.length} für dieses Teil ·{' '}
@@ -1048,11 +1217,19 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       )}
 
-      {!briefPhase && renderIstAktiv && concept && <FrameHead concept={concept} />}
+      {phase === 'behauptung' && dryConcept && (
+        <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefText}
+          laden={rstatus === 'loading'} onZeigen={starteRender} />
+      )}
+      {phase === 'behauptung' && (
+        <div className="lt-abl"><button onClick={() => setPhase('brief')}>← Brief ändern</button></div>
+      )}
+
+      {renderPhase && renderIstAktiv && concept && <FrameHead concept={concept} />}
 
       {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged.
           In der Brief-Phase (noch kein Render) bleibt sie zu: erst verstehen, dann sehen. */}
-      {!briefPhase && (
+      {renderPhase && (
       <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {caps.length > 0 && (
           <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
@@ -1071,7 +1248,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
       </div>
       )}
 
-      {!briefPhase && renderIstAktiv && concept && (
+      {renderPhase && renderIstAktiv && concept && (
         <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
           <span>generiert aus</span>
           <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
@@ -1083,7 +1260,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
       {/* Achsen-Cursor · Temp_Laut: hüpft auf den nächsten kuratierten Code in
           Richtung — gleiche Flasche, ruhigerer/lauterer Look. Chip disabled,
           wenn es in der Welt keinen Nachbar in die Richtung gibt (kein toter Klick). */}
-      {!briefPhase && renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
+      {renderPhase && renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
         <div className="pn-laut" style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
           <button type="button" className="pn-dir"
@@ -1106,9 +1283,9 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       )}
 
-      {!briefPhase && renderIstAktiv && concept && <SpecSheet concept={concept} />}
+      {renderPhase && renderIstAktiv && concept && <SpecSheet concept={concept} />}
 
-      {!briefPhase && varianten.length > 0 && (
+      {renderPhase && varianten.length > 0 && (
         <div className="varstrip">
           <div className="lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span>Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</span>
@@ -1134,30 +1311,28 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
 
       <div className="pn-body">
         <div className="vis">
-          <div className="top">{briefPhase ? 'Dein Brief — justieren, dann rendern' : 'Deine Richtung'}</div>
+          <div className="top">{briefPhase ? 'Erzähl uns, wer ihr seid' : 'Deine Richtung'}</div>
           {briefPhase && (
-            <div className="lt-just">
-              <div className="lt-just-row"><span className="lt-just-lbl">Zielgruppe</span>
-                {['jünger', 'höher', 'breiter'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
-              </div>
-              <div className="lt-just-row"><span className="lt-just-lbl">Emotion</span>
-                {['wärmer', 'kühler', 'klinischer', 'weicher', 'edler', 'mehr Energie'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
-              </div>
-              <div className="lt-just-row"><span className="lt-just-lbl">Veredelung</span>
-                {['Metallic-Akzent', 'Soft-Touch', 'geprägtes Logo', 'clean reduziert'].map(t => <button key={t} type="button" className={`lt-chip${justier.includes(t) ? ' an' : ''}`} onClick={() => toggleJust(t)}>{t}</button>)}
-              </div>
+            <div className="lt-brieftext" style={{ marginTop: 0, marginBottom: 10 }}>
+              In Worten — Haltung, Zielgruppe, Wirkstoff. Kein Formular: ulba leitet die Richtung ab.
             </div>
           )}
           <div className="row">
             <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') starteRender(); }}
-              placeholder="z. B. warmes Beige, matt, dezent" />
-            <button className="gen" onClick={starteRender} disabled={rstatus === 'loading' || !briefText.trim()}>{rstatus === 'loading' ? 'Rendert …' : briefPhase ? 'Rendern →' : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}</button>
+              onKeyDown={e => { if (e.key === 'Enter') { briefPhase ? ableiten() : starteRender(); } }}
+              placeholder="z. B. ruhig, teuer, Vitamin C, für Frauen ab 40" />
+            <button className="gen"
+              onClick={briefPhase ? ableiten : starteRender}
+              disabled={rstatus === 'loading' || dryStatus === 'loading' || !briefText.trim()}>
+              {dryStatus === 'loading' ? 'Leitet ab …'
+                : rstatus === 'loading' ? 'Rendert …'
+                : briefPhase ? 'Ableiten →'
+                : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}
+            </button>
           </div>
-          {briefPhase && justier.length > 0 && <div className="lt-brieftext">Brief: {briefText}</div>}
-          {!briefPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
+          {renderPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
           {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
-          {!briefPhase && renderIstAktiv && (
+          {renderPhase && renderIstAktiv && (
             <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
                 <button key={n} type="button" onClick={() => run(`${briefText}, ${n}`)} disabled={rstatus === 'loading'}
@@ -1170,7 +1345,7 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       </div>
 
-      {!briefPhase && renderIstAktiv && (
+      {renderPhase && renderIstAktiv && (
         <div className="pn-aktion lt-aktion">
           <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
         </div>
