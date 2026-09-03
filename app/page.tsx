@@ -31,6 +31,13 @@
         ③ Render  — der Beweis, plus Bewegung (leiser/lauter, Nudges).
         Die Richtungs-Rail ist nicht mehr Teil des Weges, sondern liegt hinter
         „andere Richtung?" NACH dem Render — Korrektur, nicht Auswahl.
+   v10 — Wolken-Brief (Bakic-Template + Enterprise-Referenz §2/§4). Phase ① ist
+        eine Wort-Wolke auf BEDEUTUNGS-Ebene: Haltung · Zielgruppe · Welt/Preis ·
+        Wirkstoff. Der Nutzer sagt, WER er ist — nie, wie das Design aussieht
+        (Form-Wörter wie „Metallic-Akzent" waren der verbotene Konfigurator).
+        Getippte Worte + Freitext = der Brief, den die Ableitung liest.
+        Behauptungs-Fix: Wirkstoff kommt aus dem BRIEF des Nutzers, nicht aus
+        dem Herkunfts-Tag des Codes (Retinol-Bug).
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -142,6 +149,38 @@ const ZIELGRUPPE_SPRACHE: Record<string, string> = {
 const spracheAus = (map: Record<string, string>, tags?: string[]): string[] =>
   (tags || []).map(t => map[t] || t.replace(/_/g, ' '));
 
+/* ── Brief-Vokabular (v10) — die tippbare Wolke der Brief-Phase.
+   Struktur folgt dem Bakic-Briefing-Template (Marke → Zielgruppe/Preis →
+   Wirkstoff → Kanal) und der Enterprise-Referenz §2: alles Bedeutungs-Ebene.
+   HARTE REGEL: hier stehen NIE Form-Wörter (Farben, Finishes, Veredelung) —
+   das wäre der Pre-Render-Konfigurator. Der Nutzer beschreibt sich; die
+   Form leitet die Engine ab. Kuratierung = Alens Handwerk; das hier ist der
+   Start-Satz, parseIdentity versteht jedes dieser Worte als Freitext. */
+const BRIEF_VOKABULAR: { lbl: string; worte: string[] }[] = [
+  { lbl: 'Haltung',     worte: ['ruhig', 'laut', 'warm', 'kühl', 'klinisch', 'natürlich', 'edel', 'verspielt', 'mutig', 'reduziert'] },
+  { lbl: 'Zielgruppe',  worte: ['Gen Z', '20–35', 'ab 40', 'all-gender', 'männlich'] },
+  { lbl: 'Welt & Preis', worte: ['Apotheke', 'Drugstore', 'Instagram-DTC', 'premium', 'Luxus', 'massentauglich'] },
+  { lbl: 'Wirkstoff',   worte: ['Vitamin C', 'Retinol', 'Hyaluron', 'Barrierepflege', 'Klärung', 'Botanik', 'Sonnenschutz'] },
+];
+
+/* Wirkstoff aus dem BRIEF des Nutzers erkennen — für die Behauptung.
+   Der Code trägt zwar ein Wirkstoff-Tag, aber das ist seine HERKUNFT
+   (das Referenzprodukt), nicht die Welt des Nutzers. Die Behauptung darf
+   nur zeigen, was der Nutzer gesagt hat. */
+const WIRKSTOFF_ERKENNUNG: [RegExp, string][] = [
+  [/vitamin\s*c/i, 'Vitamin C'],
+  [/retinol/i, 'Retinol'],
+  [/hyaluron/i, 'Hyaluron'],
+  [/barriere|sensitiv/i, 'Barrierepflege'],
+  [/akne|kl(ä|ae)rung/i, 'Klärung'],
+  [/botani|pflanz/i, 'Botanik'],
+  [/sonne|spf|\buv\b/i, 'Sonnenschutz'],
+];
+function wirkstoffAusBrief(brief: string): string | null {
+  for (const [re, name] of WIRKSTOFF_ERKENNUNG) if (re.test(brief)) return name;
+  return null;
+}
+
 function identitaetSatz(register?: string | null, laut?: number | null): string {
   const teile: string[] = [];
   if (register && REGISTER_SPRACHE[register]) teile.push(REGISTER_SPRACHE[register]);
@@ -164,7 +203,10 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
   onZeigen: () => void; laden: boolean;
 }) {
   const dc = concept.design_code;
-  const wirk = spracheAus(WIRKSTOFF_SPRACHE, dc?.wirkstoff_welt);
+  // Retinol-Bug-Fix: Wirkstoff kommt aus dem Brief des NUTZERS. Das Tag am
+  // Code (dc.wirkstoff_welt) ist Herkunft, nicht Aussage — es bleibt im
+  // Payload fürs Ranking, erscheint aber nicht als Behauptung.
+  const wirk = wirkstoffAusBrief(briefWorte);
   const ziel = spracheAus(ZIELGRUPPE_SPRACHE, dc?.zielgruppe);
   const hex = concept.palette?.hex || [];
   // Die Umleitung ist keine Fußnote, sondern eine Design-Entscheidung: auf
@@ -182,7 +224,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
         <div className="bh-weil-txt">
           {briefWorte && <>du <b>{briefWorte}</b> gesagt hast</>}
           {ziel.length > 0 && <> · ihr sprecht <b>{ziel.join(' & ')}</b></>}
-          {wirk.length > 0 && <> · <b>{wirk.join(' & ')}</b> als Wirkstoff-Welt</>}
+          {wirk && <> · <b>{wirk}</b> als Wirkstoff-Welt</>}
           {dc?.register && <> · das heißt <b>{identitaetSatz(dc.register, dc.laut)}</b></>}
         </div>
       </div>
@@ -1068,9 +1110,9 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
-  // Feiner Brief VOR dem Render (Handoff §2, Schritt 5): Zielgruppe · Emotion ·
-  // Veredelung als Justierung der Behauptung — jede Wahl ist ein Achsen-Delta,
-  // das in den Brief-Text einfließt. Erst „Rendern →" zündet den (teuren) Render.
+  // v10: `justier` hält die getippten WOLKEN-WORTE (Bedeutungs-Ebene, s.
+  // BRIEF_VOKABULAR) — nicht mehr die alten Form-Chips. Sie fließen mit dem
+  // Freitext in briefText und persistieren wie zuvor über savedJustier.
   const [justier, setJustier] = useState<string[]>(savedJustier || []);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
@@ -1313,8 +1355,20 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         <div className="vis">
           <div className="top">{briefPhase ? 'Erzähl uns, wer ihr seid' : 'Deine Richtung'}</div>
           {briefPhase && (
-            <div className="lt-brieftext" style={{ marginTop: 0, marginBottom: 10 }}>
-              In Worten — Haltung, Zielgruppe, Wirkstoff. Kein Formular: ulba leitet die Richtung ab.
+            <div className="lt-just">
+              {BRIEF_VOKABULAR.map(g => (
+                <div className="lt-just-row" key={g.lbl}>
+                  <span className="lt-just-lbl">{g.lbl}</span>
+                  {g.worte.map(w => (
+                    <button key={w} type="button"
+                      className={`lt-chip${justier.includes(w) ? ' an' : ''}`}
+                      onClick={() => toggleJust(w)}>{w}</button>
+                  ))}
+                </div>
+              ))}
+              <div className="lt-brieftext" style={{ marginTop: 2 }}>
+                Tipp an, was passt — oder schreib es unten in eigenen Worten. ulba leitet daraus die Richtung ab.
+              </div>
             </div>
           )}
           <div className="row">
