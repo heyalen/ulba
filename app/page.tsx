@@ -38,6 +38,12 @@
         Getippte Worte + Freitext = der Brief, den die Ableitung liest.
         Behauptungs-Fix: Wirkstoff kommt aus dem BRIEF des Nutzers, nicht aus
         dem Herkunfts-Tag des Codes (Retinol-Bug).
+   v11 — Richtung ändern NUR über Worte. Die Code-Rail ist komplett raus
+        (Design-Code-Namen als Karten waren Auswahl, nicht Ableitung). Die
+        Wort-Wolke steht in JEDER Phase am Feld: Worte ändern → „Neu ableiten"
+        → neue Behauptung → neuer Render. Jeder Render schreibt einen
+        Verlaufs-Eintrag (»Worte« → Richtung) in den Commit — persistiert,
+        nichts wird überschrieben.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -410,6 +416,8 @@ interface LookCommit {
   capRenderUrl?: string | null;
   lastPrompt?: string;
   concept?: RenderConcept | null;
+  // v11 — jeder Render hinterlässt seine Worte + die abgeleitete Richtung.
+  verlauf?: { worte: string; code: string; ts: number }[];
 }
 
 /* Cap-Wand aus /api/search: steuert das Verschluss-Panel (nicht den Hard Filter).
@@ -676,6 +684,11 @@ const STYLES = `
 .lt-abl{display:flex;justify-content:center;margin:0 24px 14px}
 .lt-abl button{border:1px solid var(--linie);border-radius:999px;padding:8px 18px;font-size:12.5px;color:var(--grau);background:#fff}
 .lt-abl button:hover{border-color:var(--tinte);color:var(--tinte)}
+/* Verlauf — jeder Render mit seinen Worten, persistiert im Commit */
+.lt-verlauf{margin:12px 24px 0;padding:12px 16px;background:var(--nische);border-radius:10px}
+.lv-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-bottom:7px}
+.lv-zeile{font-size:12.5px;line-height:1.6;color:var(--grau)}
+.lv-zeile b{font-weight:600;color:var(--tinte)}
 .msg-commit{margin-top:18px}
 .msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
@@ -958,12 +971,14 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 /* ── Look-Turn im Chat: der Render-Motor (unverändert) in einer Chat-Karte.
    Erscheint nach „Design rendern →" im Detail-Panel. Rendert einmal automatisch
    (der Commit IST die Bestätigung), danach Nudges/Achsen-Cursor/Varianten wie zuvor. ── */
-function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, savedBrief, savedJustier, saved, onBrief, onRender, onSample, onClose }: {
+function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, savedBrief, savedJustier, saved, onBrief, onRender, verlauf, onVerlauf, onSample, onClose }: {
   product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; capWall?: CapWall;
   initialCap: number; savedBrief?: string; savedJustier?: string[];
   saved?: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>;
   onBrief: (brief: string, justier: string[]) => void;
   onRender: (r: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>) => void;
+  verlauf?: LookCommit['verlauf'];
+  onVerlauf: (worte: string, code: string) => void;
   onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
@@ -1090,7 +1105,6 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     setPhase(savedBrief ? 'render' : 'brief');
     setDryConcept(null);
     setDryStatus('idle');
-    setRailOffen(false);
     setLastPrompt(saved?.lastPrompt || '');
     setConcept(saved?.concept || null);
     const hist = loadRenderHist(product.id);
@@ -1126,6 +1140,8 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     if (lastPersisted.current === sig) return;
     lastPersisted.current = sig;
     onRender({ heroUrl, capRenderUrl, lastPrompt, concept });
+    // v11: jeder Render schreibt seinen Verlaufs-Eintrag — Worte + Richtung.
+    onVerlauf(briefText, concept?.design_code?.name || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rstatus, heroUrl, capRenderUrl, concept, lastPrompt]);
 
@@ -1136,7 +1152,6 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
   const renderPhase = phase === 'render';
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [railOffen, setRailOffen] = useState(false);
 
   // Phase ①→②: ableiten OHNE zu rendern. Gleicher Endpunkt, gleiche
   // Code-Wahl, nur ohne Bild (dryRun) — deshalb kostenlos und schnell.
@@ -1201,61 +1216,6 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         <div className="lt-lesart">
           <b>{product.name}</b> kann <b>{compatLooks.length}</b> Richtung{compatLooks.length === 1 ? '' : 'en'} tragen.
           <span className="lt-alt"> Welche es wird, sagt dein Brief.</span>
-        </div>
-      )}
-
-      {/* Die Richtungs-Rail ist kein Schritt im Weg mehr. Sie erscheint erst
-          NACH dem Render und nur auf Wunsch — Korrektur einer Behauptung,
-          nicht Auswahl aus einem Menü. */}
-      {renderPhase && compatLooks.length > 0 && !railOffen && (
-        <div className="lt-abl"><button onClick={() => setRailOffen(true)}>andere Richtung? · {compatLooks.length} tragen dieses Teil</button></div>
-      )}
-      {renderPhase && railOffen && compatLooks.length > 0 && (
-        <div className="pn-caps-top">
-          <div className="lbl">
-            Richtung · {compatLooks.length} für dieses Teil ·{' '}
-            <strong style={{ color: 'var(--tinte)', fontWeight: 600 }}>
-              gewählt: {activeCode === null ? 'Auto' : (compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto')}
-            </strong>
-          </div>
-          {compatLooks.length === 1 && (
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', margin: '2px 0 6px', letterSpacing: '.02em' }}>
-              Nur eine Richtung trägt dieses Teil — die anderen Looks brauchen Material, das es nicht liefern kann.
-            </div>
-          )}
-          {preferredMissFuersTeil && (
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', margin: '2px 0 6px', letterSpacing: '.02em' }}>
-              Deine im Chat gewählte Welt trägt dieses Teil nicht — hier zählen die passenden Richtungen.
-            </div>
-          )}
-          <div className="lv-grid">
-            <button type="button" className={`lv-karte lv-auto${activeCode === null ? ' an' : ''}`}
-              aria-pressed={activeCode === null}
-              disabled={rstatus === 'loading'}
-              onClick={() => setActiveCode(null)}
-              title="ulba leitet die Richtung selbst ab">
-              {activeCode === null && <span className="lv-haken" aria-hidden>✓</span>}
-              <span className="lv-buehne"><span className="lv-autopunkt" /></span>
-              <span className="lv-nm">Auto</span>
-              <span className="lv-meta">abgeleitet</span>
-            </button>
-            {compatLooks.map(l => (
-              <button key={l.code_id} type="button"
-                className={`lv-karte${activeCode === l.code_id ? ' an' : ''}`}
-                aria-pressed={activeCode === l.code_id}
-                disabled={rstatus === 'loading'}
-                onClick={() => setActiveCode(l.code_id)}
-                title={`${l.register} · ${(l.body_behandlung || '').replace(/_/g, ' ')} · laut ${l.temp_laut ?? '?'}`}>
-                {activeCode === l.code_id && <span className="lv-haken" aria-hidden>✓</span>}
-                <span className="lv-buehne"><LookVorschau look={l} umgeleitet={!!l._umgeleitet} /></span>
-                <span className="lv-nm">{l.code_name}</span>
-                <span className="lv-meta">
-                  {l._umgeleitet ? 'als Füllung' : ((l.body_behandlung || '').replace(/_/g, ' ') || '—')}
-                  {l.temp_laut != null && ` · laut ${l.temp_laut}`}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
       )}
 
@@ -1351,11 +1311,21 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       )}
 
+      {renderPhase && (verlauf || []).length > 0 && (
+        <div className="lt-verlauf">
+          <div className="lv-lbl">Verlauf — worauf jeder Render basiert</div>
+          {(verlauf || []).map((v, i) => (
+            <div key={v.ts + ':' + i} className="lv-zeile">{i + 1}. »{v.worte}« → <b>{v.code || '—'}</b></div>
+          ))}
+        </div>
+      )}
+
       <div className="pn-body">
         <div className="vis">
           <div className="top">{briefPhase ? 'Erzähl uns, wer ihr seid' : 'Deine Richtung'}</div>
-          {briefPhase && (
-            <div className="lt-just">
+          {/* v11: Wolke in ALLEN Phasen — Richtung ändern geht über Worte,
+              nie über Code-Karten. */}
+          <div className="lt-just">
               {BRIEF_VOKABULAR.map(g => (
                 <div className="lt-just-row" key={g.lbl}>
                   <span className="lt-just-lbl">{g.lbl}</span>
@@ -1367,21 +1337,21 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
                 </div>
               ))}
               <div className="lt-brieftext" style={{ marginTop: 2 }}>
-                Tipp an, was passt — oder schreib es unten in eigenen Worten. ulba leitet daraus die Richtung ab.
+                {briefPhase
+                  ? 'Tipp an, was passt — oder schreib es unten in eigenen Worten. ulba leitet daraus die Richtung ab.'
+                  : 'Worte ändern und neu ableiten — die Richtung folgt deinem Brief, nicht einem Menü.'}
               </div>
-            </div>
-          )}
+          </div>
           <div className="row">
             <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { briefPhase ? ableiten() : starteRender(); } }}
+              onKeyDown={e => { if (e.key === 'Enter') ableiten(); }}
               placeholder="z. B. ruhig, teuer, Vitamin C, für Frauen ab 40" />
             <button className="gen"
-              onClick={briefPhase ? ableiten : starteRender}
+              onClick={ableiten}
               disabled={rstatus === 'loading' || dryStatus === 'loading' || !briefText.trim()}>
               {dryStatus === 'loading' ? 'Leitet ab …'
                 : rstatus === 'loading' ? 'Rendert …'
-                : briefPhase ? 'Ableiten →'
-                : (activeCode === null ? 'Neu rendern · Auto' : `Neu rendern · ${compatLooks.find(l => l.code_id === activeCode)?.code_name || 'Auto'}`)}
+                : briefPhase ? 'Ableiten →' : 'Neu ableiten →'}
             </button>
           </div>
           {renderPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
@@ -1982,6 +1952,8 @@ export default function Home() {
                                     saved={{ heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl, lastPrompt: c.lastPrompt, concept: c.concept }}
                                     onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
                                     onRender={r => patchCommit(c.id, r)}
+                                    verlauf={c.verlauf || []}
+                                    onVerlauf={(worte, code) => patchCommit(c.id, { verlauf: [...(c.verlauf || []), { worte, code, ts: Date.now() }] })}
                                     onSample={setSampleCtx} onClose={() => removeCommit(c.id)} />
                                 </div>
                               );
