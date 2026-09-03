@@ -73,6 +73,10 @@
         Kuratiertes Skelett (12 Anker) + emergentes Fleisch: jedes neue
         Referenzprodukt macht die Wolke reicher — ohne Frontend-Deploy.
         Fetch scheitert → Wolke fällt lautlos aufs kuratierte Set zurück.
+   v14.1 — Dublettenfreier Brief. Wörter, die im Freitext schon stehen,
+        werden nicht noch einmal angehängt („ruhig teuer Vitamin C" + Chip
+        „ruhig" ergab „…, ruhig, Luxus, Vitamin C"). Die weil-Zeile zitiert
+        den Nutzer, also darf sie sich nicht wiederholen.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -1137,7 +1141,14 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
   const [query, setQuery] = useState(savedBrief || defaultQuery);
   const [justier, setJustier] = useState<string[]>(savedJustier || []);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
-  const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
+  // v14.1: Chips, deren Wort bereits im Freitext steht, fallen raus —
+  // sonst zitiert die weil-Zeile denselben Begriff doppelt.
+  const briefText = useMemo(() => {
+    const frei = query.trim();
+    const freiLower = frei.toLowerCase();
+    const extra = justier.filter(w => !freiLower.includes(w.toLowerCase()));
+    return [frei, ...extra].filter(Boolean).join(', ');
+  }, [query, justier]);
 
   // Kompatible Richtungen — nur noch Info („kann N Richtungen tragen"). Die
   // Wahl trifft die Ableitung; es gibt keine Code-Auswahl im UI.
