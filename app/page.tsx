@@ -51,6 +51,28 @@
         Details (Palette/Radar/Story) liegen pro Lauf hinter „Details".
         Nudges + Laut-Cursor + Muster hängen am letzten Lauf. Kein Zustand
         wird mehr ersetzt — „Neu ableiten" ERGÄNZT.
+   v13 — Atmende Wolke + Live-Lesart. Haltung ist keine Chip-Reihe mehr,
+        sondern 12 ANKER-Worte; ein Tap öffnet die Nachbarschaft des Ankers
+        (~6 feinere Worte) — progressive Enthüllung statt Formular: ~100
+        kuratierte Begriffe, aber nie mehr als ~20 sichtbar. Während der
+        Nutzer Worte sammelt, spricht die LIVE-LESART mit (deterministisch,
+        Wort→Achsen-Signal, 0 LLM-Kosten): „Ich lese dich: luxuriös-rituell ·
+        sehr leise · Vitamin C gibt die Farbwelt." Der Ableiten-Klick
+        bestätigt nur noch, was sich aufgebaut hat. Vokabular + Signale sind
+        Start-Kuratierung — Alens Handwerk, wächst in den Konstanten.
+   v13.1 — Deckungs-Kopplung an die Design_Code-Tabelle. Jedes Wolken-Wort
+        wird live gegen die gate-kompatiblen Codes DIESES Teils geprüft
+        (Signal → Register/Laut-Region → Anzahl Codes). Region leer → Wort
+        gedimmt + ehrlicher Tooltip („leiten zur nächstgelegenen Welt ab").
+        Wächst die Tabelle, leuchten die Wörter von selbst auf — die Wolke
+        ist der Live-Spiegel der Archiv-Dichte, ohne Deploy, ohne Pflege.
+   v14 — Emergentes Vokabular aus der Tabelle. /api/vokabular liefert die
+        von Skript 7 aus den Wirkung_Beschreibung-Texten destillierten
+        Wörter (Tabelle Wolken_Vokabular); sie erscheinen als zusätzliche
+        Nachbarn unter ihren Ankern und tragen eigene Achsen-Signale.
+        Kuratiertes Skelett (12 Anker) + emergentes Fleisch: jedes neue
+        Referenzprodukt macht die Wolke reicher — ohne Frontend-Deploy.
+        Fetch scheitert → Wolke fällt lautlos aufs kuratierte Set zurück.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -59,6 +81,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
+const VOKAB_API = 'https://ulba-vision-renderer.vercel.app/api/vokabular';
 
 const EXAMPLES = [
   { label: 'Ruhig & teuer', q: 'Feminine luxury glass serum, premium' },
@@ -169,12 +192,87 @@ const spracheAus = (map: Record<string, string>, tags?: string[]): string[] =>
    das wäre der Pre-Render-Konfigurator. Der Nutzer beschreibt sich; die
    Form leitet die Engine ab. Kuratierung = Alens Handwerk; das hier ist der
    Start-Satz, parseIdentity versteht jedes dieser Worte als Freitext. */
+/* v13 — Haltungs-ANKER mit Nachbarschaften. Ein Anker trägt ein Achsen-
+   Signal (welt = Register-Hinweis, laut = Delta auf der Laut-Achse); seine
+   Kinder erben es für die Live-Lesart. Immer Bedeutungs-Ebene, nie Form. */
+interface BriefAnker { w: string; kinder: string[]; welt?: string; laut?: number }
+const HALTUNG_ANKER: BriefAnker[] = [
+  { w: 'ruhig',      laut: -3, kinder: ['still', 'zurückhaltend', 'meditativ', 'Understatement', 'Spa-Ruhe', 'Morgenritual'] },
+  { w: 'laut',       laut: +3, kinder: ['knallig', 'frech', 'Statement', 'Dopamin', 'Popkultur', 'maximal'] },
+  { w: 'warm',                 kinder: ['herzlich', 'sinnlich', 'einladend', 'geborgen', 'mediterran', 'sommerlich'] },
+  { w: 'kühl',                 kinder: ['nordisch', 'sachlich', 'distanziert', 'frisch', 'nüchtern', 'technisch-kühl'] },
+  { w: 'klinisch',   welt: 'pharma-klinisch', kinder: ['dermatologisch', 'evidenzbasiert', 'Apotheken-Ernst', 'Labor', 'steril', 'wie verschrieben'] },
+  { w: 'natürlich',  welt: 'natur-erdig',     kinder: ['erdig', 'botanisch', 'roh', 'handgemacht', 'nachhaltig', 'vom Feld'] },
+  { w: 'edel',       welt: 'luxus-ritual', laut: +1, kinder: ['luxuriös', 'rituell', 'zeremoniell', 'Boutique', 'zeitlos', 'exklusiv'] },
+  { w: 'verspielt',  laut: +2, kinder: ['humorvoll', 'ironisch', 'süß', 'Pop', 'leichtfüßig', 'Gen-Z-Witz'] },
+  { w: 'mutig',      laut: +2, kinder: ['rebellisch', 'unangepasst', 'kompromisslos', 'disruptiv', 'Punk', 'selbstbewusst'] },
+  { w: 'reduziert',  welt: 'clean-minimal', laut: -2, kinder: ['minimal', 'essenziell', 'wesentlich', 'clean', 'aufgeräumt', 'leise Präsenz'] },
+  { w: 'technisch',  welt: 'tech-premium',  kinder: ['präzise', 'ingenieurhaft', 'futuristisch', 'performant', 'Labor-Chic', 'smart'] },
+  { w: 'alltagsnah', welt: 'masse-funktional', kinder: ['ehrlich', 'funktional', 'unkompliziert', 'für jeden Tag', 'Drogerie-nah', 'zugänglich'] },
+];
+// Kind → Anker und Wort → Signal, einmal beim Laden abgeleitet.
+const KINDER_VON: Record<string, string[]> = {};
+const WORT_SIGNAL: Record<string, { welt?: string; laut?: number }> = {};
+for (const a of HALTUNG_ANKER) {
+  KINDER_VON[a.w] = a.kinder;
+  WORT_SIGNAL[a.w] = { welt: a.welt, laut: a.laut };
+  for (const k of a.kinder) WORT_SIGNAL[k] = { welt: a.welt, laut: a.laut };
+}
+
 const BRIEF_VOKABULAR: { lbl: string; worte: string[] }[] = [
-  { lbl: 'Haltung',     worte: ['ruhig', 'laut', 'warm', 'kühl', 'klinisch', 'natürlich', 'edel', 'verspielt', 'mutig', 'reduziert'] },
   { lbl: 'Zielgruppe',  worte: ['Gen Z', '20–35', 'ab 40', 'all-gender', 'männlich'] },
   { lbl: 'Welt & Preis', worte: ['Apotheke', 'Drugstore', 'Instagram-DTC', 'premium', 'Luxus', 'massentauglich'] },
   { lbl: 'Wirkstoff',   worte: ['Vitamin C', 'Retinol', 'Hyaluron', 'Barrierepflege', 'Klärung', 'Botanik', 'Sonnenschutz'] },
 ];
+
+/* v14 — emergentes Vokabular aus Wolken_Vokabular (via /api/vokabular).
+   Modul-Singleton: einmal pro Session geladen, alle Turns teilen es.
+   Fehlschlag → leeres Array → Wolke läuft rein kuratiert weiter. */
+interface VokabWort { wort: string; anker: string; register: string | null; laut_delta: number | null }
+let VOKAB_CACHE: VokabWort[] | null = null;
+let VOKAB_LADEND: Promise<VokabWort[]> | null = null;
+function ladeVokabular(): Promise<VokabWort[]> {
+  if (VOKAB_CACHE) return Promise.resolve(VOKAB_CACHE);
+  if (VOKAB_LADEND) return VOKAB_LADEND;
+  VOKAB_LADEND = fetch(VOKAB_API)
+    .then(r => r.json())
+    .then(d => { VOKAB_CACHE = Array.isArray(d?.worte) ? d.worte : []; return VOKAB_CACHE as VokabWort[]; })
+    .catch(() => { VOKAB_CACHE = []; return []; });
+  return VOKAB_LADEND;
+}
+
+/* Live-Lesart: spricht mit, während Worte gesammelt werden. Deterministisch
+   aus WORT_SIGNAL — der Agentur-Move „ich höre zu" kostet nichts und kommt
+   sofort. Die echte Ableitung (Haiku) bestätigt danach nur noch. */
+/* v13.1 — Deckung eines Wolken-Worts im Archiv, gemessen an den gate-
+   kompatiblen Codes des aktuellen Teils. welt-Signal → Codes dieses
+   Registers; reines laut-Signal → Codes im Laut-Fenster (±2 um 5+delta).
+   null = neutrales Wort (warm/kühl etc.), zählt immer als gedeckt. */
+function wortDeckung(w: string, looks: LookMitStatus[], signale: Record<string, { welt?: string; laut?: number }>): number | null {
+  const s = signale[w];
+  if (!s || (!s.welt && s.laut == null)) return null;
+  if (s.welt) return looks.filter(l => l.register === s.welt).length;
+  const ziel = 5 + (s.laut || 0);
+  return looks.filter(l => l.temp_laut != null && Math.abs((l.temp_laut as number) - ziel) <= 2).length;
+}
+
+function liveLesart(worte: string[], freitext: string, signale: Record<string, { welt?: string; laut?: number }>): string | null {
+  let laut = 5, lautN = 0;
+  const welten: Record<string, number> = {};
+  for (const w of worte) {
+    const s = signale[w];
+    if (!s) continue;
+    if (s.laut != null) { laut += s.laut; lautN++; }
+    if (s.welt) welten[s.welt] = (welten[s.welt] || 0) + 1;
+  }
+  const welt = Object.keys(welten).sort((a, b) => welten[b] - welten[a])[0] || null;
+  const teile: string[] = [];
+  if (welt) teile.push(REGISTER_SPRACHE[welt] || welt);
+  if (lautN > 0) teile.push(lautWort(Math.max(0, Math.min(10, laut))));
+  const wk = wirkstoffAusBrief(worte.join(' ') + ' ' + freitext);
+  if (wk) teile.push(wk + ' gibt die Farbwelt');
+  return teile.length ? teile.join(' · ') : null;
+}
 
 /* Wirkstoff aus dem BRIEF des Nutzers erkennen — für die Behauptung.
    Der Code trägt zwar ein Wirkstoff-Tag, aber das ist seine HERKUNFT
@@ -730,6 +828,21 @@ const STYLES = `
 .lauf-details{margin-top:10px}
 .lauf-story{font-family:var(--serif);font-size:14.5px;line-height:1.45;color:var(--grau);padding:0 2px 8px}
 .lauf-lade{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--grau);border-top:none;padding:16px 0}
+/* Atmende Wolke (v13) — Anker groß mit Luft, Nachbarschaften darunter */
+.bw{margin:4px 0 14px}
+.bw-anker-wolke{display:flex;flex-wrap:wrap;gap:10px 12px;padding:6px 2px}
+.bw-anker{font-size:15px;padding:9px 18px;border-radius:22px;border:1px solid var(--linie);background:#fff;color:#3a3a37;transition:.15s;line-height:1}
+.bw-anker:hover{border-color:var(--hell);transform:translateY(-1px)}
+.bw-anker.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
+.bw-anker.offen{box-shadow:0 0 0 2px var(--linie)}
+.bw-anker.an.offen{box-shadow:0 0 0 2px var(--hell)}
+.bw-kinder{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:10px 2px 2px;padding:10px 12px;background:#fff;border:1px dashed var(--linie);border-radius:12px;animation:bwAuf .18s ease}
+@keyframes bwAuf{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.bw-kinder-pfeil{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell);margin-right:4px}
+.bw-lesart{font-family:var(--serif);font-size:15px;line-height:1.45;color:var(--grau);margin:12px 2px 12px;padding-left:12px;border-left:2px solid var(--rouge)}
+.bw-lesart b{font-weight:600;color:var(--tinte)}
+.bw-anker.duenn,.lt-chip.duenn{opacity:.42}
+.bw-anker.duenn:hover,.lt-chip.duenn:hover{opacity:.75}
 .msg-commit{margin-top:18px}
 .msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
@@ -1040,6 +1153,38 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
   const [detailsLauf, setDetailsLauf] = useState<number | null>(null);
   const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
 
+  // v13: geöffnete Nachbarschaft + Live-Lesart. Anker abwählen räumt auch
+  // seine gewählten Kinder ab — halbe Zustände verwirren mehr als sie helfen.
+  const [offenAnker, setOffenAnker] = useState<string | null>(null);
+  // v14: emergentes Vokabular — einmal laden, dann mergen.
+  const [vokab, setVokab] = useState<VokabWort[]>(VOKAB_CACHE || []);
+  useEffect(() => { ladeVokabular().then(setVokab); }, []);
+  const signale = useMemo(() => {
+    const m: Record<string, { welt?: string; laut?: number }> = { ...WORT_SIGNAL };
+    for (const v of vokab) m[v.wort] = { welt: v.register || undefined, laut: v.laut_delta ?? undefined };
+    return m;
+  }, [vokab]);
+  const kinderVon = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const a of HALTUNG_ANKER) m[a.w] = [...a.kinder];
+    for (const v of vokab) {
+      if (!m[v.anker]) continue;
+      if (!m[v.anker].includes(v.wort)) m[v.anker].push(v.wort);
+    }
+    return m;
+  }, [vokab]);
+  const toggleAnker = (a: string) => {
+    if (justier.includes(a)) {
+      const kinder = kinderVon[a] || [];
+      setJustier(prev => prev.filter(x => x !== a && !kinder.includes(x)));
+      if (offenAnker === a) setOffenAnker(null);
+    } else {
+      setJustier(prev => [...prev, a]);
+      setOffenAnker(a);
+    }
+  };
+  const lesart = liveLesart(justier, query, signale);
+
   useEffect(() => {
     setQuery(savedBrief || defaultQuery);
     setJustier(savedJustier || []);
@@ -1047,6 +1192,7 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
     setPhase('brief'); setDryConcept(null);
     setDryStatus('idle'); setRstatus('idle'); setRerror('');
     setDetailsLauf(null);
+    setOffenAnker(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, defaultQuery]);
 
@@ -1196,6 +1342,35 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
         <div className="pn-body">
           <div className="vis">
             <div className="top">{laeufe.length === 0 ? 'Erzähl uns, wer ihr seid' : 'Richtung ändern — in Worten'}</div>
+            {/* v13: Haltung als atmende Wolke — Anker öffnen Nachbarschaften. */}
+            <div className="bw">
+              <div className="bw-anker-wolke">
+                {HALTUNG_ANKER.map(a => {
+                  const deck = wortDeckung(a.w, compatLooks, signale);
+                  const duenn = deck === 0;
+                  return (
+                    <button key={a.w} type="button"
+                      className={`bw-anker${justier.includes(a.w) ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
+                      title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
+                      onClick={() => toggleAnker(a.w)}>{a.w}</button>
+                  );
+                })}
+              </div>
+              {offenAnker && (
+                <div className="bw-kinder">
+                  <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
+                  {(kinderVon[offenAnker] || []).map(k => {
+                    const duenn = wortDeckung(k, compatLooks, signale) === 0;
+                    return (
+                      <button key={k} type="button"
+                        className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
+                        title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
+                        onClick={() => toggleJust(k)}>{k}</button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <div className="lt-just">
               {BRIEF_VOKABULAR.map(g => (
                 <div className="lt-just-row" key={g.lbl}>
@@ -1208,6 +1383,9 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
                 </div>
               ))}
             </div>
+            {lesart && (
+              <div className="bw-lesart">Ich lese dich: <b>{lesart}</b></div>
+            )}
             <div className="row">
               <input value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') ableiten(); }}
