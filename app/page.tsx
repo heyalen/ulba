@@ -77,6 +77,19 @@
         werden nicht noch einmal angehängt („ruhig teuer Vitamin C" + Chip
         „ruhig" ergab „…, ruhig, Luxus, Vitamin C"). Die weil-Zeile zitiert
         den Nutzer, also darf sie sich nicht wiederholen.
+   v14.2 — Ehrliche Lesart + Widerspruchs-Warnung. Die Live-Lesart wertete
+        nur die getippten Chips aus, der echte Brief enthält aber auch den
+        FREITEXT. Stand dort noch „ruhig", während oben „mutig" geklickt war,
+        versprach die Lesart „sehr laut" — und die Ableitung lieferte
+        „ausgewogen" (Haiku mittelt den Widerspruch). Jetzt scannt die Lesart
+        den ganzen Brief, und widersprechen sich Freitext und Chips auf der
+        Laut-Achse, sagt ulba es offen, statt still zu mitteln.
+   v14.3 — Brief startet leer. Das Freitextfeld war mit der PACKMITTEL-SUCHE
+        vorbefüllt („30ml Glas Pump", „Premium anti-aging …"). Damit schleppte
+        jeder Design-Brief die Hardfact-Suche mit und überstimmte die Wolke.
+        Suche = Hardfacts (welches Teil), Brief = Bedeutung (welche Marke) —
+        zwei Ebenen, die nichts miteinander zu tun haben. Das Feld beginnt
+        jetzt leer; nur ein bereits gespeicherter Brief wird wiederhergestellt.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -260,22 +273,38 @@ function wortDeckung(w: string, looks: LookMitStatus[], signale: Record<string, 
   return looks.filter(l => l.temp_laut != null && Math.abs((l.temp_laut as number) - ziel) <= 2).length;
 }
 
-function liveLesart(worte: string[], freitext: string, signale: Record<string, { welt?: string; laut?: number }>): string | null {
-  let laut = 5, lautN = 0;
+function liveLesart(worte: string[], freitext: string, signale: Record<string, { welt?: string; laut?: number }>): { text: string | null; konflikt: string | null } {
+  // v14.2: Der Brief = Chips + Freitext. Beide zählen — sonst spiegelt die
+  // Lesart etwas anderes wider als das, was die Ableitung tatsächlich liest.
+  const frei = freitext.toLowerCase();
+  const ausFreitext = Object.keys(signale).filter(w => {
+    const wl = w.toLowerCase();
+    return wl.length > 2 && !worte.includes(w) && new RegExp(`(^|[^a-zäöüß])${wl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-zäöüß]|$)`).test(frei);
+  });
+  const alle = [...worte, ...ausFreitext];
+  let laut = 5, lautN = 0, minD = 0, maxD = 0;
   const welten: Record<string, number> = {};
-  for (const w of worte) {
+  for (const w of alle) {
     const s = signale[w];
     if (!s) continue;
-    if (s.laut != null) { laut += s.laut; lautN++; }
+    if (s.laut != null) {
+      laut += s.laut; lautN++;
+      if (s.laut < minD) minD = s.laut;
+      if (s.laut > maxD) maxD = s.laut;
+    }
     if (s.welt) welten[s.welt] = (welten[s.welt] || 0) + 1;
   }
+  // Widerspruch: gleichzeitig deutlich leise UND deutlich laute Signale.
+  const konflikt = (minD <= -2 && maxD >= 2)
+    ? 'Dein Brief sagt leise und laut zugleich — ulba mittelt das aus. Streich eines von beiden für eine klare Richtung.'
+    : null;
   const welt = Object.keys(welten).sort((a, b) => welten[b] - welten[a])[0] || null;
   const teile: string[] = [];
   if (welt) teile.push(REGISTER_SPRACHE[welt] || welt);
   if (lautN > 0) teile.push(lautWort(Math.max(0, Math.min(10, laut))));
   const wk = wirkstoffAusBrief(worte.join(' ') + ' ' + freitext);
   if (wk) teile.push(wk + ' gibt die Farbwelt');
-  return teile.length ? teile.join(' · ') : null;
+  return { text: teile.length ? teile.join(' · ') : null, konflikt };
 }
 
 /* Wirkstoff aus dem BRIEF des Nutzers erkennen — für die Behauptung.
@@ -845,6 +874,7 @@ const STYLES = `
 .bw-kinder-pfeil{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell);margin-right:4px}
 .bw-lesart{font-family:var(--serif);font-size:15px;line-height:1.45;color:var(--grau);margin:12px 2px 12px;padding-left:12px;border-left:2px solid var(--rouge)}
 .bw-lesart b{font-weight:600;color:var(--tinte)}
+.bw-konflikt{font-size:12.5px;line-height:1.5;color:#9a6b1f;background:#FDF6E7;border:1px solid #F0E0BC;border-radius:9px;padding:8px 12px;margin:0 2px 12px}
 .bw-anker.duenn,.lt-chip.duenn{opacity:.42}
 .bw-anker.duenn:hover,.lt-chip.duenn:hover{opacity:.75}
 .msg-commit{margin-top:18px}
@@ -1130,15 +1160,16 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
    Jeder abgeschlossene Render wird als Lauf an den Commit gehängt und nie
    wieder angefasst — wie ein Suchblock im Chat. Der aktive Bereich unten
    zeigt immer genau eine Sache: Wolke+Feld (Brief) oder die Behauptung. ── */
-function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedBrief, savedJustier, laeufe, onBrief, onLauf, onSample, onClose }: {
-  product: Result; allLooks: DesignLook[]; defaultQuery: string; capWall?: CapWall;
+function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, laeufe, onBrief, onLauf, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; capWall?: CapWall;
   initialCap: number; savedBrief?: string; savedJustier?: string[];
   laeufe: Lauf[];
   onBrief: (brief: string, justier: string[]) => void;
   onLauf: (l: Lauf) => void;
   onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
-  const [query, setQuery] = useState(savedBrief || defaultQuery);
+  // v14.3: leer starten — die Packmittel-Suche gehört NICHT in den Design-Brief.
+  const [query, setQuery] = useState(savedBrief || '');
   const [justier, setJustier] = useState<string[]>(savedJustier || []);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   // v14.1: Chips, deren Wort bereits im Freitext steht, fallen raus —
@@ -1197,7 +1228,7 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
   const lesart = liveLesart(justier, query, signale);
 
   useEffect(() => {
-    setQuery(savedBrief || defaultQuery);
+    setQuery(savedBrief || '');
     setJustier(savedJustier || []);
     setCap(initialCap);
     setPhase('brief'); setDryConcept(null);
@@ -1205,7 +1236,7 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
     setDetailsLauf(null);
     setOffenAnker(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id, defaultQuery]);
+  }, [product.id]);
 
   /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
   const ableiten = async () => {
@@ -1394,8 +1425,11 @@ function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedB
                 </div>
               ))}
             </div>
-            {lesart && (
-              <div className="bw-lesart">Ich lese dich: <b>{lesart}</b></div>
+            {lesart.text && (
+              <div className="bw-lesart">Ich lese dich: <b>{lesart.text}</b></div>
+            )}
+            {lesart.konflikt && (
+              <div className="bw-konflikt">{lesart.konflikt}</div>
             )}
             <div className="row">
               <input value={query} onChange={e => setQuery(e.target.value)}
@@ -1992,7 +2026,7 @@ export default function Home() {
                               return (
                                 <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
                                   <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
-                                  <LookTurn product={prod} allLooks={b.looks} defaultQuery={rootQuery}
+                                  <LookTurn product={prod} allLooks={b.looks}
                                     capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier}
                                     laeufe={laeufeVon(c)}
                                     onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
