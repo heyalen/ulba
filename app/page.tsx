@@ -44,6 +44,13 @@
         → neue Behauptung → neuer Render. Jeder Render schreibt einen
         Verlaufs-Eintrag (»Worte« → Richtung) in den Commit — persistiert,
         nichts wird überschrieben.
+   v12 — Lauf-Modell. Jede Ableitung ist ein EINGEFRORENER Abschnitt im Turn,
+        exakt wie Suchblöcke im Chat: »Worte« → Richtung → Bild bleiben stehen,
+        für immer. Interaktion gibt es nur im AKTIVEN Bereich ganz unten —
+        und der zeigt immer genau EINE Sache: Wolke+Feld ODER Behauptung.
+        Details (Palette/Radar/Story) liegen pro Lauf hinter „Details".
+        Nudges + Laut-Cursor + Muster hängen am letzten Lauf. Kein Zustand
+        wird mehr ersetzt — „Neu ableiten" ERGÄNZT.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -402,6 +409,17 @@ interface Block {
   commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
 }
 
+/* Ein Lauf (v12): eine abgeschlossene Ableitung — Worte, Richtung, Bild.
+   Läufe werden nie überschrieben, nur angehängt (wie Suchblöcke). */
+interface Lauf {
+  id: number;
+  worte: string;
+  heroUrl: string | null;
+  capRenderUrl: string | null;
+  lastPrompt: string;
+  concept: RenderConcept | null;
+}
+
 /* Ein Look-Turn im Verlauf: welches Teil, welcher Verschluss, und auf welchem Brief
    der Render basiert (Text + Justierung). Bleibt im Projekt, wie ein Suchblock. */
 interface LookCommit {
@@ -416,8 +434,10 @@ interface LookCommit {
   capRenderUrl?: string | null;
   lastPrompt?: string;
   concept?: RenderConcept | null;
-  // v11 — jeder Render hinterlässt seine Worte + die abgeleitete Richtung.
+  // v11 (Legacy, wird nur noch gelesen): Worte-Log alter Commits.
   verlauf?: { worte: string; code: string; ts: number }[];
+  // v12 — die Läufe dieses Turns. Quelle der Wahrheit für alles Gerenderte.
+  laeufe?: Lauf[];
 }
 
 /* Cap-Wand aus /api/search: steuert das Verschluss-Panel (nicht den Hard Filter).
@@ -689,6 +709,27 @@ const STYLES = `
 .lv-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell);margin-bottom:7px}
 .lv-zeile{font-size:12.5px;line-height:1.6;color:var(--grau)}
 .lv-zeile b{font-weight:600;color:var(--tinte)}
+/* Lauf (v12) — eingefrorene Ableitung: Worte → Richtung → Bild */
+.lauf{margin:10px 24px 4px;padding:14px 0 10px;border-top:1px solid var(--linie2)}
+.lauf:first-of-type{border-top:none}
+.lauf-worte{display:inline-block;background:var(--tinte);color:#fff;padding:7px 14px;border-radius:14px 14px 4px 14px;font-size:13px;margin-bottom:9px}
+.lauf-kopf{font-size:14.5px;margin-bottom:8px}
+.lauf-kopf b{font-family:var(--serif);font-weight:800;font-size:17px;letter-spacing:-.01em}
+.lauf-ident{font-family:var(--mono);font-size:11px;color:var(--grau)}
+.lauf-stage{display:flex;flex-direction:column;align-items:center;background:linear-gradient(#FFFFFF 62%,#FAFAFB 100%);border:1px solid var(--linie);border-radius:12px;padding:14px 10px 18px}
+.lauf-cap{width:64px;max-height:120px;object-fit:contain;object-position:bottom;display:block;margin-bottom:-4px}
+.lauf-hero{max-width:78%;max-height:400px;object-fit:contain;display:block}
+.lauf-alt{opacity:.72}
+.lauf-alt .lauf-hero{max-height:220px}
+.lauf-alt .lauf-cap{width:40px;max-height:70px}
+.lauf-akt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.lauf-btn{font-size:12px;padding:5px 11px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f}
+.lauf-btn:hover{border-color:var(--hell)} .lauf-btn:disabled{opacity:.4;cursor:default}
+.lauf-cta{margin-left:auto;background:var(--tinte);color:#fff;border-radius:999px;padding:8px 18px;font-size:13px}
+.lauf-cta:hover{background:var(--rouge)} .lauf-cta:disabled{opacity:.5;cursor:default}
+.lauf-details{margin-top:10px}
+.lauf-story{font-family:var(--serif);font-size:14.5px;line-height:1.45;color:var(--grau);padding:0 2px 8px}
+.lauf-lade{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--grau);border-top:none;padding:16px 0}
 .msg-commit{margin-top:18px}
 .msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
@@ -968,213 +1009,60 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   );
 }
 
-/* ── Look-Turn im Chat: der Render-Motor (unverändert) in einer Chat-Karte.
-   Erscheint nach „Design rendern →" im Detail-Panel. Rendert einmal automatisch
-   (der Commit IST die Bestätigung), danach Nudges/Achsen-Cursor/Varianten wie zuvor. ── */
-function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, initialCap, savedBrief, savedJustier, saved, onBrief, onRender, verlauf, onVerlauf, onSample, onClose }: {
-  product: Result; allLooks: DesignLook[]; preferredCode: string | null; defaultQuery: string; capWall?: CapWall;
+/* ── Look-Turn (v12, Lauf-Modell): eingefrorene Läufe + EIN aktiver Bereich.
+   Jeder abgeschlossene Render wird als Lauf an den Commit gehängt und nie
+   wieder angefasst — wie ein Suchblock im Chat. Der aktive Bereich unten
+   zeigt immer genau eine Sache: Wolke+Feld (Brief) oder die Behauptung. ── */
+function LookTurn({ product, allLooks, defaultQuery, capWall, initialCap, savedBrief, savedJustier, laeufe, onBrief, onLauf, onSample, onClose }: {
+  product: Result; allLooks: DesignLook[]; defaultQuery: string; capWall?: CapWall;
   initialCap: number; savedBrief?: string; savedJustier?: string[];
-  saved?: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>;
+  laeufe: Lauf[];
   onBrief: (brief: string, justier: string[]) => void;
-  onRender: (r: Pick<LookCommit, 'heroUrl' | 'capRenderUrl' | 'lastPrompt' | 'concept'>) => void;
-  verlauf?: LookCommit['verlauf'];
-  onVerlauf: (worte: string, code: string) => void;
+  onLauf: (l: Lauf) => void;
   onSample: (ctx: SampleContext) => void; onClose: () => void;
 }) {
-  const [query, setQuery] = useState(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
-  // Kompatible Richtungen für DIESES Teil (Gate gespiegelt), Best-Fit zuerst.
-  const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
-  // activeCode = gepinnter Design-Code (null = Auto/Haiku). Startet auf der im
-  // Chat gewählten Welt (preferredCode), falls fürs Teil tragbar — sonst Best-Fit.
-  const initCode = (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) ? preferredCode : (compatLooks[0]?.code_id || null);
-  const [activeCode, setActiveCode] = useState<string | null>(initCode);
-  const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [rerror, setRerror] = useState<string>(''); // echter Grund aus render.ts (data.error) statt Blindflug
-  const [varianten, setVarianten] = useState<string[]>([]);
-  const [heroUrl, setHeroUrl] = useState<string | null>(saved?.heroUrl || product.imageUrl);
-  const [lastPrompt, setLastPrompt] = useState(saved?.lastPrompt || ''); // Wunschwerte des zuletzt generierten Renders
-  const [concept, setConcept] = useState<RenderConcept | null>(saved?.concept || null);
-  const [cached, setCached] = useState(false);
-  const [cap, setCap] = useState(initialCap);
-  const [capRenderUrl, setCapRenderUrl] = useState<string | null>(saved?.capRenderUrl || null); // Cap-Recolor aus /api/render
-  const baseImgRef = useRef<HTMLImageElement>(null);
-  const [baseW, setBaseW] = useState(0); // tatsächlich angezeigte Flaschenbreite (px)
-  const measureBase = useCallback(() => {
-    const el = baseImgRef.current;
-    if (el) setBaseW(el.getBoundingClientRect().width);
-  }, []);
-  useEffect(() => {
-    window.addEventListener('resize', measureBase);
-    return () => window.removeEventListener('resize', measureBase);
-  }, [measureBase]);
-
-  const roh = product.imageUrl; // Rohteil (Bild_Harmonisiert) — Anker & erstes Strip-Element
-  // Caps: bei oxidationsempfindlicher Formel wandert der offene Pipetten-Cap
-  // ans Ende (Cap-Wand) — NIE entfernt (bei getöntem Glas legitim), nur
-  // depriorisiert + Hinweis. Erkennung am Namen (Pipette/Dropper/Tropfer).
-  const { caps, dropperDepri } = capsFuer(product, capWall);
-  const istPipette = istPipetteCap;
-  const renderIstAktiv = !!heroUrl && heroUrl !== roh; // Hero zeigt einen Render, nicht das Rohteil
-
-  const run = async (brief: string, codeOverride?: string | null, nudge?: 'quieter' | 'louder') => {
-    const q = brief.trim();
-    if (!q) return;
-    setRstatus('loading');
-    setRerror('');
-    try {
-      const selectedCapId = caps[cap]?.id || null;
-      const body: any = { systemId: product.id, query: q, tier: 'lite' };
-      if (selectedCapId) body.selectedCapId = selectedCapId;
-      // Auto = die ABLEITUNG DER WOLKE, nicht Haikus Neuwahl im Backend.
-      // activeCode === null ("Auto") hiess bisher: forceCodeId leer -> Haiku
-      // waehlt den Code im Render frei. Ergebnis: die Wolke leitete z.B.
-      // Transparent Balance ab, Auto rendert F've (tech-premium, blau, laut 5)
-      // — zwei Gehirne, die nicht reden, und die Wolken-Ableitung war wertlos.
-      // Fix: bei Auto pinnen wir den Wolken-Sieger (compatLooks[0], bereits
-      // nach axis_score sortiert = der oben angezeigte Treffer). Haiku leitet
-      // weiter Palette/Story/Radar ab — nur die RICHTUNG gibt die Wolke vor.
-      let code = codeOverride !== undefined ? codeOverride : activeCode;
-      if (!code && codeOverride === undefined) code = compatLooks[0]?.code_id || null;
-      if (code) body.forceCodeId = code; // gepinnt ODER Wolken-Sieger bei Auto
-      if (nudge) body.lautNudge = nudge; // Achsen-Cursor: hüpf zum nächsten Code in Richtung
-      const res = await fetch(RENDER_API, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'render failed');
-      const url: string | null = data.renderingUrl || null;
-      if (url) {
-        setHeroUrl(url);
-        setCapRenderUrl(data.capRenderingUrl || null);
-        setLastPrompt(data.renderingPrompt || '');
-        setCached(!!data.cached);
-        setConcept(data.concept || null);
-        // Nach einem Nudge folgt der gepinnte Code dem Cursor: der Server hat auf
-        // den Nachbar-Code gehüpft, das ist ab jetzt die aktive Richtung. Nur bei
-        // Nudge — ein normaler Auto-Render darf die Auto-Wahl (null) nicht pinnen.
-        if (nudge && data.concept?.design_code?.id) setActiveCode(data.concept.design_code.id);
-        setVarianten(prev => {
-          const next = prev.includes(url) ? prev : [...prev, url];
-          saveRenderHist(product.id, next);
-          return next;
-        });
-      }
-      setRstatus('done');
-    } catch (e) {
-      setRstatus('error');
-      setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
-    }
-  };
-
-  // ── FIX: Wolken-Klick wirkt bis zum Render durch ──────────────────────────
-  // Bug war: `activeCode` (das, was gerendert wird → forceCodeId) wurde nur beim
-  // Mount/Teilwechsel aus `preferredCode` abgeleitet. Klickte man in der Chat-
-  // Wolke eine andere Welt, während das Panel offen war, änderte sich nur
-  // `preferredCode` — `activeCode` blieb kleben, „Generieren" schickte den alten
-  // Code (→ immer der zuerst gerenderte Look zurück, z.B. Frosted statt Pink).
-  // Dieser Effect zieht einen BEWUSSTEN Welt-Wechsel nach: ändert sich
-  // preferredCode und ist die Welt fürs Teil tragbar, wird sie aktiv.
-  // Der Ref sorgt dafür, dass NUR ein echter Wechsel zählt (nicht schon der
-  // Mount und nicht ein Teilwechsel bei unverändertem preferredCode) →
-  // „Sticky über Teilwechsel" (Mount-Effect unten) bleibt unberührt.
-  const prevPreferred = useRef(preferredCode);
-  useEffect(() => {
-    if (preferredCode !== prevPreferred.current) {
-      prevPreferred.current = preferredCode;
-      if (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) {
-        setActiveCode(preferredCode);
-      }
-      // Inkompatible Wolken-Welt = bewusst KEIN stiller Look-Tausch: activeCode
-      // bleibt auf der tragbaren Richtung (kein „Fallback als Lüge"). Sichtbarer
-      // Hinweis dazu s. Rail unten (preferredMissFuersTeil).
-    }
-  }, [preferredCode, compatLooks]);
-
-  // Ehrlichkeit statt stiller No-Op: im Chat gewählte Welt, die dieses Teil nicht
-  // tragen kann → wird im Rail sichtbar gemacht statt lautlos ignoriert.
-  const preferredMissFuersTeil = !!preferredCode
-    && !compatLooks.some(l => l.code_id === preferredCode);
-
-  useEffect(() => {
-    setQuery(savedBrief && (savedJustier || []).length === 0 ? savedBrief : defaultQuery);
-    setCap(initialCap);
-    setCapRenderUrl(saved?.capRenderUrl || null);
-    setCached(false);
-    setRstatus('idle');
-    setPhase(savedBrief ? 'render' : 'brief');
-    setDryConcept(null);
-    setDryStatus('idle');
-    setLastPrompt(saved?.lastPrompt || '');
-    setConcept(saved?.concept || null);
-    const hist = loadRenderHist(product.id);
-    setVarianten(hist);
-    // Persistierter Render dieses Turns hat Vorrang; sonst letzter aus der Historie; sonst Rohteil.
-    setHeroUrl(saved?.heroUrl || (hist.length > 0 ? hist[hist.length - 1] : product.imageUrl));
-    // Richtung: bleibt sticky (wenn tragbar), sonst die im Chat gewählte Welt,
-    // sonst Best-Fit des Teils. Rendert NICHT automatisch — Nutzer klickt Generieren.
-    setActiveCode(prev => {
-      if (prev && compatLooks.some(l => l.code_id === prev)) return prev;
-      if (preferredCode && compatLooks.some(l => l.code_id === preferredCode)) return preferredCode;
-      // Default ist AUTO (null), nicht der Best-Fit-Pin: Ableitung ist das
-      // Produktversprechen — die Engine waehlt, solange der Nutzer nicht
-      // eingreift. Ein vorgepinnter Look war stille Auswahl statt Ableitung.
-      return null;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id, defaultQuery]);
-
-  // v10: `justier` hält die getippten WOLKEN-WORTE (Bedeutungs-Ebene, s.
-  // BRIEF_VOKABULAR) — nicht mehr die alten Form-Chips. Sie fließen mit dem
-  // Freitext in briefText und persistieren wie zuvor über savedJustier.
+  const [query, setQuery] = useState(savedBrief || defaultQuery);
   const [justier, setJustier] = useState<string[]>(savedJustier || []);
   const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   const briefText = [query.trim(), ...justier].filter(Boolean).join(', ');
-  // briefDone kippt erst beim Klick auf „Rendern →" — NICHT abhängig von alten Renders
-  // in der localStorage-Historie (sonst würde ein Teil mit Historie den Brief überspringen).
-  // Render-Ergebnis in den Commit persistieren — als Effekt auf 'done', damit run() unangetastet bleibt.
-  const lastPersisted = useRef<string | null>(null);
-  useEffect(() => {
-    if (rstatus !== 'done' || !renderIstAktiv || !heroUrl) return;
-    const sig = `${heroUrl}|${capRenderUrl || ''}|${concept?.konzept_name || ''}`;
-    if (lastPersisted.current === sig) return;
-    lastPersisted.current = sig;
-    onRender({ heroUrl, capRenderUrl, lastPrompt, concept });
-    // v11: jeder Render schreibt seinen Verlaufs-Eintrag — Worte + Richtung.
-    onVerlauf(briefText, concept?.design_code?.name || '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rstatus, heroUrl, capRenderUrl, concept, lastPrompt]);
 
-  // Drei Phasen statt zwei: Brief → Behauptung → Render. Ein persistierter
-  // Brief heißt, der Turn war schon durch — dann direkt in die Render-Phase.
-  const [phase, setPhase] = useState<'brief' | 'behauptung' | 'render'>(savedBrief ? 'render' : 'brief');
-  const briefPhase = phase === 'brief';
-  const renderPhase = phase === 'render';
+  // Kompatible Richtungen — nur noch Info („kann N Richtungen tragen"). Die
+  // Wahl trifft die Ableitung; es gibt keine Code-Auswahl im UI.
+  const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
+  const { caps } = capsFuer(product, capWall);
+  const [cap, setCap] = useState(initialCap);
+
+  const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [rerror, setRerror] = useState('');
+  const [detailsLauf, setDetailsLauf] = useState<number | null>(null);
+  const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
 
-  // Phase ①→②: ableiten OHNE zu rendern. Gleicher Endpunkt, gleiche
-  // Code-Wahl, nur ohne Bild (dryRun) — deshalb kostenlos und schnell.
+  useEffect(() => {
+    setQuery(savedBrief || defaultQuery);
+    setJustier(savedJustier || []);
+    setCap(initialCap);
+    setPhase('brief'); setDryConcept(null);
+    setDryStatus('idle'); setRstatus('idle'); setRerror('');
+    setDetailsLauf(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id, defaultQuery]);
+
+  /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
   const ableiten = async () => {
     const q = briefText.trim();
     if (!q) return;
     setDryStatus('loading'); setRerror('');
     try {
       const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true };
-      const selectedCapId = caps[cap]?.id || null;
-      if (selectedCapId) body.selectedCapId = selectedCapId;
-      // In der Ableitung wird NICHT gepinnt: die Engine soll frei wählen.
-      // Ein forceCodeId hier wäre Auswahl durch die Hintertür.
-      const res = await fetch(RENDER_API, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const capId = caps[cap]?.id || null;
+      if (capId) body.selectedCapId = capId;
+      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Ableitung fehlgeschlagen');
       setDryConcept(data.concept || null);
-      // Die abgeleitete Richtung wird die aktive — der Render danach nimmt
-      // genau diesen Code, sonst würde das Bild die Behauptung widerlegen.
-      if (data.concept?.design_code?.id) setActiveCode(data.concept.design_code.id);
       setDryStatus('idle');
       setPhase('behauptung');
     } catch (e) {
@@ -1183,25 +1071,49 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
     }
   };
 
-  // Phase ②→③: jetzt erst das (teure) Bild.
-  const starteRender = () => {
-    setPhase('render');
-    onBrief(briefText, justier);
-    run(briefText, dryConcept?.design_code?.id || undefined);
+  /* Render: erzeugt IMMER einen neuen Lauf — nichts wird ersetzt. */
+  const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder') => {
+    const q = worte.trim();
+    if (!q) return;
+    setRstatus('loading'); setRerror('');
+    try {
+      const body: any = { systemId: product.id, query: q, tier: 'lite' };
+      const capId = caps[cap]?.id || null;
+      if (capId) body.selectedCapId = capId;
+      if (codeId) body.forceCodeId = codeId; // Behauptungs-Code — das Bild darf der Behauptung nicht widersprechen
+      if (nudge) body.lautNudge = nudge;
+      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'render failed');
+      if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
+      onLauf({
+        id: Date.now(),
+        worte: q + (nudge ? (nudge === 'quieter' ? ' · leiser' : ' · lauter') : ''),
+        heroUrl: data.renderingUrl,
+        capRenderUrl: data.capRenderingUrl || null,
+        lastPrompt: data.renderingPrompt || '',
+        concept: data.concept || null,
+      });
+      setRstatus('idle');
+      setPhase('brief'); setDryConcept(null);
+    } catch (e) {
+      setRstatus('error');
+      setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
+    }
   };
-  const bestLook = compatLooks[0] || null;
 
-  const anfrageStart = () => {
-    const prod = renderIstAktiv ? (concept?.produzierbar || null) : null;
-    const wt = produzierbarText(prod);
-    onSample({
-      product,
-      renderUrl: renderIstAktiv ? (heroUrl as string) : '',
-      wishValues: wt || (renderIstAktiv ? lastPrompt : ''),
-      capLabel: caps[cap]?.name || '',
-      konzept: renderIstAktiv ? concept : null,
-    });
+  const zeigen = () => { onBrief(briefText, justier); rendern(briefText, dryConcept?.design_code?.id || null); };
+  const nudge = (n: string) => { if (letzt) rendern(`${letzt.worte}, ${n}`, letzt.concept?.design_code?.id || null); };
+  const lautCursor = (dir: 'quieter' | 'louder') => {
+    if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, dir);
   };
+  const anfrage = (l: Lauf) => onSample({
+    product,
+    renderUrl: l.heroUrl || '',
+    wishValues: produzierbarText(l.concept?.produzierbar || null) || l.lastPrompt,
+    capLabel: caps[cap]?.name || '',
+    konzept: l.concept,
+  });
 
   return (
     <section className="lookturn">
@@ -1212,120 +1124,79 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
         </div>
       </div>
 
-      {briefPhase && bestLook && (
+      {laeufe.length === 0 && phase === 'brief' && (
         <div className="lt-lesart">
           <b>{product.name}</b> kann <b>{compatLooks.length}</b> Richtung{compatLooks.length === 1 ? '' : 'en'} tragen.
           <span className="lt-alt"> Welche es wird, sagt dein Brief.</span>
         </div>
       )}
 
-      {phase === 'behauptung' && dryConcept && (
-        <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefText}
-          laden={rstatus === 'loading'} onZeigen={starteRender} />
-      )}
-      {phase === 'behauptung' && (
-        <div className="lt-abl"><button onClick={() => setPhase('brief')}>← Brief ändern</button></div>
-      )}
-
-      {renderPhase && renderIstAktiv && concept && <FrameHead concept={concept} />}
-
-      {/* Gestapelte Bühne: Cap oben (getrennt gerendert), Base unten — nie gemerged.
-          In der Brief-Phase (noch kein Render) bleibt sie zu: erst verstehen, dann sehen. */}
-      {renderPhase && (
-      <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {caps.length > 0 && (
-          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
-            {(capRenderUrl || caps[cap]?.imageUrl)
-              ? <img src={(capRenderUrl || caps[cap].imageUrl) as string} alt={caps[cap]?.name || `Verschluss ${cap + 1}`} style={{ width: baseW ? Math.round(baseW * 0.34) : 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-              : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
+      {/* ── Eingefrorene Läufe: Worte → Richtung → Bild. Bleiben stehen. ── */}
+      {laeufe.map((l, i) => {
+        const istLetzt = i === laeufe.length - 1;
+        const dc = l.concept?.design_code;
+        return (
+          <div key={l.id} className={`lauf${istLetzt ? '' : ' lauf-alt'}`}>
+            <div className="lauf-worte">»{l.worte}«</div>
+            {l.concept && (
+              <div className="lauf-kopf">
+                <b>{l.concept.konzept_name}</b>
+                {dc?.register ? <span className="lauf-ident"> — {identitaetSatz(dc.register, dc.laut)}</span> : null}
+              </div>
+            )}
+            <div className="lauf-stage">
+              {caps.length > 0 && (l.capRenderUrl || caps[cap]?.imageUrl) && (
+                <img className="lauf-cap" src={(l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              )}
+              {l.heroUrl && <img className="lauf-hero" src={l.heroUrl} alt={l.concept?.konzept_name || product.name} />}
+            </div>
+            <div className="lauf-akt">
+              {l.concept && (
+                <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === l.id ? null : l.id)}>
+                  {detailsLauf === l.id ? 'Details ↑' : 'Details ↓'}
+                </button>
+              )}
+              {istLetzt && dc && dc.laut != null && (
+                <>
+                  <button className="lauf-btn" disabled={rstatus === 'loading' || !dc.can_quieter} onClick={() => lautCursor('quieter')}>← leiser</button>
+                  <button className="lauf-btn" disabled={rstatus === 'loading' || !dc.can_louder} onClick={() => lautCursor('louder')}>lauter →</button>
+                </>
+              )}
+              {istLetzt && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
+                <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
+              ))}
+              {istLetzt && (
+                <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(l)}>Muster anfragen →</button>
+              )}
+            </div>
+            {detailsLauf === l.id && l.concept && (
+              <div className="lauf-details">
+                {l.concept.story && <div className="lauf-story">{l.concept.story}</div>}
+                <SpecSheet concept={l.concept} />
+              </div>
+            )}
           </div>
-        )}
-        <div className={`pn-bild${renderIstAktiv && concept ? ' im-frame' : ''}`} style={{ width: '100%' }}>
-          {rstatus === 'loading'
-            ? <div className="pn-lade"><span className="pn-lade-sp" />Rendert deine Richtung …</div>
-            : heroUrl
-              ? <img ref={baseImgRef} src={heroUrl} alt={product.name} onLoad={measureBase} />
-              : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
-        </div>
-      </div>
+        );
+      })}
+
+      {rstatus === 'loading' && (
+        <div className="lauf lauf-lade"><span className="pn-lade-sp" /> Rendert deine Richtung …</div>
       )}
 
-      {renderPhase && renderIstAktiv && concept && (
-        <div className="pn-prov" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#7a7a76', marginTop: 8 }}>
-          <span>generiert aus</span>
-          <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{product.name}</strong>
-          {caps.length > 0 && <><span>+</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{caps[cap]?.name || `Cap ${cap + 1}`}</strong></>}
-          {concept.konzept_name && <><span>·</span><strong style={{ fontWeight: 600, color: '#2a2a28' }}>{concept.konzept_name}</strong></>}
-        </div>
+      {/* ── Aktiver Bereich: genau EINE Sache. ── */}
+      {phase === 'behauptung' && dryConcept && rstatus !== 'loading' && (
+        <>
+          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefText}
+            laden={false} onZeigen={zeigen} />
+          <div className="lt-abl"><button onClick={() => setPhase('brief')}>← Worte ändern</button></div>
+        </>
       )}
 
-      {/* Achsen-Cursor · Temp_Laut: hüpft auf den nächsten kuratierten Code in
-          Richtung — gleiche Flasche, ruhigerer/lauterer Look. Chip disabled,
-          wenn es in der Welt keinen Nachbar in die Richtung gibt (kein toter Klick). */}
-      {renderPhase && renderIstAktiv && concept?.design_code && concept.design_code.laut != null && (
-        <div className="pn-laut" style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: '#9a9a97' }}>Look anpassen</span>
-          <button type="button" className="pn-dir"
-            disabled={rstatus === 'loading' || !concept.design_code.can_quieter}
-            onClick={() => run(briefText, concept!.design_code!.id, 'quieter')}
-            title="ruhigerer Look — gleiche Flasche, leisere Design-Direction">
-            ← leiser
-          </button>
-          <button type="button" className="pn-dir"
-            disabled={rstatus === 'loading' || !concept.design_code.can_louder}
-            onClick={() => run(briefText, concept!.design_code!.id, 'louder')}
-            title="lauterer Look — gleiche Flasche, energischere Design-Direction">
-            lauter →
-          </button>
-          <span style={{ fontSize: 11, color: '#7a7a76', marginLeft: 8, whiteSpace: 'nowrap' }}
-            title="Abgeleitete Design-Direction — Welt (Register) und Position auf der Laut-Achse, in Worten.">
-            <strong style={{ fontWeight: 600, color: '#2a2a28' }}>{concept.design_code.name}</strong>
-            {' — '}{identitaetSatz(concept.design_code.register, concept.design_code.laut)}
-          </span>
-        </div>
-      )}
-
-      {renderPhase && renderIstAktiv && concept && <SpecSheet concept={concept} />}
-
-      {renderPhase && varianten.length > 0 && (
-        <div className="varstrip">
-          <div className="lbl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span>Renders · {varianten.length}{cached && rstatus === 'done' ? ' · aus Cache' : ''}</span>
-            <button
-              onClick={() => { saveRenderHist(product.id, []); setVarianten([]); setHeroUrl(roh); setCapRenderUrl(null); setConcept(null); setCached(false); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9a9a97', padding: 0 }}
-              title="lokale Render-Historie dieses Produkts leeren"
-            >leeren</button>
-          </div>
-          <div className="thumbs">
-            <button className={`varthumb${heroUrl === roh ? ' an' : ''}`} onClick={() => setHeroUrl(roh)} title="Original-Rohteil">
-              {roh ? <img src={roh} alt="Original" /> : <span className="ph">◇</span>}
-              <span className="vt-tag">Original</span>
-            </button>
-            {varianten.map((u, i) => (
-              <button key={i} className={`varthumb${heroUrl === u ? ' an' : ''}`} onClick={() => setHeroUrl(u)}>
-                <img src={u} alt={`Render ${i + 1}`} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {renderPhase && (verlauf || []).length > 0 && (
-        <div className="lt-verlauf">
-          <div className="lv-lbl">Verlauf — worauf jeder Render basiert</div>
-          {(verlauf || []).map((v, i) => (
-            <div key={v.ts + ':' + i} className="lv-zeile">{i + 1}. »{v.worte}« → <b>{v.code || '—'}</b></div>
-          ))}
-        </div>
-      )}
-
-      <div className="pn-body">
-        <div className="vis">
-          <div className="top">{briefPhase ? 'Erzähl uns, wer ihr seid' : 'Deine Richtung'}</div>
-          {/* v11: Wolke in ALLEN Phasen — Richtung ändern geht über Worte,
-              nie über Code-Karten. */}
-          <div className="lt-just">
+      {phase === 'brief' && rstatus !== 'loading' && (
+        <div className="pn-body">
+          <div className="vis">
+            <div className="top">{laeufe.length === 0 ? 'Erzähl uns, wer ihr seid' : 'Richtung ändern — in Worten'}</div>
+            <div className="lt-just">
               {BRIEF_VOKABULAR.map(g => (
                 <div className="lt-just-row" key={g.lbl}>
                   <span className="lt-just-lbl">{g.lbl}</span>
@@ -1336,42 +1207,20 @@ function LookTurn({ product, allLooks, preferredCode, defaultQuery, capWall, ini
                   ))}
                 </div>
               ))}
-              <div className="lt-brieftext" style={{ marginTop: 2 }}>
-                {briefPhase
-                  ? 'Tipp an, was passt — oder schreib es unten in eigenen Worten. ulba leitet daraus die Richtung ab.'
-                  : 'Worte ändern und neu ableiten — die Richtung folgt deinem Brief, nicht einem Menü.'}
-              </div>
-          </div>
-          <div className="row">
-            <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') ableiten(); }}
-              placeholder="z. B. ruhig, teuer, Vitamin C, für Frauen ab 40" />
-            <button className="gen"
-              onClick={ableiten}
-              disabled={rstatus === 'loading' || dryStatus === 'loading' || !briefText.trim()}>
-              {dryStatus === 'loading' ? 'Leitet ab …'
-                : rstatus === 'loading' ? 'Rendert …'
-                : briefPhase ? 'Ableiten →' : 'Neu ableiten →'}
-            </button>
-          </div>
-          {renderPhase && (savedBrief || briefText) && <div className="lt-brieftext">Render basiert auf: {savedBrief || briefText}</div>}
-          {rstatus === 'error' && <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Konnte nicht generieren — bitte erneut versuchen.'}</div>}
-          {renderPhase && renderIstAktiv && (
-            <div className="pn-nudges" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-              {['wärmer', 'kühler', 'heller', 'dunkler', 'edler', 'mehr Kontrast'].map(n => (
-                <button key={n} type="button" onClick={() => run(`${briefText}, ${n}`)} disabled={rstatus === 'loading'}
-                  style={{ fontSize: 12, padding: '5px 11px', borderRadius: 14, border: '1px solid #e4e4e1', background: '#fff', color: '#55554f', cursor: rstatus === 'loading' ? 'default' : 'pointer' }}>
-                  {n}
-                </button>
-              ))}
             </div>
-          )}
-        </div>
-      </div>
-
-      {renderPhase && renderIstAktiv && (
-        <div className="pn-aktion lt-aktion">
-          <button className="cta" onClick={anfrageStart} disabled={rstatus === 'loading'}>Muster anfragen →</button>
+            <div className="row">
+              <input value={query} onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') ableiten(); }}
+                placeholder="z. B. ruhig, teuer, Vitamin C, für Frauen ab 40" />
+              <button className="gen" onClick={ableiten}
+                disabled={dryStatus === 'loading' || !briefText.trim()}>
+                {dryStatus === 'loading' ? 'Leitet ab …' : laeufe.length === 0 ? 'Ableiten →' : 'Neu ableiten →'}
+              </button>
+            </div>
+            {(dryStatus === 'error' || rstatus === 'error') && (
+              <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
+            )}
+          </div>
         </div>
       )}
     </section>
@@ -1806,6 +1655,13 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blk.id ? { ...b, commits: [...(b.commits || []), { id, productId: product.id, cap, ts: id }] } : b) }));
     setScrollToCommit(id);
   };
+  // v12: Läufe eines Commits — mit Migration alter Commits (ein Render in
+  // Einzelfeldern) zu genau einem Lauf. Nichts geht verloren.
+  const laeufeVon = (c: LookCommit): Lauf[] => {
+    if (c.laeufe && c.laeufe.length) return c.laeufe;
+    if (c.heroUrl) return [{ id: c.ts, worte: c.brief || '', heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl || null, lastPrompt: c.lastPrompt || '', concept: c.concept || null }];
+    return [];
+  };
   const patchCommit = (commitId: number, patch: Partial<LookCommit>) => {
     if (!active) return;
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.map(c => c.id === commitId ? { ...c, ...patch } : c) } : b) }));
@@ -1947,13 +1803,11 @@ export default function Home() {
                               return (
                                 <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
                                   <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
-                                  <LookTurn product={prod} allLooks={b.looks} preferredCode={preferredCode} defaultQuery={rootQuery}
+                                  <LookTurn product={prod} allLooks={b.looks} defaultQuery={rootQuery}
                                     capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier}
-                                    saved={{ heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl, lastPrompt: c.lastPrompt, concept: c.concept }}
+                                    laeufe={laeufeVon(c)}
                                     onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
-                                    onRender={r => patchCommit(c.id, r)}
-                                    verlauf={c.verlauf || []}
-                                    onVerlauf={(worte, code) => patchCommit(c.id, { verlauf: [...(c.verlauf || []), { worte, code, ts: Date.now() }] })}
+                                    onLauf={l => patchCommit(c.id, { laeufe: [...laeufeVon(c), l] })}
                                     onSample={setSampleCtx} onClose={() => removeCommit(c.id)} />
                                 </div>
                               );
