@@ -788,6 +788,17 @@ const STYLES = `
 .grp-titel{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.01em;margin:28px 0 14px}
 .grp-titel:first-child{margin-top:0}
 .refine .feld input{padding:11px 4px;font-size:14px}
+/* Kontext-Strip: macht sichtbar, dass die Leiste gerade das Briefing fuehrt
+   und nicht die Suche verfeinert — die beiden Ebenen duerfen nie verschwimmen. */
+.rf-strip{max-width:900px;margin:0 auto 9px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rf-modus{font-size:13px;color:var(--grau)}
+.rf-modus b{color:var(--tinte);font-weight:600}
+.rf-grund{font-size:13px;color:var(--hell)}
+.rf-ab{margin-left:auto;background:var(--tinte);color:#fff;border-radius:999px;padding:9px 18px;font-size:13.5px;white-space:nowrap}
+.rf-ab:hover{background:var(--rouge)}
+.rf-ab:disabled{opacity:.4;cursor:default}
+.rf-zurueck{font-size:12.5px;color:var(--hell);text-decoration:underline;text-underline-offset:3px;background:none}
+.rf-zurueck:hover{color:var(--rouge)}
 .msg-user{display:flex;justify-content:flex-end;margin:16px 0}
 .msg-user span{background:var(--tinte);color:#fff;padding:11px 17px;border-radius:16px 16px 4px 16px;font-size:14.5px;max-width:78%}
 .msg-ulba{margin:8px 0 26px}
@@ -955,6 +966,36 @@ const STYLES = `
 .bw-konflikt{font-size:12.5px;line-height:1.5;color:#9a6b1f;background:#FDF6E7;border:1px solid #F0E0BC;border-radius:9px;padding:8px 12px;margin:0 2px 12px}
 .bw-anker.duenn,.lt-chip.duenn{opacity:.42}
 .bw-anker.duenn:hover,.lt-chip.duenn:hover{opacity:.75}
+/* Geführtes Briefing (v15) — ein Gespräch, kein Formular. Die Frage ist der
+   Held: Serif, gross, Tinte. Die Wolke liegt hinter einem leisen Link — wer
+   fluessig erzaehlt, sieht sie nie. Der Spiegel ist eine Zeile, kein Raster. */
+.gf-eroeffnung{font-family:var(--serif);font-size:16.5px;line-height:1.5;color:var(--grau);margin:2px 2px 22px;padding-left:14px;border-left:2px solid var(--tinte);max-width:62ch}
+.gf-zug{margin:0 2px 20px;padding-left:14px;border-left:2px solid var(--linie);max-width:64ch}
+.gf-zug-frage{font-size:13px;color:var(--hell);margin-bottom:6px}
+.gf-zug-antwort{font-family:var(--serif);font-size:15px;color:var(--grau);margin-bottom:8px}
+.gf-zug-lesart{font-family:var(--serif);font-size:16px;line-height:1.55;color:var(--tinte)}
+.gf-zug-weil{color:var(--grau)}
+.gf-aktiv{margin:26px 2px 4px;max-width:64ch}
+.gf-frage{font-family:var(--serif);font-size:21px;line-height:1.35;letter-spacing:-.012em;color:var(--tinte);margin-bottom:14px;max-width:36ch}
+.gf-feld{display:flex;gap:10px;align-items:flex-end}
+.gf-feld textarea{flex:1;background:var(--panel);border:1px solid var(--linie);border-radius:14px;padding:13px 15px;font:inherit;font-size:15px;line-height:1.5;outline:none;resize:none}
+.gf-feld textarea:focus{border-color:var(--hell)}
+.gf-feld textarea::placeholder{color:var(--hell)}
+.gf-senden{background:var(--tinte);color:#fff;border-radius:999px;padding:13px 22px;font-size:14px;white-space:nowrap}
+.gf-senden:hover{background:var(--rouge)}
+.gf-senden:disabled{opacity:.32;cursor:default}
+.gf-unten{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:11px;min-height:20px}
+.gf-gelesen{font-size:13.5px;color:var(--grau)}
+.gf-gelesen b{color:var(--tinte);font-weight:600}
+.gf-hilfe-btn{font-size:13px;color:var(--hell);text-decoration:underline;text-underline-offset:3px;background:none}
+.gf-hilfe-btn:hover{color:var(--rouge)}
+.gf-hilfe{margin-top:14px;padding:14px 16px;border:1px dashed var(--linie);border-radius:13px;animation:bwAuf .18s ease}
+.gf-hilfe-lbl{font-size:12.5px;color:var(--hell);margin-bottom:10px}
+.gf-ab{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:22px;padding-top:17px;border-top:1px solid var(--linie2)}
+.gf-ab-cta{background:var(--tinte);color:#fff;border-radius:999px;padding:13px 24px;font-size:15px}
+.gf-ab-cta:hover{background:var(--rouge)}
+.gf-ab-cta:disabled{opacity:.28;cursor:default}
+.gf-ab-grund{font-size:13.5px;color:var(--grau)}
 .msg-commit{margin-top:18px}
 .msg-commit .msg-user{margin-bottom:8px}
 .pn-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 24px 12px}
@@ -1238,13 +1279,15 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
    Jeder abgeschlossene Render wird als Lauf an den Commit gehängt und nie
    wieder angefasst — wie ein Suchblock im Chat. Der aktive Bereich unten
    zeigt immer genau eine Sache: Wolke+Feld (Brief) oder die Behauptung. ── */
-function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, sucheQuery, kategorie, laeufe, onBrief, onLauf, onSample, onClose }: {
+function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, sucheQuery, kategorie, laeufe, onBrief, onLauf, onSample, onClose, onAktiv }: {
   product: Result; allLooks: DesignLook[]; capWall?: CapWall;
   initialCap: number; savedBrief?: string; savedJustier?: string[]; sucheQuery?: string; kategorie?: string;
   laeufe: Lauf[];
   onBrief: (brief: string, justier: string[]) => void;
   onLauf: (l: Lauf) => void;
   onSample: (ctx: SampleContext) => void; onClose: () => void;
+  // Bindet die untere Leiste an dieses Briefing (ein Feld fuer alles).
+  onAktiv?: (ctx: BriefBarCtx | null, api: { current: BriefBarApi } | null) => void;
 }) {
   // v14.3: leer starten — die Packmittel-Suche gehört NICHT in den Design-Brief.
   const [query, setQuery] = useState(savedBrief || '');
@@ -1277,6 +1320,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   // v13: geöffnete Nachbarschaft + Live-Lesart. Anker abwählen räumt auch
   // seine gewählten Kinder ab — halbe Zustände verwirren mehr als sie helfen.
   const [offenAnker, setOffenAnker] = useState<string | null>(null);
+  const [hilfeOffen, setHilfeOffen] = useState(false);
   // v14: emergentes Vokabular — einmal laden, dann mergen.
   const [vokab, setVokab] = useState<VokabWort[]>(VOKAB_CACHE || []);
   useEffect(() => { ladeVokabular().then(setVokab); }, []);
@@ -1305,6 +1349,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     }
   };
   const lesart = liveLesart(justier, query, signale);
+  const aktuelleFrage = verlauf.length < BRIEF_FRAGEN.length ? BRIEF_FRAGEN[verlauf.length].frage : 'Willst du noch etwas ergänzen?';
   const briefGesamt = [...verlauf.map(v => v.antwort), briefText].filter(Boolean).join('. ');
   // Koordinate: Stichwort-Scan als Boden, Haikus Lesart schlägt ihn — echte
   // Sätze enthalten die Vokabel-Wörter fast nie ("kein Drogerie-Kram" ≠ "laut").
@@ -1328,16 +1373,16 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     setPhase('brief'); setDryConcept(null);
     setDryStatus('idle'); setRstatus('idle'); setRerror('');
     setDetailsLauf(null);
-    setOffenAnker(null); setVerlauf([]);
+    setOffenAnker(null); setVerlauf([]); setHilfeOffen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
   /* Ein Gesprächszug: Antwort einfrieren + Rückspiegelung. Deterministisch
      SOFORT (Wahrheit), Haiku veredelt die Stimme im Nachgang — 0 gefühlte
      Latenz; fällt Haiku aus, bleibt die deterministische Lesart stehen. */
-  const antworten = () => {
-    const a = briefText.trim(); if (!a) return;
-    const brief = briefGesamt;
+  const antworten = (text?: string) => {
+    const a = (text ?? briefText).trim(); if (!a) return;
+    const brief = [...verlauf.map(v => v.antwort), a].filter(Boolean).join('. ');
     const r = rueckspiegelung(brief, signale);
     const k = koordinateAusBrief(brief, signale);
     const id = Date.now();
@@ -1381,6 +1426,19 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       setRerror(e instanceof Error ? e.message : 'Ableitung fehlgeschlagen');
     }
   };
+
+  /* Die untere Leiste bedient dieses Briefing. Die API liegt in einer Ref —
+     so liest die Leiste immer den frischen Closure, ohne Re-Render-Schleife. */
+  const apiRef = useRef<BriefBarApi>({ antworten: () => {}, ableiten: () => {} });
+  apiRef.current = { antworten: (t: string) => antworten(t), ableiten: () => ableiten() };
+  const barAktiv = phase === 'brief' && rstatus !== 'loading';
+  useEffect(() => {
+    if (!onAktiv) return;
+    if (barAktiv) onAktiv({ frage: aktuelleFrage, gateOk: gate.ok, grund: gate.grund, laden: dryStatus === 'loading', ersterLauf: laeufe.length === 0 }, apiRef);
+    else onAktiv(null, null);
+    return () => { onAktiv(null, null); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barAktiv, aktuelleFrage, gate.ok, gate.grund, dryStatus, laeufe.length]);
 
   /* Render: erzeugt IMMER einen neuen Lauf — nichts wird ersetzt. */
   const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder') => {
@@ -1506,76 +1564,79 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       {phase === 'brief' && rstatus !== 'loading' && (
         <div className="pn-body">
           {verlauf.length === 0 && laeufe.length === 0 && (
-            <div className="bw-lesart" style={{ borderLeftColor: 'var(--tinte)' }}>{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
+            <div className="gf-eroeffnung">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
           )}
+
+          {/* Eingefrorene Gesprächszüge: Frage → Antwort → Lesart + weil. */}
           {verlauf.map(v => (
-            <div key={v.id} className="bw-lesart">
-              <div style={{ color: 'var(--hell)', fontFamily: 'var(--mono)', fontSize: 12, marginBottom: 4 }}>{v.frage}</div>
-              <div style={{ marginBottom: 4 }}>»{v.antwort}«</div>
-              <div><b>{v.lesart}</b> {v.weil}</div>
+            <div key={v.id} className="gf-zug">
+              <div className="gf-zug-frage">{v.frage}</div>
+              <div className="gf-zug-antwort">»{v.antwort}«</div>
+              <div className="gf-zug-lesart">{v.lesart} <span className="gf-zug-weil">{v.weil}</span></div>
             </div>
           ))}
-          <div className="vis">
-            <div className="top">{verlauf.length < BRIEF_FRAGEN.length ? BRIEF_FRAGEN[verlauf.length].frage : 'Noch etwas ergänzen?'}</div>
-            <div className="bw">
-              <div className="bw-anker-wolke">
-                {HALTUNG_ANKER.map(a => {
-                  const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                  const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
-                  return (
-                    <button key={a.w} type="button"
-                      className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
-                      title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
-                      onClick={() => toggleAnker(a.w)}>{a.w}</button>
-                  );
-                })}
-              </div>
-              {offenAnker && (
-                <div className="bw-kinder">
-                  <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
-                  {(kinderVon[offenAnker] || []).map(k => {
-                    const duenn = wortDeckung(k, compatLooks, signale) === 0;
+
+          {/* Aktiver Zug: genau eine Frage, ein Feld. */}
+          <div className="gf-aktiv">
+            <div className="gf-frage">
+              {aktuelleFrage}
+            </div>
+            <div className="gf-unten">
+              {identitaetSatz(koord.register, koord.laut) && (
+                <span className="gf-gelesen">Ich lese dich: <b>{identitaetSatz(koord.register, koord.laut)}</b></span>
+              )}
+              <button type="button" className="gf-hilfe-btn" onClick={() => setHilfeOffen(o => !o)}>
+                {hilfeOffen ? 'Worte ausblenden' : 'Worte fehlen dir?'}
+              </button>
+            </div>
+
+            {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 12 }}>{lesart.konflikt}</div>}
+
+            {/* Wolke — nur auf Wunsch. Formulierungshilfe, keine Pflicht. */}
+            {hilfeOffen && (
+              <div className="gf-hilfe">
+                {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
+                  <>
+                    <div className="gf-hilfe-lbl">Passt eines davon?</div>
+                    <div className="bw-anker-wolke" style={{ marginBottom: 14 }}>
+                      {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
+                        <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div className="gf-hilfe-lbl">Oder eine Haltung — blasse Worte trägt unser Archiv noch dünn.</div>
+                <div className="bw-anker-wolke">
+                  {HALTUNG_ANKER.map(a => {
+                    const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
+                    const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
                     return (
-                      <button key={k} type="button"
-                        className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
+                      <button key={a.w} type="button"
+                        className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
                         title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
-                        onClick={() => toggleJust(k)}>{k}</button>
+                        onClick={() => toggleAnker(a.w)}>{a.w}</button>
                     );
                   })}
                 </div>
-              )}
-            </div>
-            {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
-              <div className="lt-just">
-                <div className="lt-just-row">
-                  <span className="lt-just-lbl">Stichworte</span>
-                  {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
-                    <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
-                  ))}
-                </div>
+                {offenAnker && (
+                  <div className="bw-kinder">
+                    <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
+                    {(kinderVon[offenAnker] || []).map(k => {
+                      const duenn = wortDeckung(k, compatLooks, signale) === 0;
+                      return (
+                        <button key={k} type="button"
+                          className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
+                          title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
+                          onClick={() => toggleJust(k)}>{k}</button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
-            {(lesart.text || identitaetSatz(koord.register, koord.laut)) && (
-              <div className="bw-lesart">Ich lese dich gerade: <b>{lesart.text || identitaetSatz(koord.register, koord.laut)}</b></div>
-            )}
-            {lesart.konflikt && (<div className="bw-konflikt">{lesart.konflikt}</div>)}
-            <div className="row">
-              <input value={query} onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && briefText.trim()) antworten(); }}
-                placeholder="In ganzen Sätzen — wie du es einer Agentur erzählen würdest" />
-              <button className="gen" onClick={antworten} disabled={!briefText.trim()}>Antworten →</button>
-            </div>
-            <div className="row" style={{ marginTop: 10, alignItems: 'center', gap: 12 }}>
-              <button className="gen" onClick={ableiten}
-                disabled={dryStatus === 'loading' || !gate.ok}
-                title={gate.ok ? undefined : gate.grund}
-                style={{ opacity: gate.ok ? 1 : 0.5 }}>
-                {dryStatus === 'loading' ? 'Leitet ab …' : laeufe.length === 0 ? 'Design ableiten →' : 'Neu ableiten →'}
-              </button>
-              {!gate.ok && <span style={{ fontSize: 13, color: 'var(--grau)' }}>{gate.grund}</span>}
-            </div>
+
             {(dryStatus === 'error' || rstatus === 'error') && (
-              <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
+              <div style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
             )}
           </div>
         </div>
@@ -1808,6 +1869,9 @@ function LookVorschau({ look, umgeleitet }: { look: DesignLook; umgeleitet?: boo
 }
 
 export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
+/* Was die untere Leiste ueber das laufende Briefing wissen muss. */
+interface BriefBarCtx { frage: string; gateOk: boolean; grund: string; laden: boolean; ersterLauf: boolean }
+interface BriefBarApi { antworten: (text: string) => void; ableiten: () => void }
 function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
   const seen = new Set<string>();
   const out: LookMitStatus[] = [];
@@ -1842,6 +1906,19 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
+  // Ein Feld fuer alles: laeuft ein Briefing, fuehrt die untere Leiste es —
+  // sonst verfeinert sie die Suche. Der Modus steht sichtbar im Strip.
+  const [briefBar, setBriefBar] = useState<BriefBarCtx | null>(null);
+  const briefBarApi = useRef<{ current: BriefBarApi } | null>(null);
+  const bindeBriefBar = useCallback((ctx: BriefBarCtx | null, api: { current: BriefBarApi } | null) => {
+    briefBarApi.current = api; setBriefBar(ctx);
+  }, []);
+  const leisteSenden = () => {
+    const t = refineInput.trim(); if (!t) return;
+    if (briefBar && briefBarApi.current) briefBarApi.current.current.antworten(t);
+    else verfeinereText(t);
+    setRefineInput('');
+  };
   const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
   const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
   const [scrollToCommit, setScrollToCommit] = useState<number | null>(null); // frisch angelegter Look-Turn → hinscrollen
@@ -2165,7 +2242,7 @@ export default function Home() {
                                     laeufe={laeufeVon(c)}
                                     onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
                                     onLauf={l => patchCommit(c.id, { laeufe: [...laeufeVon(c), l] })}
-                                    onSample={setSampleCtx} onClose={() => removeCommit(c.id)} />
+                                    onSample={setSampleCtx} onClose={() => removeCommit(c.id)} onAktiv={bindeBriefBar} />
                                 </div>
                               );
                             })}
@@ -2176,9 +2253,22 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="refine">
+                  {briefBar && (
+                    <div className="rf-strip">
+                      <span className="rf-modus">Du antwortest gerade <b>im Design-Brief</b></span>
+                      {!briefBar.gateOk && <span className="rf-grund">{briefBar.grund}</span>}
+                      {briefBar.gateOk && (
+                        <button className="rf-ab" disabled={briefBar.laden}
+                          onClick={() => briefBarApi.current?.current.ableiten()}>
+                          {briefBar.laden ? 'Leitet ab …' : briefBar.ersterLauf ? 'Design ableiten →' : 'Neu ableiten →'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="feld">
-                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { verfeinereText(refineInput); setRefineInput(''); } }} placeholder={'Verfeinern in Worten — „wärmer“, „nur Glas“, „30 ml“'} />
-                    <button className="go" onClick={() => { verfeinereText(refineInput); setRefineInput(''); }} aria-label="senden">↑</button>
+                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') leisteSenden(); }}
+                      placeholder={briefBar ? 'Antworte in ganzen Sätzen — wie du es einer Agentur erzählen würdest' : 'Verfeinern in Worten — „wärmer“, „nur Glas“, „30 ml“'} />
+                    <button className="go" onClick={leisteSenden} aria-label="senden">↑</button>
                   </div>
                 </div>
               </main>
