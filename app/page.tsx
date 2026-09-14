@@ -242,6 +242,7 @@ const HALTUNG_ANKER: BriefAnker[] = [
 ];
 // Kind → Anker und Wort → Signal, einmal beim Laden abgeleitet.
 const KINDER_VON: Record<string, string[]> = {};
+const istAnker = (w: string): boolean => HALTUNG_ANKER.some(a => a.w === w);
 const WORT_SIGNAL: Record<string, { welt?: string; laut?: number }> = {};
 for (const a of HALTUNG_ANKER) {
   KINDER_VON[a.w] = a.kinder;
@@ -404,10 +405,13 @@ function rueckspiegelung(brief: string, signale: Record<string, { welt?: string;
 
 /* Gate: ulba rendert nie mit leerer Koordinate. */
 function briefGate(k: { register: string | null; laut: number | null }, runden: number): { ok: boolean; grund: string } {
-  if (!k.register && k.laut == null) return { ok: false, grund: 'Sag mir noch, wer die Marke ist.' };
-  if (k.laut == null) return { ok: false, grund: 'Sag mir, wie laut ihr auftreten wollt.' };
-  if (!k.register) return { ok: false, grund: 'Eine Referenz noch — was liebst du, was nicht?' };
-  if (runden < 2) return { ok: false, grund: 'Noch eine Frage, dann sitzt die Richtung.' };
+  // Der Grund muss BENENNEN, was fehlt — sonst antwortet man ins Leere.
+  const fehlt: string[] = [];
+  if (!k.register) fehlt.push('eure Welt');
+  if (k.laut == null) fehlt.push('wie laut ihr auftretet');
+  if (fehlt.length) return { ok: false, grund: `Mir fehlt noch ${fehlt.join(' und ')}.` };
+  const rest = 2 - runden;
+  if (rest > 0) return { ok: false, grund: rest === 1 ? 'Noch eine Antwort, dann kann ich ableiten.' : `Noch ${rest} Antworten, dann kann ich ableiten.` };
   return { ok: true, grund: '' };
 }
 
@@ -1520,9 +1524,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
 
       <div className="ch-hinweis">Du hast dieses Packmittel zum Designen ausgewählt.</div>
 
-      {(verlauf.length === 0 && laeufe.length === 0) && (
-        <div className="ch-ulba">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
-      )}
+      {/* Bleibt stehen — eine Chat-Nachricht verschwindet nie rueckwirkend. */}
+      <div className="ch-ulba">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
 
       {strom.map(e => e.t === 'zug' ? (
         <div key={`z${e.id}`}>
@@ -1586,7 +1589,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
             <div className="ch-pins">
               {justier.map(w => (
                 <span key={w} className="ch-pin">{w}
-                  <button type="button" onClick={() => toggleJust(w)} aria-label={`${w} entfernen`}>×</button>
+                  <button type="button" onClick={() => istAnker(w) ? toggleAnker(w) : toggleJust(w)} aria-label={`${w} entfernen`}>×</button>
                 </span>
               ))}
             </div>
@@ -1595,9 +1598,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
           {/* Die Wolke: mittig, als Buttons. Antippen heftet an. */}
           {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
             <div className="ch-wolke">
-              {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
-                <button key={w} type="button" className={`ch-wort${justier.includes(w) ? ' an' : ''}`}
-                  onClick={() => toggleJust(w)}>{w}</button>
+              {BRIEF_FRAGEN[verlauf.length].hilfe.filter(w => !justier.includes(w)).map(w => (
+                <button key={w} type="button" className="ch-wort" onClick={() => toggleJust(w)}>{w}</button>
               ))}
             </div>
           )}
@@ -1612,12 +1614,11 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
             <>
               <div className="ch-wolke-lbl">Blasse Worte trägt unser Archiv noch dünn.</div>
               <div className="ch-wolke">
-                {HALTUNG_ANKER.map(a => {
+                {HALTUNG_ANKER.filter(a => !justier.includes(a.w)).map(a => {
                   const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                  const an = justier.includes(a.w) || spiegelWorte.has(a.w);
                   return (
                     <button key={a.w} type="button"
-                      className={`ch-wort${an ? ' an' : ''}${duenn ? ' duenn' : ''}`}
+                      className={`ch-wort${spiegelWorte.has(a.w) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
                       title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
                       onClick={() => toggleAnker(a.w)}>{a.w}</button>
                   );
@@ -1625,10 +1626,10 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
               </div>
               {offenAnker && (
                 <div className="ch-wolke" style={{ marginTop: 12 }}>
-                  {(kinderVon[offenAnker] || []).map(k => {
+                  {(kinderVon[offenAnker] || []).filter(k => !justier.includes(k)).map(k => {
                     const duenn = wortDeckung(k, compatLooks, signale) === 0;
                     return (
-                      <button key={k} type="button" className={`ch-wort${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
+                      <button key={k} type="button" className={`ch-wort${duenn ? ' duenn' : ''}`}
                         onClick={() => toggleJust(k)}>{k}</button>
                     );
                   })}
