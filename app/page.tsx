@@ -94,7 +94,9 @@
         Eröffnungssatz aus dem realen Teil (Kompetenz-Beweis), dann drei Fragen
         nacheinander (Marke → Kanal → Referenz/Tension), eine auf dem Schirm.
         Nach jeder Antwort eine Rückspiegelung (Lesart + weil), deterministisch
-        aus koordinateAusBrief/rueckspiegelung — 0 LLM (Haiku-Voice-Upgrade folgt).
+        aus koordinateAusBrief/rueckspiegelung — sofort, 0 LLM — dann veredelt
+        Haiku die Stimme progressiv (render.ts reflect-Modus, v29): deterministisch
+        = Wahrheit, Haiku = Stimme. Ausfall → deterministische Lesart bleibt.
         Die Wolke ist Spiegel: Anker leuchten auf, was im Brief steht; Tippen ist
         nur noch Formulierungshilfe. "Design ableiten" ist per briefGate gesperrt,
         bis Register + Laut + Differenzierer stehen — mit sichtbarem Grund; nie
@@ -1265,7 +1267,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [cap, setCap] = useState(initialCap);
 
   const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
-  const [verlauf, setVerlauf] = useState<{ frage: string; antwort: string; lesart: string; weil: string }[]>([]);
+  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; lesart: string; weil: string }[]>([]);
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -1318,12 +1320,24 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
-  /* Ein Gesprächszug: Antwort einfrieren + Rückspiegelung (Lesart + weil). */
+  /* Ein Gesprächszug: Antwort einfrieren + Rückspiegelung. Deterministisch
+     SOFORT (Wahrheit), Haiku veredelt die Stimme im Nachgang — 0 gefühlte
+     Latenz; fällt Haiku aus, bleibt die deterministische Lesart stehen. */
   const antworten = () => {
     const a = briefText.trim(); if (!a) return;
-    const r = rueckspiegelung(briefGesamt, signale);
-    setVerlauf(v => [...v, { frage: BRIEF_FRAGEN[Math.min(v.length, BRIEF_FRAGEN.length - 1)].frage, antwort: a, lesart: r.lesart, weil: r.weil }]);
+    const brief = briefGesamt;
+    const r = rueckspiegelung(brief, signale);
+    const k = koordinateAusBrief(brief, signale);
+    const id = Date.now();
+    const runde = verlauf.length + 1;
+    const frage = BRIEF_FRAGEN[Math.min(verlauf.length, BRIEF_FRAGEN.length - 1)].frage;
+    setVerlauf(v => [...v, { id, frage, antwort: a, lesart: r.lesart, weil: r.weil }]);
     setQuery(''); setJustier([]); setOffenAnker(null);
+    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflect: true, brief, frage, register: k.register, laut: k.laut, wirkstoff: k.wirkstoff, runde }) })
+      .then(res => res.json())
+      .then(d => { if (d && typeof d.lesart === 'string' && typeof d.weil === 'string') setVerlauf(v => v.map(e => e.id === id ? { ...e, lesart: d.lesart, weil: d.weil } : e)); })
+      .catch(() => {});
   };
 
   /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
@@ -1473,8 +1487,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
           {verlauf.length === 0 && laeufe.length === 0 && (
             <div className="bw-lesart" style={{ borderLeftColor: 'var(--tinte)' }}>{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
           )}
-          {verlauf.map((v, i) => (
-            <div key={i} className="bw-lesart">
+          {verlauf.map(v => (
+            <div key={v.id} className="bw-lesart">
               <div style={{ color: 'var(--hell)', fontFamily: 'var(--mono)', fontSize: 12, marginBottom: 4 }}>{v.frage}</div>
               <div style={{ marginBottom: 4 }}>»{v.antwort}«</div>
               <div><b>{v.lesart}</b> {v.weil}</div>
