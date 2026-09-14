@@ -403,8 +403,7 @@ function rueckspiegelung(brief: string, signale: Record<string, { welt?: string;
 }
 
 /* Gate: ulba rendert nie mit leerer Koordinate. */
-function briefGate(brief: string, runden: number, signale: Record<string, { welt?: string; laut?: number }>): { ok: boolean; grund: string } {
-  const k = koordinateAusBrief(brief, signale);
+function briefGate(k: { register: string | null; laut: number | null }, runden: number): { ok: boolean; grund: string } {
   if (!k.register && k.laut == null) return { ok: false, grund: 'Sag mir noch, wer die Marke ist.' };
   if (k.laut == null) return { ok: false, grund: 'Sag mir, wie laut ihr auftreten wollt.' };
   if (!k.register) return { ok: false, grund: 'Eine Referenz noch — was liebst du, was nicht?' };
@@ -1267,7 +1266,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [cap, setCap] = useState(initialCap);
 
   const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
-  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; lesart: string; weil: string }[]>([]);
+  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; lesart: string; weil: string; register?: string | null; laut?: number | null; worte?: string[] }[]>([]);
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -1307,7 +1306,20 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   };
   const lesart = liveLesart(justier, query, signale);
   const briefGesamt = [...verlauf.map(v => v.antwort), briefText].filter(Boolean).join('. ');
-  const gate = briefGate(briefGesamt, verlauf.length, signale);
+  // Koordinate: Stichwort-Scan als Boden, Haikus Lesart schlägt ihn — echte
+  // Sätze enthalten die Vokabel-Wörter fast nie ("kein Drogerie-Kram" ≠ "laut").
+  const koord = useMemo(() => {
+    const det = koordinateAusBrief(briefGesamt, signale);
+    let register = det.register, laut = det.laut;
+    for (const v of verlauf) { if (v.register) register = v.register; if (v.laut != null) laut = v.laut; }
+    return { register, laut, wirkstoff: det.wirkstoff };
+  }, [briefGesamt, verlauf, signale]);
+  const spiegelWorte = useMemo(() => {
+    const set = new Set<string>();
+    for (const v of verlauf) for (const w of (v.worte || [])) set.add(w);
+    return set;
+  }, [verlauf]);
+  const gate = briefGate(koord, verlauf.length);
 
   useEffect(() => {
     setQuery(savedBrief || '');
@@ -1336,7 +1348,16 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reflect: true, brief, frage, register: k.register, laut: k.laut, wirkstoff: k.wirkstoff, runde }) })
       .then(res => res.json())
-      .then(d => { if (d && typeof d.lesart === 'string' && typeof d.weil === 'string') setVerlauf(v => v.map(e => e.id === id ? { ...e, lesart: d.lesart, weil: d.weil } : e)); })
+      .then(d => {
+        if (!d) return;
+        setVerlauf(v => v.map(e => e.id !== id ? e : {
+          ...e,
+          lesart: typeof d.lesart === 'string' ? d.lesart : e.lesart,
+          weil: typeof d.weil === 'string' ? d.weil : e.weil,
+          register: d.register ?? null, laut: typeof d.laut === 'number' ? d.laut : null,
+          worte: Array.isArray(d.worte) ? d.worte : [],
+        }));
+      })
       .catch(() => {});
   };
 
@@ -1500,7 +1521,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
               <div className="bw-anker-wolke">
                 {HALTUNG_ANKER.map(a => {
                   const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                  const an = justier.includes(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
+                  const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
                   return (
                     <button key={a.w} type="button"
                       className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
@@ -1534,7 +1555,9 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
                 </div>
               </div>
             )}
-            {lesart.text && (<div className="bw-lesart">Ich lese dich gerade: <b>{lesart.text}</b></div>)}
+            {(lesart.text || identitaetSatz(koord.register, koord.laut)) && (
+              <div className="bw-lesart">Ich lese dich gerade: <b>{lesart.text || identitaetSatz(koord.register, koord.laut)}</b></div>
+            )}
             {lesart.konflikt && (<div className="bw-konflikt">{lesart.konflikt}</div>)}
             <div className="row">
               <input value={query} onChange={e => setQuery(e.target.value)}
