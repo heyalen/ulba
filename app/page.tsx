@@ -889,7 +889,28 @@ const STYLES = `
 .eb-scan{border:1px solid var(--linie);border-radius:13px;background:var(--panel);padding:15px 18px;max-width:560px;margin-bottom:8px}
 .panel{border-left:1px solid var(--linie);background:var(--panel);display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto}
 /* Look-Turn: Render-Motor als Chat-Karte (gleiche pn-* Bausteine wie das Panel) */
-.lookturn{border:1px solid var(--linie);border-radius:var(--r);background:var(--panel);max-width:720px;margin:14px 0 6px;padding:0 0 4px;display:flex;flex-direction:column;overflow:hidden}
+/* LookTurn ist kein Kasten mehr, sondern ein Gespraechsverlauf im Thread:
+   ulba links als Prosa, der Nutzer rechts als Blase, Bilder als Beitrag —
+   alles in EINER Zeitachse (siehe strom). */
+.lookturn{max-width:720px;margin:6px 0 10px;display:flex;flex-direction:column}
+.ch-teil{display:flex;align-items:center;gap:12px;background:var(--nische);border-radius:14px;padding:10px 14px;margin-bottom:16px}
+.ch-teil img{width:38px;height:38px;object-fit:contain;background:#fff;border-radius:9px;border:1px solid var(--linie);flex:none}
+.ch-teil-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ch-teil-txt b{font-family:var(--serif);font-weight:800;font-size:15px;letter-spacing:-.01em}
+.ch-teil-txt span{font-size:12px;color:var(--hell)}
+.ch-zu{margin-left:auto;font-size:20px;color:var(--hell);background:none;flex:none}
+.ch-zu:hover{color:var(--rouge)}
+.ch-ulba{font-family:var(--serif);font-size:16px;line-height:1.55;color:var(--tinte);margin:0 0 16px;max-width:60ch}
+.ch-frage-alt{font-family:inherit;font-size:13px;color:var(--hell);margin-bottom:8px}
+.ch-frage{font-size:20px;line-height:1.35;letter-spacing:-.012em;max-width:36ch;margin-bottom:10px}
+.ch-konzept b{font-family:var(--serif);font-weight:800;font-size:19px;letter-spacing:-.015em}
+.ch-story{font-size:15px;color:var(--grau);margin-top:5px}
+.ch-lauf{margin:2px 0 18px}
+.ch-lauf .lauf-stage{margin-bottom:10px}
+.ch-lade{display:flex;align-items:center;gap:10px;color:var(--grau);font-size:14.5px}
+.ch-meta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.lookturn .msg-user{margin:0 0 14px}
+.lookturn .lauf-akt{display:flex;gap:8px;flex-wrap:wrap}
 .lookturn .pn-kopf{padding-top:18px}
 .lt-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);margin-bottom:4px}
 .lookturn .pn-aktion{position:static;background:var(--panel);margin-top:4px}
@@ -906,6 +927,7 @@ const STYLES = `
 .lt-chip.an{background:var(--tinte);color:#fff;border-color:var(--tinte)}
 .lt-brieftext{font-family:var(--mono);font-size:11px;color:var(--grau);margin-top:8px}
 /* Behauptung — der Agentur-Screen vor dem Bild */
+.lookturn .bh{margin-left:0;margin-right:0}
 .behaupt{margin:2px 24px 16px;border:1px solid var(--linie);border-radius:var(--r);background:#FFFFFF;padding:22px 24px 20px}
 .bh-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--rouge)}
 .bh-titel{font-family:var(--serif);font-weight:800;font-size:29px;line-height:1.05;letter-spacing:-.015em;color:var(--tinte);margin-top:7px}
@@ -1484,162 +1506,138 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     konzept: l.concept,
   });
 
+  /* Chronologischer Strom: Gesprächszüge und Läufe in EINER Zeitachse —
+     nie wieder Bild über Gespräch. Beide tragen ms-Timestamps als id. */
+  const strom = useMemo(() => {
+    const a = verlauf.map(v => ({ t: 'zug' as const, id: v.id, v }));
+    const b = laeufe.map(l => ({ t: 'lauf' as const, id: l.id, l }));
+    return [...a, ...b].sort((x, y) => x.id - y.id);
+  }, [verlauf, laeufe]);
+
   return (
     <section className="lookturn">
-      <div className="pn-kopf">
-        <div><div className="lt-eyebrow">Design · auf dem realen Teil</div><h3 className="serif">{product.name}{caps.length > 0 && caps[cap]?.name ? ` + ${caps[cap].name}` : ''}</h3><span className="pn-spec">{specText(product)}</span></div>
-        <div className="pn-akt">
-          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
+      <div className="ch-teil">
+        {product.imageUrl && <img src={product.imageUrl} alt="" />}
+        <div className="ch-teil-txt">
+          <b>{product.name}{caps.length > 0 && caps[cap]?.name ? ` + ${caps[cap].name}` : ''}</b>
+          <span>{specText(product)}</span>
         </div>
+        <button className="ch-zu" onClick={onClose} aria-label="schließen">×</button>
       </div>
 
-      {laeufe.length === 0 && phase === 'brief' && (
-        <div className="lt-lesart">
-          <b>{product.name}</b> kann <b>{compatLooks.length}</b> Richtung{compatLooks.length === 1 ? '' : 'en'} tragen.
-          <span className="lt-alt"> Welche es wird, sagt dein Brief.</span>
-        </div>
+      {(verlauf.length === 0 && laeufe.length === 0) && (
+        <div className="ch-ulba">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
       )}
 
-      {/* ── Eingefrorene Läufe: Worte → Richtung → Bild. Bleiben stehen. ── */}
-      {laeufe.map((l, i) => {
-        const istLetzt = i === laeufe.length - 1;
-        const dc = l.concept?.design_code;
-        return (
-          <div key={l.id} className={`lauf${istLetzt ? '' : ' lauf-alt'}`}>
-            <div className="lauf-worte">»{l.worte}«</div>
-            {l.concept && (
-              <div className="lauf-kopf">
-                <b>{l.concept.konzept_name}</b>
-                {dc?.register ? <span className="lauf-ident"> — {identitaetSatz(dc.register, dc.laut)}</span> : null}
-              </div>
+      {strom.map(e => e.t === 'zug' ? (
+        <div key={`z${e.id}`}>
+          <div className="ch-ulba ch-frage-alt">{e.v.frage}</div>
+          <div className="msg-user"><span>{e.v.antwort}</span></div>
+          <div className="ch-ulba">{e.v.lesart} <span className="gf-zug-weil">{e.v.weil}</span></div>
+        </div>
+      ) : (
+        <div key={`l${e.id}`} className="ch-lauf">
+          {e.l.concept && (
+            <div className="ch-ulba ch-konzept">
+              <b>{e.l.concept.konzept_name}</b>
+              {e.l.concept.design_code?.register ? <span className="lauf-ident"> — {identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut)}</span> : null}
+              {e.l.concept.story && <div className="ch-story">{e.l.concept.story}</div>}
+            </div>
+          )}
+          <div className="lauf-stage">
+            {caps.length > 0 && (e.l.capRenderUrl || caps[cap]?.imageUrl) && (
+              <img className="lauf-cap" src={(e.l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={ev => { (ev.target as HTMLImageElement).style.opacity = '0.2'; }} />
             )}
-            <div className="lauf-stage">
-              {caps.length > 0 && (l.capRenderUrl || caps[cap]?.imageUrl) && (
-                <img className="lauf-cap" src={(l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-              )}
-              {l.heroUrl && <img className="lauf-hero" src={l.heroUrl} alt={l.concept?.konzept_name || product.name} />}
-            </div>
-            <div className="lauf-akt">
-              {l.concept && (
-                <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === l.id ? null : l.id)}>
-                  {detailsLauf === l.id ? 'Details ↑' : 'Details ↓'}
-                </button>
-              )}
-              {istLetzt && dc && dc.laut != null && (
-                <>
-                  <button className="lauf-btn" disabled={rstatus === 'loading' || !dc.can_quieter} onClick={() => lautCursor('quieter')}>← leiser</button>
-                  <button className="lauf-btn" disabled={rstatus === 'loading' || !dc.can_louder} onClick={() => lautCursor('louder')}>lauter →</button>
-                </>
-              )}
-              {istLetzt && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
-                <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
-              ))}
-              {istLetzt && (
-                <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(l)}>Muster anfragen →</button>
-              )}
-            </div>
-            {detailsLauf === l.id && l.concept && (
-              <div className="lauf-details">
-                {l.concept.story && <div className="lauf-story">{l.concept.story}</div>}
-                <SpecSheet concept={l.concept} />
-              </div>
+            {e.l.heroUrl && <img className="lauf-hero" src={e.l.heroUrl} alt={e.l.concept?.konzept_name || product.name} />}
+          </div>
+          <div className="lauf-akt">
+            {e.l.concept && (
+              <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === e.l.id ? null : e.l.id)}>
+                {detailsLauf === e.l.id ? 'Details ↑' : 'Details ↓'}
+              </button>
+            )}
+            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code && e.l.concept.design_code.laut != null && (
+              <>
+                <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_quieter} onClick={() => lautCursor('quieter')}>← leiser</button>
+                <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_louder} onClick={() => lautCursor('louder')}>lauter →</button>
+              </>
+            )}
+            {e.id === (letzt?.id ?? -1) && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
+              <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
+            ))}
+            {e.id === (letzt?.id ?? -1) && (
+              <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(e.l)}>Muster anfragen →</button>
             )}
           </div>
-        );
-      })}
+          {detailsLauf === e.l.id && e.l.concept && <div className="lauf-details"><SpecSheet concept={e.l.concept} /></div>}
+        </div>
+      ))}
 
-      {rstatus === 'loading' && (
-        <div className="lauf lauf-lade"><span className="pn-lade-sp" /> Rendert deine Richtung …</div>
-      )}
+      {rstatus === 'loading' && <div className="ch-ulba ch-lade"><span className="pn-lade-sp" /> Rendert deine Richtung …</div>}
 
-      {/* ── Aktiver Bereich: genau EINE Sache. ── */}
       {phase === 'behauptung' && dryConcept && rstatus !== 'loading' && (
         <>
-          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefText}
-            laden={false} onZeigen={zeigen} />
-          <div className="lt-abl"><button onClick={() => setPhase('brief')}>← Worte ändern</button></div>
+          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefGesamt} laden={false} onZeigen={zeigen} />
+          <div className="lt-abl"><button onClick={() => setPhase('brief')}>← doch nochmal reden</button></div>
         </>
       )}
 
       {phase === 'brief' && rstatus !== 'loading' && (
-        <div className="pn-body">
-          {verlauf.length === 0 && laeufe.length === 0 && (
-            <div className="gf-eroeffnung">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
-          )}
-
-          {/* Eingefrorene Gesprächszüge: Frage → Antwort → Lesart + weil. */}
-          {verlauf.map(v => (
-            <div key={v.id} className="gf-zug">
-              <div className="gf-zug-frage">{v.frage}</div>
-              <div className="gf-zug-antwort">»{v.antwort}«</div>
-              <div className="gf-zug-lesart">{v.lesart} <span className="gf-zug-weil">{v.weil}</span></div>
-            </div>
-          ))}
-
-          {/* Aktiver Zug: genau eine Frage, ein Feld. */}
-          <div className="gf-aktiv">
-            <div className="gf-frage">
-              {aktuelleFrage}
-            </div>
-            <div className="gf-unten">
-              {identitaetSatz(koord.register, koord.laut) && (
-                <span className="gf-gelesen">Ich lese dich: <b>{identitaetSatz(koord.register, koord.laut)}</b></span>
+        <>
+          <div className="ch-ulba ch-frage">{aktuelleFrage}</div>
+          <div className="ch-meta">
+            {identitaetSatz(koord.register, koord.laut) && (
+              <span className="gf-gelesen">Ich lese dich: <b>{identitaetSatz(koord.register, koord.laut)}</b></span>
+            )}
+            <button type="button" className="gf-hilfe-btn" onClick={() => setHilfeOffen(o => !o)}>
+              {hilfeOffen ? 'Worte ausblenden' : 'Worte fehlen dir?'}
+            </button>
+          </div>
+          {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 10 }}>{lesart.konflikt}</div>}
+          {hilfeOffen && (
+            <div className="gf-hilfe">
+              {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
+                <>
+                  <div className="gf-hilfe-lbl">Passt eines davon?</div>
+                  <div className="bw-anker-wolke" style={{ marginBottom: 14 }}>
+                    {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
+                      <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
+                    ))}
+                  </div>
+                </>
               )}
-              <button type="button" className="gf-hilfe-btn" onClick={() => setHilfeOffen(o => !o)}>
-                {hilfeOffen ? 'Worte ausblenden' : 'Worte fehlen dir?'}
-              </button>
-            </div>
-
-            {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 12 }}>{lesart.konflikt}</div>}
-
-            {/* Wolke — nur auf Wunsch. Formulierungshilfe, keine Pflicht. */}
-            {hilfeOffen && (
-              <div className="gf-hilfe">
-                {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
-                  <>
-                    <div className="gf-hilfe-lbl">Passt eines davon?</div>
-                    <div className="bw-anker-wolke" style={{ marginBottom: 14 }}>
-                      {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
-                        <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                <div className="gf-hilfe-lbl">Oder eine Haltung — blasse Worte trägt unser Archiv noch dünn.</div>
-                <div className="bw-anker-wolke">
-                  {HALTUNG_ANKER.map(a => {
-                    const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                    const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
+              <div className="gf-hilfe-lbl">Oder eine Haltung — blasse Worte trägt unser Archiv noch dünn.</div>
+              <div className="bw-anker-wolke">
+                {HALTUNG_ANKER.map(a => {
+                  const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
+                  const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
+                  return (
+                    <button key={a.w} type="button"
+                      className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
+                      title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
+                      onClick={() => toggleAnker(a.w)}>{a.w}</button>
+                  );
+                })}
+              </div>
+              {offenAnker && (
+                <div className="bw-kinder">
+                  <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
+                  {(kinderVon[offenAnker] || []).map(k => {
+                    const duenn = wortDeckung(k, compatLooks, signale) === 0;
                     return (
-                      <button key={a.w} type="button"
-                        className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
+                      <button key={k} type="button" className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
                         title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
-                        onClick={() => toggleAnker(a.w)}>{a.w}</button>
+                        onClick={() => toggleJust(k)}>{k}</button>
                     );
                   })}
                 </div>
-                {offenAnker && (
-                  <div className="bw-kinder">
-                    <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
-                    {(kinderVon[offenAnker] || []).map(k => {
-                      const duenn = wortDeckung(k, compatLooks, signale) === 0;
-                      return (
-                        <button key={k} type="button"
-                          className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
-                          title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
-                          onClick={() => toggleJust(k)}>{k}</button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {(dryStatus === 'error' || rstatus === 'error') && (
-              <div style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
-            )}
-          </div>
-        </div>
+              )}
+            </div>
+          )}
+          {(dryStatus === 'error' || rstatus === 'error') && (
+            <div style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
+          )}
+        </>
       )}
     </section>
   );
