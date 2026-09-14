@@ -722,6 +722,8 @@ const STYLES = `
   --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F7F7F8;
   --tinte:#1D1D1B;--grau:#5B5B58;--hell:#9A9A96;
   --rouge:#4C1420;--linie:#ECECEE;--linie2:#F4F4F5;--r:14px;
+  /* Chat-Ebene: eigene Blase fuer den Nutzer, ruhige Flaeche darunter. */
+  --blase:#DCEAFB;--blase-txt:#14213A;--flaeche:#FAFAFA;
   --serif:'Archivo',system-ui,sans-serif;
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
@@ -783,8 +785,11 @@ const STYLES = `
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .thread-inner{max-width:900px;margin:0 auto;width:100%}
-.refine{flex:none;border-top:1px solid var(--linie);padding:14px clamp(16px,4vw,54px)}
-.refine .feld{max-width:900px;margin:0 auto;border-radius:13px;padding:4px 4px 4px 18px;box-shadow:none}
+.refine{flex:none;background:var(--flaeche);padding:14px clamp(16px,4vw,54px) 20px}
+.refine .feld{max-width:760px;margin:0 auto;border-radius:26px;padding:5px 6px 5px 22px;background:#fff;border-color:#E4E4E6;box-shadow:0 1px 6px rgba(20,24,26,.06)}
+.refine .feld:focus-within{border-color:#C9CDD4;box-shadow:0 2px 12px rgba(20,24,26,.09)}
+.refine .feld .go{width:36px;height:36px;border-radius:50%;background:var(--blase-txt)}
+.refine .feld .go:hover{background:var(--rouge)}
 .grp-titel{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.01em;margin:28px 0 14px}
 .grp-titel:first-child{margin-top:0}
 .refine .feld input{padding:11px 4px;font-size:14px}
@@ -800,7 +805,7 @@ const STYLES = `
 .rf-zurueck{font-size:12.5px;color:var(--hell);text-decoration:underline;text-underline-offset:3px;background:none}
 .rf-zurueck:hover{color:var(--rouge)}
 .msg-user{display:flex;justify-content:flex-end;margin:16px 0}
-.msg-user span{background:var(--tinte);color:#fff;padding:11px 17px;border-radius:16px 16px 4px 16px;font-size:14.5px;max-width:78%}
+.msg-user span{background:var(--blase);color:var(--blase-txt);padding:12px 18px;border-radius:20px;font-size:15px;line-height:1.5;max-width:78%;text-align:left}
 .msg-ulba{margin:8px 0 26px}
 .eb-alt{opacity:.6}
 .eb-intro{font-family:var(--serif);font-style:normal;font-size:19px;line-height:1.4;margin-bottom:14px;max-width:60ch}
@@ -893,11 +898,25 @@ const STYLES = `
    ulba links als Prosa, der Nutzer rechts als Blase, Bilder als Beitrag —
    alles in EINER Zeitachse (siehe strom). */
 .lookturn{max-width:720px;margin:6px 0 10px;display:flex;flex-direction:column}
-.ch-teil{display:flex;align-items:center;gap:12px;background:var(--nische);border-radius:14px;padding:10px 14px;margin-bottom:16px}
-.ch-teil img{width:38px;height:38px;object-fit:contain;background:#fff;border-radius:9px;border:1px solid var(--linie);flex:none}
+.ch-teil{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--linie);border-radius:18px;padding:16px 20px;margin-bottom:8px;box-shadow:0 1px 4px rgba(20,24,26,.04)}
+.ch-teil img{width:66px;height:66px;object-fit:contain;background:var(--nische);border-radius:13px;border:1px solid var(--linie);flex:none;padding:5px}
 .ch-teil-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
-.ch-teil-txt b{font-family:var(--serif);font-weight:800;font-size:15px;letter-spacing:-.01em}
-.ch-teil-txt span{font-size:12px;color:var(--hell)}
+.ch-teil-txt b{font-family:var(--serif);font-weight:800;font-size:19px;letter-spacing:-.015em}
+.ch-teil-txt span{font-size:13px;color:var(--hell)}
+.ch-hinweis{font-size:13px;color:var(--hell);margin:0 2px 20px}
+/* Wolke mittig, Worte als echte Buttons — Auswahl wird im Chat angeheftet. */
+.ch-wolke{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:560px;margin:2px auto 4px}
+.ch-wort{font-size:14.5px;padding:10px 20px;border-radius:999px;border:1px solid #E2E2E5;background:#fff;color:#3a3a37;transition:.14s;box-shadow:0 1px 3px rgba(20,24,26,.05)}
+.ch-wort:hover{border-color:var(--blase-txt);transform:translateY(-1px)}
+.ch-wort.an{background:var(--blase);border-color:var(--blase);color:var(--blase-txt);font-weight:600}
+.ch-wort.duenn{opacity:.4}
+.ch-wolke-lbl{text-align:center;font-size:12.5px;color:var(--hell);margin:18px 0 10px}
+.ch-hilfe-zeile{display:flex;justify-content:center;margin-top:14px}
+/* Angeheftete Auswahl: sichtbar im Chat, reist mit der Antwort mit. */
+.ch-pins{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;margin:0 0 12px}
+.ch-pin{display:inline-flex;align-items:center;gap:7px;background:var(--blase);color:var(--blase-txt);border-radius:999px;padding:7px 13px;font-size:13.5px}
+.ch-pin button{color:var(--blase-txt);opacity:.55;font-size:15px;line-height:1}
+.ch-pin button:hover{opacity:1}
 .ch-zu{margin-left:auto;font-size:20px;color:var(--hell);background:none;flex:none}
 .ch-zu:hover{color:var(--rouge)}
 .ch-ulba{font-family:var(--serif);font-size:16px;line-height:1.55;color:var(--tinte);margin:0 0 16px;max-width:60ch}
@@ -954,7 +973,7 @@ const STYLES = `
 /* Lauf (v12) — eingefrorene Ableitung: Worte → Richtung → Bild */
 .lauf{margin:10px 24px 4px;padding:14px 0 10px;border-top:1px solid var(--linie2)}
 .lauf:first-of-type{border-top:none}
-.lauf-worte{display:inline-block;background:var(--tinte);color:#fff;padding:7px 14px;border-radius:14px 14px 4px 14px;font-size:13px;margin-bottom:9px}
+.lauf-worte{display:inline-block;background:var(--blase);color:var(--blase-txt);padding:8px 15px;border-radius:18px;font-size:13.5px;margin-bottom:9px}
 .lauf-kopf{font-size:14.5px;margin-bottom:8px}
 .lauf-kopf b{font-family:var(--serif);font-weight:800;font-size:17px;letter-spacing:-.01em}
 .lauf-ident{font-family:var(--mono);font-size:11px;color:var(--grau)}
@@ -1170,36 +1189,6 @@ function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, 
   return Array.from(map.entries());
 }
 
-/* ── Chat-Wolke — der abgeleitete „Welt"-Kopf im Ergebnis-Block.
-   Zeigt die Design-Codes als Wolke: Best-Fit groß, Nachbarn mittel, ferne
-   ausgegraut. Reiner Ableitungs-/Wow-Moment (kein Render, kostenlos, sofort).
-   Klick pinnt die bevorzugte Welt → wird beim Öffnen eines Teils vorgewählt. */
-function ChatWolke({ looks, pal, preferred, onPick }: {
-  looks: DesignLook[]; pal: string; preferred: string | null; onPick: (id: string) => void;
-}) {
-  if (!looks || looks.length === 0) return null;
-  const sorted = [...looks].sort((a, b) => b.axis_score - a.axis_score);
-  const near = sorted.slice(0, 4), far = sorted.slice(4);
-  const chip = (l: DesignLook, cls: string) => (
-    <button key={l.code_id} type="button"
-      className={`cw ${cls}${preferred === l.code_id ? ' an' : ''}`}
-      onClick={() => onPick(l.code_id)}
-      title={l.register}>
-      <span className="cw-dot" style={{ background: l.body_hex || '#eee' }} />{l.code_name}
-    </button>
-  );
-  return (
-    <div className="wolke">
-      <div className="wolke-read">Ich lese dich als <b>{pal}</b> · deine Welt:</div>
-      <div className="wolke-cloud">
-        {near.map((l, i) => chip(l, i === 0 ? 'best' : ''))}
-        {far.map(l => chip(l, 'far'))}
-      </div>
-      <div className="wolke-foot">deine Region hervorgehoben · ferne Welten ausgegraut · {looks.length} Welten</div>
-    </div>
-  );
-}
-
 /* ── Caps für ein Teil inkl. Cap-Wand (aus /api/search): offener Pipetten-Cap wird
    bei oxidationsempfindlicher Formel ans Ende sortiert — NIE entfernt, nur depriorisiert. ── */
 const istPipetteCap = (c: CapRef) => /pipette|dropper|tropfer/i.test(c.name || '');
@@ -1403,7 +1392,11 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
      SOFORT (Wahrheit), Haiku veredelt die Stimme im Nachgang — 0 gefühlte
      Latenz; fällt Haiku aus, bleibt die deterministische Lesart stehen. */
   const antworten = (text?: string) => {
-    const a = (text ?? briefText).trim(); if (!a) return;
+    // Freitext + angeheftete Worte werden EINE Antwort (Dubletten raus).
+    const frei = (text ?? query).trim();
+    const fl = frei.toLowerCase();
+    const a = [frei, ...justier.filter(w => !fl.includes(w.toLowerCase()))].filter(Boolean).join(', ');
+    if (!a) return;
     const brief = [...verlauf.map(v => v.antwort), a].filter(Boolean).join('. ');
     const r = rueckspiegelung(brief, signale);
     const k = koordinateAusBrief(brief, signale);
@@ -1525,6 +1518,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
         <button className="ch-zu" onClick={onClose} aria-label="schließen">×</button>
       </div>
 
+      <div className="ch-hinweis">Du hast dieses Packmittel zum Designen ausgewählt.</div>
+
       {(verlauf.length === 0 && laeufe.length === 0) && (
         <div className="ch-ulba">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
       )}
@@ -1585,55 +1580,68 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       {phase === 'brief' && rstatus !== 'loading' && (
         <>
           <div className="ch-ulba ch-frage">{aktuelleFrage}</div>
-          <div className="ch-meta">
-            {identitaetSatz(koord.register, koord.laut) && (
-              <span className="gf-gelesen">Ich lese dich: <b>{identitaetSatz(koord.register, koord.laut)}</b></span>
-            )}
+
+          {/* Angeheftete Worte — sichtbar im Chat, reisen mit der Antwort. */}
+          {justier.length > 0 && (
+            <div className="ch-pins">
+              {justier.map(w => (
+                <span key={w} className="ch-pin">{w}
+                  <button type="button" onClick={() => toggleJust(w)} aria-label={`${w} entfernen`}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Die Wolke: mittig, als Buttons. Antippen heftet an. */}
+          {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
+            <div className="ch-wolke">
+              {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
+                <button key={w} type="button" className={`ch-wort${justier.includes(w) ? ' an' : ''}`}
+                  onClick={() => toggleJust(w)}>{w}</button>
+              ))}
+            </div>
+          )}
+
+          <div className="ch-hilfe-zeile">
             <button type="button" className="gf-hilfe-btn" onClick={() => setHilfeOffen(o => !o)}>
-              {hilfeOffen ? 'Worte ausblenden' : 'Worte fehlen dir?'}
+              {hilfeOffen ? 'Haltung ausblenden' : 'Oder eine Haltung wählen'}
             </button>
           </div>
-          {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 10 }}>{lesart.konflikt}</div>}
+
           {hilfeOffen && (
-            <div className="gf-hilfe">
-              {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
-                <>
-                  <div className="gf-hilfe-lbl">Passt eines davon?</div>
-                  <div className="bw-anker-wolke" style={{ marginBottom: 14 }}>
-                    {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
-                      <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-              <div className="gf-hilfe-lbl">Oder eine Haltung — blasse Worte trägt unser Archiv noch dünn.</div>
-              <div className="bw-anker-wolke">
+            <>
+              <div className="ch-wolke-lbl">Blasse Worte trägt unser Archiv noch dünn.</div>
+              <div className="ch-wolke">
                 {HALTUNG_ANKER.map(a => {
                   const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                  const an = justier.includes(a.w) || spiegelWorte.has(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
+                  const an = justier.includes(a.w) || spiegelWorte.has(a.w);
                   return (
                     <button key={a.w} type="button"
-                      className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
+                      className={`ch-wort${an ? ' an' : ''}${duenn ? ' duenn' : ''}`}
                       title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
                       onClick={() => toggleAnker(a.w)}>{a.w}</button>
                   );
                 })}
               </div>
               {offenAnker && (
-                <div className="bw-kinder">
-                  <span className="bw-kinder-pfeil">{offenAnker} heißt bei euch eher …</span>
+                <div className="ch-wolke" style={{ marginTop: 12 }}>
                   {(kinderVon[offenAnker] || []).map(k => {
                     const duenn = wortDeckung(k, compatLooks, signale) === 0;
                     return (
-                      <button key={k} type="button" className={`lt-chip${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
-                        title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
+                      <button key={k} type="button" className={`ch-wort${justier.includes(k) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
                         onClick={() => toggleJust(k)}>{k}</button>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </>
           )}
+
+          {identitaetSatz(koord.register, koord.laut) && (
+            <div className="ch-wolke-lbl">Ich lese dich: <b style={{ color: 'var(--tinte)' }}>{identitaetSatz(koord.register, koord.laut)}</b></div>
+          )}
+          {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 10 }}>{lesart.konflikt}</div>}
+
           {(dryStatus === 'error' || rstatus === 'error') && (
             <div style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
           )}
@@ -1912,15 +1920,15 @@ export default function Home() {
     briefBarApi.current = api; setBriefBar(ctx);
   }, []);
   const leisteSenden = () => {
-    const t = refineInput.trim(); if (!t) return;
-    if (briefBar && briefBarApi.current) briefBarApi.current.current.antworten(t);
+    const t = refineInput.trim();
+    if (briefBar && briefBarApi.current) { briefBarApi.current.current.antworten(t); }
+    else if (!t) return;
     else verfeinereText(t);
     setRefineInput('');
   };
   const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
   const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
   const [scrollToCommit, setScrollToCommit] = useState<number | null>(null); // frisch angelegter Look-Turn → hinscrollen
-  const [preferredCode, setPreferredCode] = useState<string | null>(null); // im Chat gewählte Welt → Panel-Vorwahl
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -2207,7 +2215,6 @@ export default function Home() {
                                     ))}
                                   </div>
                                 )}
-                                <ChatWolke looks={b.looks} pal={pal} preferred={preferredCode} onPick={setPreferredCode} />
                                 <div className="eb-kopf"><span className="ebk-h">{zeige.length} Systeme für dich</span><span className="ebk-s">von ulba kuratiert · gelesen als {pal}</span></div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
