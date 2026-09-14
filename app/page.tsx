@@ -90,6 +90,17 @@
         Suche = Hardfacts (welches Teil), Brief = Bedeutung (welche Marke) —
         zwei Ebenen, die nichts miteinander zu tun haben. Das Feld beginnt
         jetzt leer; nur ein bereits gespeicherter Brief wird wiederhergestellt.
+   v15 — Geführtes Briefing (Beat 1). Der Ein-Feld-Brief wird zum Gespräch:
+        Eröffnungssatz aus dem realen Teil (Kompetenz-Beweis), dann drei Fragen
+        nacheinander (Marke → Kanal → Referenz/Tension), eine auf dem Schirm.
+        Nach jeder Antwort eine Rückspiegelung (Lesart + weil), deterministisch
+        aus koordinateAusBrief/rueckspiegelung — 0 LLM (Haiku-Voice-Upgrade folgt).
+        Die Wolke ist Spiegel: Anker leuchten auf, was im Brief steht; Tippen ist
+        nur noch Formulierungshilfe. "Design ableiten" ist per briefGate gesperrt,
+        bis Register + Laut + Differenzierer stehen — mit sichtbarem Grund; nie
+        stur drei Runden. Akkumulierter Brief speist unveraendert dryRun/render.
+        OFFEN (naechster Pass, render.ts/search.ts): Formel-Flag-Zeile im
+        Eroeffnungssatz + Produzierbarkeits-Klemme.
    ►►► ZU VERIFIZIEREN gegen die echte /api/search-Antwort ◄◄◄
    Suche nach ANNAHME: — dort stehen die erwarteten Feldnamen.
    ══════════════════════════════════════════════════════════════════════ */
@@ -331,6 +342,72 @@ function identitaetSatz(register?: string | null, laut?: number | null): string 
   else if (register) teile.push(register.replace(/-/g, ' '));
   if (laut != null) teile.push(lautWort(laut));
   return teile.join(' · ');
+}
+
+/* ── Beat 1 — geführtes Briefing: Konstanten & deterministische Helfer ──
+   Die Wolke bleibt Wolken_Vokabular (via /api/vokabular); neu ist, dass das
+   Briefing als Gespräch läuft: eine Frage, dann eine Rückspiegelung. Koordinate,
+   Lesart und „weil" kommen aus demselben Signal-Apparat wie die Live-Lesart —
+   0 LLM. Haiku veredelt die Sätze im nächsten Schritt. */
+interface BriefFrage { frage: string; hilfe: string[] }
+const BRIEF_FRAGEN: BriefFrage[] = [
+  { frage: 'Erzähl mir von der Marke — wer soll das in die Hand nehmen?', hilfe: ['Gen Z', '20–35', 'ab 40', 'premium', 'nicht Drogerie', 'Luxus'] },
+  { frage: 'Wo sieht man es zuerst — Regal, Feed oder eure eigene Seite?', hilfe: ['Drogerie-Regal', 'Prestige-Regal', 'Instagram', 'TikTok', 'eigene Seite'] },
+  { frage: 'Welche Marke liebst du — und bei welcher sagst du: bloß nicht so?', hilfe: [] },
+];
+
+/* Eröffnung: der erste Kompetenz-Beweis. Kein erfragtes Feld — ulba legt vor,
+   was es aus dem realen Teil + der Suche schon weiß. */
+function eroeffnungsSatz(product: Result, sucheQuery: string, kategorie?: string): string {
+  const teile: string[] = [];
+  const mat = (product.material || [])[0]; if (mat) teile.push(mat);
+  const typ = TYPE_LABELS[product.type] || product.type; if (typ) teile.push(typ);
+  const size = (product.availableSizes || [])[0]; if (size) teile.push(size);
+  const teilSatz = teile.join(' · ');
+  const zweck = (kategorie || '').trim() || wirkstoffAusBrief(sucheQuery || '') || '';
+  if (!teilSatz) return 'Schön — dein Teil steht. Jetzt lass uns die Marke finden.';
+  return `Schön — dein Teil steht: ${teilSatz}${zweck ? ` — ${zweck}` : ''}. Damit baue ich dir was Eigenes, kein Schema F.`;
+}
+
+/* Signal-Scan über den ganzen Brief-Freitext (keine Chips mehr nötig). */
+function koordinateAusBrief(brief: string, signale: Record<string, { welt?: string; laut?: number }>): { register: string | null; laut: number | null; wirkstoff: string | null; minD: number; maxD: number } {
+  const frei = ' ' + brief.toLowerCase() + ' ';
+  let laut = 5, lautN = 0, minD = 0, maxD = 0;
+  const welten: Record<string, number> = {};
+  for (const w of Object.keys(signale)) {
+    const wl = w.toLowerCase(); if (wl.length < 3) continue;
+    const re = new RegExp(`(^|[^a-zäöüß])${wl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-zäöüß]|$)`);
+    if (!re.test(frei)) continue;
+    const sg = signale[w];
+    if (sg.laut != null) { laut += sg.laut; lautN++; if (sg.laut < minD) minD = sg.laut; if (sg.laut > maxD) maxD = sg.laut; }
+    if (sg.welt) welten[sg.welt] = (welten[sg.welt] || 0) + 1;
+  }
+  const register = Object.keys(welten).sort((a, b) => welten[b] - welten[a])[0] || null;
+  return { register, laut: lautN ? Math.max(0, Math.min(10, laut)) : null, wirkstoff: wirkstoffAusBrief(brief), minD, maxD };
+}
+
+/* Rückspiegelung: „Verstanden — … / Weil …" — deterministisch aus der Koordinate. */
+function rueckspiegelung(brief: string, signale: Record<string, { welt?: string; laut?: number }>): { lesart: string; weil: string } {
+  const k = koordinateAusBrief(brief, signale);
+  const ident = identitaetSatz(k.register, k.laut);
+  const wk = k.wirkstoff && (!ident || !ident.includes(k.wirkstoff)) ? ` · ${k.wirkstoff} gibt die Farbwelt` : '';
+  const lesart = ident ? `Verstanden — ${ident}${wk}.` : 'Verstanden.';
+  let weil = '';
+  if (k.laut != null && k.laut >= 6) weil = 'Weil ihr auffallen müsst, geht die Richtung eher laut als leise.';
+  else if (k.laut != null && k.laut <= 4) weil = 'Weil Vertrauen vor Lautstärke kommt, bleibt die Richtung ruhig.';
+  if (k.register === 'pharma-klinisch') weil = weil ? weil + ' Der Ernst bleibt, ohne kalt zu wirken.' : 'Weil Wirksamkeit zählt, bleibt die Sprache sachlich.';
+  else if (k.register === 'natur-erdig') weil = weil ? weil + ' Die Wärme kommt aus dem Material, nicht aus Dekor.' : 'Weil Echtheit zählt, kommt die Wärme aus dem Material.';
+  return { lesart, weil: weil || 'Weil das die Richtung trägt, baue ich darauf auf.' };
+}
+
+/* Gate: ulba rendert nie mit leerer Koordinate. */
+function briefGate(brief: string, runden: number, signale: Record<string, { welt?: string; laut?: number }>): { ok: boolean; grund: string } {
+  const k = koordinateAusBrief(brief, signale);
+  if (!k.register && k.laut == null) return { ok: false, grund: 'Sag mir noch, wer die Marke ist.' };
+  if (k.laut == null) return { ok: false, grund: 'Sag mir, wie laut ihr auftreten wollt.' };
+  if (!k.register) return { ok: false, grund: 'Eine Referenz noch — was liebst du, was nicht?' };
+  if (runden < 2) return { ok: false, grund: 'Noch eine Frage, dann sitzt die Richtung.' };
+  return { ok: true, grund: '' };
 }
 
 /* ── Die Behauptung (Phase ②) ────────────────────────────────────────
@@ -1160,9 +1237,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
    Jeder abgeschlossene Render wird als Lauf an den Commit gehängt und nie
    wieder angefasst — wie ein Suchblock im Chat. Der aktive Bereich unten
    zeigt immer genau eine Sache: Wolke+Feld (Brief) oder die Behauptung. ── */
-function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, laeufe, onBrief, onLauf, onSample, onClose }: {
+function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, sucheQuery, kategorie, laeufe, onBrief, onLauf, onSample, onClose }: {
   product: Result; allLooks: DesignLook[]; capWall?: CapWall;
-  initialCap: number; savedBrief?: string; savedJustier?: string[];
+  initialCap: number; savedBrief?: string; savedJustier?: string[]; sucheQuery?: string; kategorie?: string;
   laeufe: Lauf[];
   onBrief: (brief: string, justier: string[]) => void;
   onLauf: (l: Lauf) => void;
@@ -1188,6 +1265,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [cap, setCap] = useState(initialCap);
 
   const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
+  const [verlauf, setVerlauf] = useState<{ frage: string; antwort: string; lesart: string; weil: string }[]>([]);
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -1226,6 +1304,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     }
   };
   const lesart = liveLesart(justier, query, signale);
+  const briefGesamt = [...verlauf.map(v => v.antwort), briefText].filter(Boolean).join('. ');
+  const gate = briefGate(briefGesamt, verlauf.length, signale);
 
   useEffect(() => {
     setQuery(savedBrief || '');
@@ -1234,13 +1314,21 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     setPhase('brief'); setDryConcept(null);
     setDryStatus('idle'); setRstatus('idle'); setRerror('');
     setDetailsLauf(null);
-    setOffenAnker(null);
+    setOffenAnker(null); setVerlauf([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
+  /* Ein Gesprächszug: Antwort einfrieren + Rückspiegelung (Lesart + weil). */
+  const antworten = () => {
+    const a = briefText.trim(); if (!a) return;
+    const r = rueckspiegelung(briefGesamt, signale);
+    setVerlauf(v => [...v, { frage: BRIEF_FRAGEN[Math.min(v.length, BRIEF_FRAGEN.length - 1)].frage, antwort: a, lesart: r.lesart, weil: r.weil }]);
+    setQuery(''); setJustier([]); setOffenAnker(null);
+  };
+
   /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
   const ableiten = async () => {
-    const q = briefText.trim();
+    const q = briefGesamt.trim();
     if (!q) return;
     setDryStatus('loading'); setRerror('');
     try {
@@ -1290,7 +1378,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     }
   };
 
-  const zeigen = () => { onBrief(briefText, justier); rendern(briefText, dryConcept?.design_code?.id || null); };
+  const zeigen = () => { onBrief(briefGesamt, justier); rendern(briefGesamt, dryConcept?.design_code?.id || null); };
   const nudge = (n: string) => { if (letzt) rendern(`${letzt.worte}, ${n}`, letzt.concept?.design_code?.id || null); };
   const lautCursor = (dir: 'quieter' | 'louder') => {
     if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, dir);
@@ -1382,17 +1470,26 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
 
       {phase === 'brief' && rstatus !== 'loading' && (
         <div className="pn-body">
+          {verlauf.length === 0 && laeufe.length === 0 && (
+            <div className="bw-lesart" style={{ borderLeftColor: 'var(--tinte)' }}>{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
+          )}
+          {verlauf.map((v, i) => (
+            <div key={i} className="bw-lesart">
+              <div style={{ color: 'var(--hell)', fontFamily: 'var(--mono)', fontSize: 12, marginBottom: 4 }}>{v.frage}</div>
+              <div style={{ marginBottom: 4 }}>»{v.antwort}«</div>
+              <div><b>{v.lesart}</b> {v.weil}</div>
+            </div>
+          ))}
           <div className="vis">
-            <div className="top">{laeufe.length === 0 ? 'Erzähl uns, wer ihr seid' : 'Richtung ändern — in Worten'}</div>
-            {/* v13: Haltung als atmende Wolke — Anker öffnen Nachbarschaften. */}
+            <div className="top">{verlauf.length < BRIEF_FRAGEN.length ? BRIEF_FRAGEN[verlauf.length].frage : 'Noch etwas ergänzen?'}</div>
             <div className="bw">
               <div className="bw-anker-wolke">
                 {HALTUNG_ANKER.map(a => {
-                  const deck = wortDeckung(a.w, compatLooks, signale);
-                  const duenn = deck === 0;
+                  const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
+                  const an = justier.includes(a.w) || briefGesamt.toLowerCase().includes(a.w.toLowerCase());
                   return (
                     <button key={a.w} type="button"
-                      className={`bw-anker${justier.includes(a.w) ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
+                      className={`bw-anker${an ? ' an' : ''}${offenAnker === a.w ? ' offen' : ''}${duenn ? ' duenn' : ''}`}
                       title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
                       onClick={() => toggleAnker(a.w)}>{a.w}</button>
                   );
@@ -1413,32 +1510,32 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
                 </div>
               )}
             </div>
-            <div className="lt-just">
-              {BRIEF_VOKABULAR.map(g => (
-                <div className="lt-just-row" key={g.lbl}>
-                  <span className="lt-just-lbl">{g.lbl}</span>
-                  {g.worte.map(w => (
-                    <button key={w} type="button"
-                      className={`lt-chip${justier.includes(w) ? ' an' : ''}`}
-                      onClick={() => toggleJust(w)}>{w}</button>
+            {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
+              <div className="lt-just">
+                <div className="lt-just-row">
+                  <span className="lt-just-lbl">Stichworte</span>
+                  {BRIEF_FRAGEN[verlauf.length].hilfe.map(w => (
+                    <button key={w} type="button" className={`lt-chip${justier.includes(w) ? ' an' : ''}`} onClick={() => toggleJust(w)}>{w}</button>
                   ))}
                 </div>
-              ))}
-            </div>
-            {lesart.text && (
-              <div className="bw-lesart">Ich lese dich: <b>{lesart.text}</b></div>
+              </div>
             )}
-            {lesart.konflikt && (
-              <div className="bw-konflikt">{lesart.konflikt}</div>
-            )}
+            {lesart.text && (<div className="bw-lesart">Ich lese dich gerade: <b>{lesart.text}</b></div>)}
+            {lesart.konflikt && (<div className="bw-konflikt">{lesart.konflikt}</div>)}
             <div className="row">
               <input value={query} onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') ableiten(); }}
-                placeholder="z. B. ruhig, teuer, Vitamin C, für Frauen ab 40" />
+                onKeyDown={e => { if (e.key === 'Enter' && briefText.trim()) antworten(); }}
+                placeholder="In ganzen Sätzen — wie du es einer Agentur erzählen würdest" />
+              <button className="gen" onClick={antworten} disabled={!briefText.trim()}>Antworten →</button>
+            </div>
+            <div className="row" style={{ marginTop: 10, alignItems: 'center', gap: 12 }}>
               <button className="gen" onClick={ableiten}
-                disabled={dryStatus === 'loading' || !briefText.trim()}>
-                {dryStatus === 'loading' ? 'Leitet ab …' : laeufe.length === 0 ? 'Ableiten →' : 'Neu ableiten →'}
+                disabled={dryStatus === 'loading' || !gate.ok}
+                title={gate.ok ? undefined : gate.grund}
+                style={{ opacity: gate.ok ? 1 : 0.5 }}>
+                {dryStatus === 'loading' ? 'Leitet ab …' : laeufe.length === 0 ? 'Design ableiten →' : 'Neu ableiten →'}
               </button>
+              {!gate.ok && <span style={{ fontSize: 13, color: 'var(--grau)' }}>{gate.grund}</span>}
             </div>
             {(dryStatus === 'error' || rstatus === 'error') && (
               <div style={{ fontSize: 13, color: '#dc2626', marginTop: 10 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
@@ -2027,7 +2124,7 @@ export default function Home() {
                                 <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
                                   <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
                                   <LookTurn product={prod} allLooks={b.looks}
-                                    capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier}
+                                    capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier} sucheQuery={b.query}
                                     laeufe={laeufeVon(c)}
                                     onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
                                     onLauf={l => patchCommit(c.id, { laeufe: [...laeufeVon(c), l] })}
