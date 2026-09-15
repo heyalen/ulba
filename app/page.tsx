@@ -1420,7 +1420,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     setQuery(''); setJustier([]); setOffenAnker(null);
     const fallback = () => { const r = rueckspiegelung(brief, signale); setVerlauf(v => v.map(e => e.id === id ? { ...e, lesart: r.lesart, weil: r.weil, pending: false } : e)); };
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 16000);
+    const timer = setTimeout(() => ac.abort(), 30000);
     fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal,
       body: JSON.stringify({ reflect: true, brief, frage, register: k.register, laut: k.laut, wirkstoff: k.wirkstoff, runde }) })
       .then(res => res.json())
