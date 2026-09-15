@@ -156,7 +156,7 @@ interface RenderConcept {
   zielprofil?: string[];
   // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
   design_code?: {
-    id: string; name: string; umleitung?: string | null; brand?: string | null; produkt?: string | null;
+    id: string; name: string; umleitung?: string | null; brand?: string | null; produkt?: string | null; stufe?: number; verlust?: string[];
     laut?: number | null; register?: string | null;
     can_quieter?: boolean; can_louder?: boolean;
     // v27-Backend: Material für die Behauptung.
@@ -437,6 +437,12 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
           Design-Code <b>{concept.design_code.name}</b>
           {concept.design_code.register ? ` · ${concept.design_code.register}` : ''}
           {concept.design_code.brand ? <> · aus <b>{concept.design_code.brand}</b>{concept.design_code.produkt ? ` ${concept.design_code.produkt}` : ''}</> : null}
+          {concept.design_code.stufe != null && concept.design_code.stufe < 3 && (
+            <div className="bh-stufe">
+              {concept.design_code.stufe === 2 ? 'Ruhigere Ausprägung' : 'Reduzierte Ausprägung'} — auf diesem Teil {concept.design_code.verlust?.length ? 'entfällt' : 'leicht abgewandelt'}
+              {concept.design_code.verlust?.length ? <>: {concept.design_code.verlust.join(' · ')}</> : null}
+            </div>
+          )}
         </div>
       )}
 
@@ -977,6 +983,7 @@ const STYLES = `
 .bh-weil-txt b{font-weight:600;color:var(--tinte)}
 .bh-code{font-size:12.5px;color:var(--hell);margin-top:9px}
 .bh-code b{color:var(--grau);font-weight:600}
+.bh-stufe{margin-top:6px;padding-left:9px;border-left:2px solid var(--linie);color:var(--hell);line-height:1.5}
 .bh-hinweis{font-size:13px;line-height:1.5;color:var(--grau);margin-top:14px;padding:11px 14px;background:var(--nische);border-radius:10px;border-left:2px solid var(--rouge)}
 .bh-hinweis b{font-weight:600;color:var(--tinte)}
 .bh-pal{display:flex;align-items:center;gap:7px;margin-top:16px}
