@@ -914,8 +914,8 @@ const STYLES = `
 .ch-zu{margin-left:auto;font-size:20px;color:var(--hell);background:none;flex:none}
 .ch-zu:hover{color:var(--rouge)}
 .ch-ulba{font-family:var(--serif);font-size:16px;line-height:1.55;color:var(--tinte);margin:0 0 16px;max-width:60ch}
-.ch-frage-alt{font-family:inherit;font-size:13px;color:var(--hell);margin-bottom:8px}
-.ch-frage{font-size:20px;line-height:1.35;letter-spacing:-.012em;max-width:36ch;margin-bottom:10px}
+.ch-frage-alt{margin-bottom:16px}
+.ch-frage{margin-bottom:16px}
 .ch-konzept b{font-family:var(--serif);font-weight:800;font-size:19px;letter-spacing:-.015em}
 .ch-story{font-size:15px;color:var(--grau);margin-top:5px}
 .ch-lauf{margin:2px 0 18px}
@@ -927,8 +927,10 @@ const STYLES = `
 .ch-denkt i:nth-child(2){animation-delay:.18s}.ch-denkt i:nth-child(3){animation-delay:.36s}
 @keyframes chDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 /* Gesendete Nachricht: geklickte Worte als eigene Buttons, Freitext darunter. */
-.ch-chips{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:7px;margin:0 0 8px}
-.ch-chip{background:var(--blase);color:var(--blase-txt);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:600}
+/* Gesendete Nachricht: Wolken-Worte und Freitext NEBENEINANDER, identisch
+   gesetzt — eine Aussage aus mehreren Teilen, kein Etiketten-Stapel. */
+.ch-msg{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.ch-teilm{background:var(--blase);color:var(--blase-txt);border-radius:20px;padding:12px 18px;font-size:15px;line-height:1.5;font-weight:400;max-width:78%}
 .ch-ref{font-size:12.5px;color:var(--hell);margin:-8px 0 16px 2px}
 .ch-ref b{color:var(--grau);font-weight:600}
 /* Token-Feld: gewaehlte Worte leben im Eingabefeld, nicht im Chat. */
@@ -1539,8 +1541,12 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       {strom.map(e => e.t === 'zug' ? (
         <div key={`z${e.id}`}>
           <div className="ch-ulba ch-frage-alt">{e.v.frage}</div>
-          {e.v.chips.length > 0 && <div className="ch-chips">{e.v.chips.map(w => <span key={w} className="ch-chip">{w}</span>)}</div>}
-          {e.v.frei && <div className="msg-user"><span>{e.v.frei}</span></div>}
+          {(e.v.chips.length > 0 || e.v.frei) && (
+            <div className="ch-msg">
+              {e.v.chips.map(w => <span key={w} className="ch-teilm">{w}</span>)}
+              {e.v.frei && <span className="ch-teilm">{e.v.frei}</span>}
+            </div>
+          )}
           {e.v.pending ? (
             <div className="ch-denkt" aria-label="ulba denkt nach"><i /><i /><i /></div>
           ) : (
