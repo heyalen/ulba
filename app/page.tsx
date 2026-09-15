@@ -1492,7 +1492,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   }, [barAktiv, aktuelleFrage, gate.ok, gate.grund, dryStatus, laeufe.length, chipsKey, warten]);
 
   /* Render: erzeugt IMMER einen neuen Lauf — nichts wird ersetzt. */
-  const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder') => {
+  const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder', farbort?: 'koerper' | 'liquid') => {
     const q = worte.trim();
     if (!q) return;
     setRstatus('loading'); setRerror('');
@@ -1502,13 +1502,14 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       if (capId) body.selectedCapId = capId;
       if (codeId) body.forceCodeId = codeId; // Behauptungs-Code — das Bild darf der Behauptung nicht widersprechen
       if (nudge) body.lautNudge = nudge;
+      if (farbort) body.farbortNudge = farbort;
       const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'render failed');
       if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
       onLauf({
         id: Date.now(),
-        worte: q + (nudge ? (nudge === 'quieter' ? ' · leiser' : ' · lauter') : ''),
+        worte: q + (nudge ? (nudge === 'quieter' ? ' · leiser' : ' · lauter') : '') + (farbort ? (farbort === 'koerper' ? ' · Farbe im Körper' : ' · Farbe in der Flüssigkeit') : ''),
         heroUrl: data.renderingUrl,
         capRenderUrl: data.capRenderingUrl || null,
         lastPrompt: data.renderingPrompt || '',
@@ -1526,6 +1527,10 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const nudge = (n: string) => { if (letzt) rendern(`${letzt.worte}, ${n}`, letzt.concept?.design_code?.id || null); };
   const lautCursor = (dir: 'quieter' | 'louder') => {
     if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, dir);
+  };
+  /* Seitliche Ausprägung: gleicher Code, anderer Farbträger — kein Abstieg. */
+  const farbortCursor = (ort: 'koerper' | 'liquid') => {
+    if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, undefined, ort);
   };
   const anfrage = (l: Lauf) => onSample({
     product,
@@ -1607,6 +1612,12 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
                 <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_quieter} onClick={() => lautCursor('quieter')}>← leiser</button>
                 <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_louder} onClick={() => lautCursor('louder')}>lauter →</button>
               </>
+            )}
+            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code?.can_koerper && (
+              <button className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => farbortCursor('koerper')}>Farbe in den Körper</button>
+            )}
+            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code?.can_liquid && (
+              <button className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => farbortCursor('liquid')}>Farbe in die Flüssigkeit</button>
             )}
             {e.id === (letzt?.id ?? -1) && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
               <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
