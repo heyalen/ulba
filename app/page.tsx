@@ -931,7 +931,8 @@ const STYLES = `
    gesetzt — eine Aussage aus mehreren Teilen, kein Etiketten-Stapel. */
 .ch-msg{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 16px}
 .ch-teilm{background:var(--blase);color:var(--blase-txt);border-radius:20px;padding:12px 18px;font-size:15px;line-height:1.5;font-weight:400;max-width:78%}
-.ch-ref{font-size:12.5px;color:var(--hell);margin:-8px 0 16px 2px}
+.ch-ref{font-size:12.5px;color:var(--hell);margin:-8px 0 16px 2px;display:flex;gap:10px;flex-wrap:wrap}
+.ch-ref-tr{opacity:.5}
 .ch-ref b{color:var(--grau);font-weight:600}
 /* Token-Feld: gewaehlte Worte leben im Eingabefeld, nicht im Chat. */
 .refine .feld{flex-wrap:wrap;gap:6px;padding-left:12px}
@@ -1332,7 +1333,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [cap, setCap] = useState(initialCap);
 
   const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
-  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; frei: string; chips: string[]; lesart: string; weil: string; pending?: boolean; register?: string | null; laut?: number | null; worte?: string[]; konflikt?: string | null; referenz?: { brand: string; name: string; register: string | null } | null }[]>([]);
+  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; frei: string; chips: string[]; lesart: string; weil: string; pending?: boolean; register?: string | null; laut?: number | null; worte?: string[]; konflikt?: string | null; referenz?: { brand: string; name: string; register: string | null } | null; antiReferenz?: { brand: string; name: string; register: string | null } | null }[]>([]);
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -1432,6 +1433,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
           worte: Array.isArray(d.worte) ? d.worte : [],
           konflikt: typeof d.konflikt === 'string' ? d.konflikt : null,
           referenz: d.referenz && typeof d.referenz.brand === 'string' ? d.referenz : null,
+          antiReferenz: d.antiReferenz && typeof d.antiReferenz.brand === 'string' ? d.antiReferenz : null,
         }));
       })
       .catch(() => { clearTimeout(timer); fallback(); });
@@ -1552,7 +1554,13 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
           ) : (
             <>
               <div className="ch-ulba">{e.v.lesart} <span className="gf-zug-weil">{e.v.weil}</span></div>
-              {e.v.referenz && <div className="ch-ref">Im Archiv: <b>{e.v.referenz.brand}</b> → {e.v.referenz.name}{e.v.referenz.register ? ` · ${e.v.referenz.register}` : ''}</div>}
+              {(e.v.referenz || e.v.antiReferenz) && (
+                <div className="ch-ref">
+                  {e.v.referenz && <span>Dein Kompass: <b>{e.v.referenz.brand}</b> → {e.v.referenz.name}{e.v.referenz.register ? ` · ${e.v.referenz.register}` : ''}</span>}
+                  {e.v.referenz && e.v.antiReferenz && <span className="ch-ref-tr">·</span>}
+                  {e.v.antiReferenz && <span>Bloss nicht: <b>{e.v.antiReferenz.brand}</b> → {e.v.antiReferenz.name}</span>}
+                </div>
+              )}
               {e.v.konflikt && <div className="ch-ulba ch-frage">{e.v.konflikt}</div>}
             </>
           )}
