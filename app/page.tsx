@@ -359,18 +359,6 @@ const BRIEF_FRAGEN: BriefFrage[] = [
   { frage: 'Welche Marke liebst du — und bei welcher sagst du: bloß nicht so?', hilfe: [] },
 ];
 
-/* Eröffnung: der erste Kompetenz-Beweis. Kein erfragtes Feld — ulba legt vor,
-   was es aus dem realen Teil + der Suche schon weiß. */
-function eroeffnungsSatz(product: Result, sucheQuery: string, kategorie?: string): string {
-  const teile: string[] = [];
-  const mat = (product.material || [])[0]; if (mat) teile.push(mat);
-  const typ = TYPE_LABELS[product.type] || product.type; if (typ) teile.push(typ);
-  const size = (product.availableSizes || [])[0]; if (size) teile.push(size);
-  const teilSatz = teile.join(' · ');
-  const zweck = (kategorie || '').trim() || wirkstoffAusBrief(sucheQuery || '') || '';
-  if (!teilSatz) return 'Schön — dein Teil steht. Jetzt lass uns die Marke finden.';
-  return `Schön — dein Teil steht: ${teilSatz}${zweck ? ` — ${zweck}` : ''}. Damit baue ich dir was Eigenes, kein Schema F.`;
-}
 
 /* Signal-Scan über den ganzen Brief-Freitext (keine Chips mehr nötig). */
 function koordinateAusBrief(brief: string, signale: Record<string, { welt?: string; laut?: number }>): { register: string | null; laut: number | null; wirkstoff: string | null; minD: number; maxD: number } {
@@ -616,6 +604,7 @@ interface Block {
   results: Result[];
   looks: DesignLook[]; // Design-Looks (Rezept × Gate-Base) — Payoff-Reihe über dem Grid
   categoryMatch: string;
+  hinweis: string; // v30 — Kompetenz-Satz vor den Kacheln (Formel-Flags)
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
@@ -732,14 +721,14 @@ const STYLES = `
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
 }
-.ulba{background:var(--porzellan);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;overflow:hidden}
+.ulba{background:var(--flaeche);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:347px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
 .ulba button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ulba input,.ulba textarea{font:inherit}
 .ulba :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
 .serif{font-family:var(--serif);font-weight:800;letter-spacing:-.01em} .kursiv{font-family:var(--serif);font-style:normal}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.nav{border-right:1px solid var(--linie);padding:16px 12px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
+.nav{background:var(--flaeche);border-right:1px solid var(--linie);padding:16px 14px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
 .nav-marke{text-align:left;padding:6px 8px 14px;display:block;line-height:0}
 .nav-logo{height:26px;width:auto;display:block}
 .nav-neu{text-align:left;border:1px solid var(--linie);border-radius:11px;padding:11px 14px;font-size:14px;background:var(--panel);margin-bottom:10px}
@@ -789,7 +778,7 @@ const STYLES = `
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .thread-inner{max-width:900px;margin:0 auto;width:100%}
-.refine{flex:none;background:var(--flaeche);padding:14px clamp(16px,4vw,54px) 20px}
+.refine{flex:none;background:var(--flaeche);padding:12px clamp(16px,4vw,54px) 20px}
 .refine .feld{max-width:760px;margin:0 auto;border-radius:26px;padding:5px 6px 5px 22px;background:#fff;border-color:#E4E4E6;box-shadow:0 1px 6px rgba(20,24,26,.06)}
 .refine .feld:focus-within{border-color:#C9CDD4;box-shadow:0 2px 12px rgba(20,24,26,.09)}
 .refine .feld .go{width:36px;height:36px;border-radius:50%;background:var(--blase-txt)}
@@ -865,7 +854,7 @@ const STYLES = `
 .lv-meta{font-family:var(--mono);font-size:9px;letter-spacing:.02em;color:var(--hell);text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .pn-dir.auto .dot{background:conic-gradient(from 90deg,#e9455f,#3b6fd4,#2bb0a3,#e6d8a8,#e9455f)}
 .eb-grid.schmal{grid-template-columns:repeat(4,minmax(0,1fr))}
-.ek{position:relative;border:1px solid var(--linie);border-radius:12px;background:var(--panel);overflow:hidden;transition:border-color .15s,transform .15s}
+.ek{position:relative;border:1px solid #E6E6E8;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(20,24,26,.04);overflow:hidden;transition:border-color .15s,transform .15s}
 .ek:hover{border-color:var(--hell);transform:translateY(-2px)}
 .ek.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
 .ek-klick{display:block;width:100%;text-align:left}
@@ -901,8 +890,9 @@ const STYLES = `
 /* LookTurn ist kein Kasten mehr, sondern ein Gespraechsverlauf im Thread:
    ulba links als Prosa, der Nutzer rechts als Blase, Bilder als Beitrag —
    alles in EINER Zeitachse (siehe strom). */
-.lookturn{max-width:720px;margin:6px 0 10px;display:flex;flex-direction:column}
-.ch-teil{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--linie);border-radius:18px;padding:16px 20px;margin-bottom:8px;box-shadow:0 1px 4px rgba(20,24,26,.04)}
+.lookturn{margin:6px 0 10px;display:flex;flex-direction:column}
+.ch-lauf{max-width:720px}
+.ch-teil{max-width:720px;display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--linie);border-radius:18px;padding:16px 20px;margin-bottom:8px;box-shadow:0 1px 4px rgba(20,24,26,.04)}
 .ch-teil img{width:66px;height:66px;object-fit:contain;background:var(--nische);border-radius:13px;border:1px solid var(--linie);flex:none;padding:5px}
 .ch-teil-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ch-teil-txt b{font-family:var(--serif);font-weight:800;font-size:19px;letter-spacing:-.015em}
@@ -931,6 +921,22 @@ const STYLES = `
 .ch-lauf{margin:2px 0 18px}
 .ch-lauf .lauf-stage{margin-bottom:10px}
 .ch-lade{display:flex;align-items:center;gap:10px;color:var(--grau);font-size:14.5px}
+/* Denk-Indikator: drei Punkte, dann EINE fertige Antwort — nichts springt. */
+.ch-denkt{display:inline-flex;gap:5px;align-items:center;height:22px;margin:0 0 16px 2px}
+.ch-denkt i{width:7px;height:7px;border-radius:50%;background:var(--hell);animation:chDot 1.1s infinite ease-in-out}
+.ch-denkt i:nth-child(2){animation-delay:.18s}.ch-denkt i:nth-child(3){animation-delay:.36s}
+@keyframes chDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+/* Gesendete Nachricht: geklickte Worte als eigene Buttons, Freitext darunter. */
+.ch-chips{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:7px;margin:0 0 8px}
+.ch-chip{background:var(--blase);color:var(--blase-txt);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:600}
+.ch-ref{font-size:12.5px;color:var(--hell);margin:-8px 0 16px 2px}
+.ch-ref b{color:var(--grau);font-weight:600}
+/* Token-Feld: gewaehlte Worte leben im Eingabefeld, nicht im Chat. */
+.refine .feld{flex-wrap:wrap;gap:6px;padding-left:12px}
+.refine .feld input{min-width:180px;padding-left:8px}
+.rf-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blase);color:var(--blase-txt);border-radius:999px;padding:7px 8px 7px 13px;font-size:13.5px;font-weight:600;line-height:1}
+.rf-chip button{color:var(--blase-txt);opacity:.5;font-size:15px;line-height:1;padding:0 2px}
+.rf-chip button:hover{opacity:1}
 .ch-meta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:4px}
 .lookturn .msg-user{margin:0 0 14px}
 .lookturn .lauf-akt{display:flex;gap:8px;flex-wrap:wrap}
@@ -1019,7 +1025,7 @@ const STYLES = `
 .gf-zug-frage{font-size:13px;color:var(--hell);margin-bottom:6px}
 .gf-zug-antwort{font-family:var(--serif);font-size:15px;color:var(--grau);margin-bottom:8px}
 .gf-zug-lesart{font-family:var(--serif);font-size:16px;line-height:1.55;color:var(--tinte)}
-.gf-zug-weil{color:var(--grau)}
+.gf-zug-weil{color:inherit}
 .gf-aktiv{margin:26px 2px 4px;max-width:64ch}
 .gf-frage{font-family:var(--serif);font-size:21px;line-height:1.35;letter-spacing:-.012em;color:var(--tinte);margin-bottom:14px;max-width:36ch}
 .gf-feld{display:flex;gap:10px;align-items:flex-end}
@@ -1137,7 +1143,7 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--porzellan)}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:347px;max-width:88vw;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--flaeche)}
   .nav.offen{transform:none}
   .chat.split{grid-template-columns:1fr}
   .chat.split .cs-main{display:none}
@@ -1324,7 +1330,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [cap, setCap] = useState(initialCap);
 
   const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
-  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; lesart: string; weil: string; register?: string | null; laut?: number | null; worte?: string[] }[]>([]);
+  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; frei: string; chips: string[]; lesart: string; weil: string; pending?: boolean; register?: string | null; laut?: number | null; worte?: string[]; konflikt?: string | null; referenz?: { brand: string; name: string; register: string | null } | null }[]>([]);
   const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
   const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -1396,33 +1402,37 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
      SOFORT (Wahrheit), Haiku veredelt die Stimme im Nachgang — 0 gefühlte
      Latenz; fällt Haiku aus, bleibt die deterministische Lesart stehen. */
   const antworten = (text?: string) => {
-    // Freitext + angeheftete Worte werden EINE Antwort (Dubletten raus).
     const frei = (text ?? query).trim();
     const fl = frei.toLowerCase();
-    const a = [frei, ...justier.filter(w => !fl.includes(w.toLowerCase()))].filter(Boolean).join(', ');
+    const chips = justier.filter(w => !fl.includes(w.toLowerCase()));
+    const a = [frei, ...chips].filter(Boolean).join(', ');
     if (!a) return;
     const brief = [...verlauf.map(v => v.antwort), a].filter(Boolean).join('. ');
-    const r = rueckspiegelung(brief, signale);
     const k = koordinateAusBrief(brief, signale);
     const id = Date.now();
     const runde = verlauf.length + 1;
     const frage = BRIEF_FRAGEN[Math.min(verlauf.length, BRIEF_FRAGEN.length - 1)].frage;
-    setVerlauf(v => [...v, { id, frage, antwort: a, lesart: r.lesart, weil: r.weil }]);
+    // Erst Denk-Indikator, dann EINE fertige Antwort. Deterministik nur als Fallback.
+    setVerlauf(v => [...v, { id, frage, antwort: a, frei, chips, lesart: '', weil: '', pending: true }]);
     setQuery(''); setJustier([]); setOffenAnker(null);
-    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const fallback = () => { const r = rueckspiegelung(brief, signale); setVerlauf(v => v.map(e => e.id === id ? { ...e, lesart: r.lesart, weil: r.weil, pending: false } : e)); };
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 16000);
+    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal,
       body: JSON.stringify({ reflect: true, brief, frage, register: k.register, laut: k.laut, wirkstoff: k.wirkstoff, runde }) })
       .then(res => res.json())
       .then(d => {
-        if (!d) return;
+        clearTimeout(timer);
+        if (!d || typeof d.lesart !== 'string' || typeof d.weil !== 'string') { fallback(); return; }
         setVerlauf(v => v.map(e => e.id !== id ? e : {
-          ...e,
-          lesart: typeof d.lesart === 'string' ? d.lesart : e.lesart,
-          weil: typeof d.weil === 'string' ? d.weil : e.weil,
+          ...e, pending: false, lesart: d.lesart, weil: d.weil,
           register: d.register ?? null, laut: typeof d.laut === 'number' ? d.laut : null,
           worte: Array.isArray(d.worte) ? d.worte : [],
+          konflikt: typeof d.konflikt === 'string' ? d.konflikt : null,
+          referenz: d.referenz && typeof d.referenz.brand === 'string' ? d.referenz : null,
         }));
       })
-      .catch(() => {});
+      .catch(() => { clearTimeout(timer); fallback(); });
   };
 
   /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
@@ -1448,16 +1458,18 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
 
   /* Die untere Leiste bedient dieses Briefing. Die API liegt in einer Ref —
      so liest die Leiste immer den frischen Closure, ohne Re-Render-Schleife. */
-  const apiRef = useRef<BriefBarApi>({ antworten: () => {}, ableiten: () => {} });
-  apiRef.current = { antworten: (t: string) => antworten(t), ableiten: () => ableiten() };
+  const apiRef = useRef<BriefBarApi>({ antworten: () => {}, ableiten: () => {}, entfernen: () => {} });
+  apiRef.current = { antworten: (t: string) => antworten(t), ableiten: () => ableiten(), entfernen: (w: string) => (istAnker(w) ? toggleAnker(w) : toggleJust(w)) };
   const barAktiv = phase === 'brief' && rstatus !== 'loading';
+  const warten = verlauf.some(v => v.pending);
+  const chipsKey = justier.join('|');
   useEffect(() => {
     if (!onAktiv) return;
-    if (barAktiv) onAktiv({ frage: aktuelleFrage, gateOk: gate.ok, grund: gate.grund, laden: dryStatus === 'loading', ersterLauf: laeufe.length === 0 }, apiRef);
+    if (barAktiv) onAktiv({ frage: aktuelleFrage, gateOk: gate.ok, grund: gate.grund, laden: dryStatus === 'loading', ersterLauf: laeufe.length === 0, chips: justier, denkt: warten }, apiRef);
     else onAktiv(null, null);
     return () => { onAktiv(null, null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barAktiv, aktuelleFrage, gate.ok, gate.grund, dryStatus, laeufe.length]);
+  }, [barAktiv, aktuelleFrage, gate.ok, gate.grund, dryStatus, laeufe.length, chipsKey, warten]);
 
   /* Render: erzeugt IMMER einen neuen Lauf — nichts wird ersetzt. */
   const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder') => {
@@ -1522,16 +1534,22 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
         <button className="ch-zu" onClick={onClose} aria-label="schließen">×</button>
       </div>
 
-      <div className="ch-hinweis">Du hast dieses Packmittel zum Designen ausgewählt.</div>
-
-      {/* Bleibt stehen — eine Chat-Nachricht verschwindet nie rueckwirkend. */}
-      <div className="ch-ulba">{eroeffnungsSatz(product, sucheQuery || '', kategorie)}</div>
+      <div className="ch-ulba">Wir starten mit dem Design für dein ausgewähltes Packmittel.</div>
 
       {strom.map(e => e.t === 'zug' ? (
         <div key={`z${e.id}`}>
           <div className="ch-ulba ch-frage-alt">{e.v.frage}</div>
-          <div className="msg-user"><span>{e.v.antwort}</span></div>
-          <div className="ch-ulba">{e.v.lesart} <span className="gf-zug-weil">{e.v.weil}</span></div>
+          {e.v.chips.length > 0 && <div className="ch-chips">{e.v.chips.map(w => <span key={w} className="ch-chip">{w}</span>)}</div>}
+          {e.v.frei && <div className="msg-user"><span>{e.v.frei}</span></div>}
+          {e.v.pending ? (
+            <div className="ch-denkt" aria-label="ulba denkt nach"><i /><i /><i /></div>
+          ) : (
+            <>
+              <div className="ch-ulba">{e.v.lesart} <span className="gf-zug-weil">{e.v.weil}</span></div>
+              {e.v.referenz && <div className="ch-ref">Im Archiv: <b>{e.v.referenz.brand}</b> → {e.v.referenz.name}{e.v.referenz.register ? ` · ${e.v.referenz.register}` : ''}</div>}
+              {e.v.konflikt && <div className="ch-ulba ch-frage">{e.v.konflikt}</div>}
+            </>
+          )}
         </div>
       ) : (
         <div key={`l${e.id}`} className="ch-lauf">
@@ -1580,20 +1598,9 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
         </>
       )}
 
-      {phase === 'brief' && rstatus !== 'loading' && (
+      {phase === 'brief' && rstatus !== 'loading' && !warten && (
         <>
           <div className="ch-ulba ch-frage">{aktuelleFrage}</div>
-
-          {/* Angeheftete Worte — sichtbar im Chat, reisen mit der Antwort. */}
-          {justier.length > 0 && (
-            <div className="ch-pins">
-              {justier.map(w => (
-                <span key={w} className="ch-pin">{w}
-                  <button type="button" onClick={() => istAnker(w) ? toggleAnker(w) : toggleJust(w)} aria-label={`${w} entfernen`}>×</button>
-                </span>
-              ))}
-            </div>
-          )}
 
           {/* Die Wolke: mittig, als Buttons. Antippen heftet an. */}
           {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
@@ -1877,8 +1884,8 @@ function LookVorschau({ look, umgeleitet }: { look: DesignLook; umgeleitet?: boo
 
 export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
 /* Was die untere Leiste ueber das laufende Briefing wissen muss. */
-interface BriefBarCtx { frage: string; gateOk: boolean; grund: string; laden: boolean; ersterLauf: boolean }
-interface BriefBarApi { antworten: (text: string) => void; ableiten: () => void }
+interface BriefBarCtx { frage: string; gateOk: boolean; grund: string; laden: boolean; ersterLauf: boolean; chips: string[]; denkt: boolean }
+interface BriefBarApi { antworten: (text: string) => void; ableiten: () => void; entfernen: (w: string) => void }
 function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
   const seen = new Set<string>();
   const out: LookMitStatus[] = [];
@@ -1922,6 +1929,7 @@ export default function Home() {
   }, []);
   const leisteSenden = () => {
     const t = refineInput.trim();
+    if (briefBar?.denkt) return;
     if (briefBar && briefBarApi.current) { briefBarApi.current.current.antworten(t); }
     else if (!t) return;
     else verfeinereText(t);
@@ -2006,7 +2014,7 @@ export default function Home() {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       id = p.blockSeq + 1;
-      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', alleZeigen: false, status: 'loading' }] };
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', hinweis: '', alleZeigen: false, status: 'loading' }] };
     }));
     try {
       const body: any = { query };
@@ -2023,7 +2031,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2216,6 +2224,7 @@ export default function Home() {
                                     ))}
                                   </div>
                                 )}
+                                {b.hinweis && <div className="ch-ulba" style={{ marginBottom: 18 }}>{b.hinweis}</div>}
                                 <div className="eb-kopf"><span className="ebk-h">{zeige.length} Systeme für dich</span><span className="ebk-s">von ulba kuratiert · gelesen als {pal}</span></div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
@@ -2262,8 +2271,9 @@ export default function Home() {
                   {briefBar && (
                     <div className="rf-strip">
                       <span className="rf-modus">Du antwortest gerade <b>im Design-Brief</b></span>
-                      {!briefBar.gateOk && <span className="rf-grund">{briefBar.grund}</span>}
-                      {briefBar.gateOk && (
+                      {briefBar.denkt && <span className="rf-grund">ulba denkt nach …</span>}
+                      {!briefBar.denkt && !briefBar.gateOk && <span className="rf-grund">{briefBar.grund}</span>}
+                      {!briefBar.denkt && briefBar.gateOk && (
                         <button className="rf-ab" disabled={briefBar.laden}
                           onClick={() => briefBarApi.current?.current.ableiten()}>
                           {briefBar.laden ? 'Leitet ab …' : briefBar.ersterLauf ? 'Design ableiten →' : 'Neu ableiten →'}
@@ -2272,8 +2282,16 @@ export default function Home() {
                     </div>
                   )}
                   <div className="feld">
-                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') leisteSenden(); }}
-                      placeholder={briefBar ? 'Antworte in ganzen Sätzen — wie du es einer Agentur erzählen würdest' : 'Verfeinern in Worten — „wärmer“, „nur Glas“, „30 ml“'} />
+                    {briefBar && briefBar.chips.map(w => (
+                      <span key={w} className="rf-chip">{w}<button type="button" aria-label={`${w} entfernen`} onClick={() => briefBarApi.current?.current.entfernen(w)}>×</button></span>
+                    ))}
+                    <input value={refineInput} onChange={e => setRefineInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { leisteSenden(); return; }
+                        if (e.key === 'Backspace' && !refineInput && briefBar && briefBar.chips.length) { briefBarApi.current?.current.entfernen(briefBar.chips[briefBar.chips.length - 1]); }
+                      }}
+                      disabled={!!briefBar?.denkt}
+                      placeholder={briefBar ? (briefBar.chips.length ? 'Noch etwas dazu? Enter sendet alles.' : 'Antworte in ganzen Sätzen — wie du es einer Agentur erzählen würdest') : 'Verfeinern in Worten — „wärmer“, „nur Glas“, „30 ml“'} />
                     <button className="go" onClick={leisteSenden} aria-label="senden">↑</button>
                   </div>
                 </div>
