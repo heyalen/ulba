@@ -157,6 +157,7 @@ interface RenderConcept {
   // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
   design_code?: {
     id: string; name: string; umleitung?: string | null; brand?: string | null; produkt?: string | null; stufe?: number; verlust?: string[];
+    farbort?: string; can_koerper?: boolean; can_liquid?: boolean;
     laut?: number | null; register?: string | null;
     can_quieter?: boolean; can_louder?: boolean;
     // v27-Backend: Material für die Behauptung.
