@@ -156,7 +156,7 @@ interface RenderConcept {
   zielprofil?: string[];
   // Achsen-Cursor: gewählter Code + Temp_Laut-Nachbarschaft für die Nudge-Chips.
   design_code?: {
-    id: string; name: string; umleitung?: string | null;
+    id: string; name: string; umleitung?: string | null; brand?: string | null; produkt?: string | null;
     laut?: number | null; register?: string | null;
     can_quieter?: boolean; can_louder?: boolean;
     // v27-Backend: Material für die Behauptung.
@@ -432,6 +432,13 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
       <div className="bh-eyebrow">Unsere Richtung</div>
       <h4 className="bh-titel">{concept.konzept_name}</h4>
       {concept.story && <p className="bh-story">{concept.story}</p>}
+      {concept.design_code?.name && (
+        <div className="bh-code">
+          Design-Code <b>{concept.design_code.name}</b>
+          {concept.design_code.register ? ` · ${concept.design_code.register}` : ''}
+          {concept.design_code.brand ? <> · aus <b>{concept.design_code.brand}</b>{concept.design_code.produkt ? ` ${concept.design_code.produkt}` : ''}</> : null}
+        </div>
+      )}
 
       <div className="bh-weil">
         <span className="bh-weil-lbl">weil</span>
@@ -968,6 +975,8 @@ const STYLES = `
 .bh-weil-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--hell);padding-top:3px;flex:none}
 .bh-weil-txt{font-size:14px;line-height:1.55;color:var(--grau);max-width:56ch}
 .bh-weil-txt b{font-weight:600;color:var(--tinte)}
+.bh-code{font-size:12.5px;color:var(--hell);margin-top:9px}
+.bh-code b{color:var(--grau);font-weight:600}
 .bh-hinweis{font-size:13px;line-height:1.5;color:var(--grau);margin-top:14px;padding:11px 14px;background:var(--nische);border-radius:10px;border-left:2px solid var(--rouge)}
 .bh-hinweis b{font-weight:600;color:var(--tinte)}
 .bh-pal{display:flex;align-items:center;gap:7px;margin-top:16px}
