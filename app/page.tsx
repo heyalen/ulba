@@ -165,6 +165,7 @@ interface RenderConcept {
   };
   // Die Herleitungs-Leiter: pro Signal eine Zeile Bedeutung → Form → weil.
   kette?: Array<{ typ: string; bedeutung: string; form: string; weil: string }>;
+  do_not?: string[];
   verworfen?: { name: string; grund: string } | null;
   farbsystem?: {
     rollen: Array<{ rolle: string; hex: string; ort: string; cue?: string }>;
@@ -420,25 +421,32 @@ function briefGate(k: { register: string | null; laut: number | null }, runden: 
    zu benannten Justierungen statt anonymen Optionen.
    Die Farbzeile behauptet NIE, die Farbe sei hergeleitet: ein Hex aus einem
    real produzierten Produkt ist stärker als ein erfundener. Also Provenienz. */
-function Herleitung({ concept, offen, onToggle }: {
+function Herleitung({ concept, offen, onToggle, alles, onAlles }: {
   concept: RenderConcept; offen: boolean; onToggle: () => void;
+  alles: boolean; onAlles: () => void;
 }) {
   const kette = concept.kette || [];
   const fs = concept.farbsystem;
   const vw = concept.verworfen;
-  if (!kette.length && !fs?.rollen?.length && !vw) return null;
+  const dn = concept.do_not || [];
+  if (!kette.length && !fs?.rollen?.length && !vw && !dn.length) return null;
+  // Drei Zeilen. Der Rest liegt hinter "alle Schritte" — eine Leiter mit
+  // fünfzehn gleich lauten Sprossen ist ein Logfile, keine Präsentation.
+  const sicht = alles ? kette : kette.slice(0, 3);
+  const rest = kette.length - sicht.length;
   return (
     <div className="hl">
       <button className="hl-kopf" onClick={onToggle} aria-expanded={offen}>
         <span className="hl-kopf-lbl">Herleitung</span>
-        <span className="hl-kopf-n">{kette.length} Schritte</span>
         <span className="hl-kopf-pf">{offen ? '↑' : '↓'}</span>
       </button>
       {offen && (
         <div className="hl-body">
-          {kette.map((z, i) => (
+          {sicht.map((z, i) => (
             <div key={i} className="hl-z">
-              <div className="hl-typ">{z.typ}</div>
+              {/* Typ-Etikett nur, wo es etwas beweist: Physik und Farbe sind
+                  das, was keine Agentur weiß. Brief-Zeilen brauchen keins. */}
+              {(z.typ === 'Physik' || z.typ === 'Farbe') && <div className="hl-typ">{z.typ}</div>}
               <div className="hl-mitte">
                 <span className="hl-bed">{z.bedeutung}</span>
                 <span className="hl-pf">→</span>
@@ -447,26 +455,35 @@ function Herleitung({ concept, offen, onToggle }: {
               {z.weil && <div className="hl-weil">{z.weil}</div>}
             </div>
           ))}
-          {fs && fs.rollen.length > 0 && (
-            <div className="hl-farb">
+          {rest > 0 && (
+            <button className="hl-mehr" onClick={onAlles}>alle Schritte ({kette.length}) ↓</button>
+          )}
+          {alles && rest === 0 && kette.length > 3 && (
+            <button className="hl-mehr" onClick={onAlles}>weniger ↑</button>
+          )}
+          {dn.length > 0 && (
+            <div className="hl-z">
+              <div className="hl-typ">Was nicht</div>
+              <div className="hl-mitte"><span className="hl-form">{dn.join(' · ')}</span></div>
+            </div>
+          )}
+          {fs && fs.rollen.filter(r => r.hex).length > 0 && (
+            <div className="hl-z">
               <div className="hl-typ">Farbrollen</div>
               <div className="hl-rollen">
-                {fs.rollen.map((r, i) => (
-                  <span key={i} className="hl-rolle">
-                    <span className="hl-sw" style={r.hex ? { background: r.hex } : { background: 'repeating-linear-gradient(45deg,#EEE,#EEE 4px,#FFF 4px,#FFF 8px)' }} />
-                    <span className="hl-rolle-t">
-                      <b>{r.rolle}</b>
-                      {r.hex ? ` ${r.hex}` : ''} · {r.ort}{r.cue ? ` (${r.cue.replace(/_/g, ' ')})` : ''}
-                      {fs.laut === r.rolle ? ' · trägt die Lautstärke' : ''}
-                    </span>
+                {fs.rollen.filter(r => r.hex).map((r, i) => (
+                  <span key={i} className="hl-rolle" title={`${r.rolle} · ${r.ort}${r.cue ? ` (${r.cue.replace(/_/g, ' ')})` : ''}`}>
+                    <span className="hl-sw" style={{ background: r.hex }} />
+                    <span className="hl-rolle-t">{r.rolle === 'Träger' ? r.ort : r.rolle === 'Gegenspieler' ? 'Verschluss' : 'Akzent'}</span>
                   </span>
                 ))}
+                {fs.laut && <span className="hl-rolle-t hl-laut">{fs.laut} trägt die Lautstärke</span>}
               </div>
               {fs.warnungen.map((w, i) => <div key={i} className="hl-warn">{w}</div>)}
             </div>
           )}
           {vw && (
-            <div className="hl-vw">
+            <div className="hl-z">
               <div className="hl-typ">Verworfen</div>
               <div className="hl-vw-t"><b>{vw.name}</b> — {vw.grund}</div>
             </div>
@@ -502,6 +519,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
   // den Nutzer über das Bild rätseln.
   const umgeleitet = !!dc?.umleitung;
   const [hlOffen, setHlOffen] = useState(true);
+  const [hlAlles, setHlAlles] = useState(false);
   return (
     <div className="behaupt">
       <div className="bh-eyebrow">Unsere Richtung</div>
@@ -521,16 +539,6 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
         </div>
       )}
 
-      <div className="bh-weil">
-        <span className="bh-weil-lbl">weil</span>
-        <div className="bh-weil-txt">
-          {briefWorte && <>du <b>{briefWorte}</b> gesagt hast</>}
-          {ziel.length > 0 && <> · ihr sprecht <b>{ziel.join(' & ')}</b></>}
-          {wirk && <> · <b>{wirk}</b> als Wirkstoff-Welt</>}
-          {dc?.register && <> · das heißt <b>{identitaetSatz(dc.register, dc.laut)}</b></>}
-        </div>
-      </div>
-
       {umgeleitet && (
         <div className="bh-hinweis">
           <b>{teilName}</b> ist klar und nicht einfärbbar — die Farbe legen wir
@@ -540,16 +548,10 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
         </div>
       )}
 
-      {hex.length > 0 && (
-        <div className="bh-pal">
-          {hex.map((h, i) => <span key={i} className="bh-sw" style={{ background: h }} title={h} />)}
-          <span className="bh-pal-nm">{concept.palette?.name}</span>
-        </div>
-      )}
-
       {/* Die Kette gehört VOR das Bild: hier fällt die Entscheidung, und der
           Nutzer soll eine Ableitung korrigieren, nicht aus einem Katalog raten. */}
-      <Herleitung concept={concept} offen={hlOffen} onToggle={() => setHlOffen(o => !o)} />
+      <Herleitung concept={concept} offen={hlOffen} onToggle={() => setHlOffen(o => !o)}
+        alles={hlAlles} onAlles={() => setHlAlles(a => !a)} />
       <button className="bh-cta" onClick={onZeigen} disabled={laden}>
         {laden ? 'Rendert …' : 'Zeig es mir →'}
       </button>
@@ -603,11 +605,18 @@ function FrameHead({ concept }: { concept: RenderConcept }) {
 
 /* ── SpecSheet — Guideline-Footer: Wortmarke · Palette · Emotion ──── */
 function SpecSheet({ concept }: { concept: RenderConcept }) {
+  // Element 6 des Blatts: der MACHBARKEITS-BEWEIS, nichts sonst. Palette und
+  // Radar lagen hier doppelt (die Farbrollen zeigen Farbe jetzt mit Rolle) und
+  // das Radar sagte nichts, was die Kette nicht besser sagt. Was eine Agentur
+  // erfragen muss ("kann man das einfärben?"), weiß ulba fürs konkrete Teil.
+  const p = concept.produzierbar;
   const label = concept.label;
-  const pal = concept.palette;
-  const radar = concept.radar;
-  const zp = concept.zielprofil || [];
-  if (!label && !(pal && pal.hex?.length) && !radar) return null;
+  const zeilen: Array<[string, string]> = [];
+  if (p?.farbkonzept) zeilen.push(['Farbkonzept', p.farbkonzept]);
+  if (p?.finish?.length) zeilen.push(['Bestätigte Veredelung', p.finish.join(' · ')]);
+  if (p?.dekoration?.length) zeilen.push(['Dekoration', p.dekoration.join(' · ')]);
+  if (p?.grafik_label) zeilen.push(['Grafik', p.grafik_label]);
+  if (!zeilen.length && !label) return null;
   return (
     <div className="frame-spec">
       {label && (
@@ -617,33 +626,12 @@ function SpecSheet({ concept }: { concept: RenderConcept }) {
           {label.ist_platzhalter && <div className="fsl-hint">Platzhalter — eigenen Markennamen unten setzen</div>}
         </div>
       )}
-
-      <div className="fs-grid">
-        {pal && pal.hex?.length > 0 && (
-          <div className="fs-col">
-            <div className="fs-cap">Palette · {pal.name}</div>
-            <div className="fs-chips">
-              {pal.hex.map((h, i) => (
-                <div key={i} className="fs-chip">
-                  <span className="fsc-sw" style={{ background: h }} />
-                  <span className="fsc-hex">{h}</span>
-                  {pal.pantone?.[i] && <span className="fsc-pan">{pal.pantone[i]}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {radar && (
-          <div className="fs-col">
-            <div className="fs-cap">Emotionales Profil</div>
-            <EmotionBars radar={radar} />
-            {zp.length > 0 && <div className="fs-tags">{zp.join(' · ')}</div>}
-          </div>
-        )}
-      </div>
-
-      {concept.rationale && <div className="fs-why">{concept.rationale}</div>}
+      {zeilen.map(([k, v], i) => (
+        <div key={i} className="fs-zeile">
+          <span className="fs-cap">{k}</span>
+          <span className="fs-val">{v}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1106,9 +1094,14 @@ const STYLES = `
 .hl-pf{color:var(--hell)}
 .hl-form{color:var(--tinte)}
 .hl-weil{font-size:12.5px;line-height:1.5;color:var(--grau);margin-top:3px;max-width:60ch}
-.hl-rollen{display:flex;flex-direction:column;gap:5px}
-.hl-rolle{display:flex;align-items:center;gap:8px}
-.hl-sw{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.08);flex:none}
+.fs-zeile{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-top:1px solid var(--linie2)}
+.fs-zeile .fs-cap{flex:none;min-width:150px}
+.fs-val{font-size:13px;line-height:1.5;color:var(--tinte)}
+.hl-mehr{font-size:12px;padding:6px 0 2px;background:transparent;border:0;color:var(--hell);text-align:left}
+.hl-rollen{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:2px}
+.hl-rolle{display:flex;align-items:center;gap:6px}
+.hl-laut{font-style:italic}
+.hl-sw{width:18px;height:18px;border-radius:5px;border:1px solid rgba(0,0,0,.08);flex:none}
 .hl-rolle-t{font-size:12.5px;color:var(--grau)}
 .hl-rolle-t b{color:var(--tinte);font-weight:600}
 .hl-warn{font-size:12px;line-height:1.45;color:var(--rouge);margin-top:6px;padding-left:9px;border-left:2px solid var(--rouge)}
@@ -1475,6 +1468,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   // Herleitung: neuester Lauf offen, ältere eingeklappt — Präsi-Logik, ohne
   // dass sich drei Blätter zu einer Bildschirmwand stapeln.
   const [hlOffen, setHlOffen] = useState<Record<number, boolean>>({});
+  const [hlAlles, setHlAlles] = useState<number | null>(null);
   const [feinOffen, setFeinOffen] = useState<number | null>(null);
   const [altOffen, setAltOffen] = useState<number | null>(null);
   const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
@@ -1753,8 +1747,10 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
               {e.l.concept && (
                 <Herleitung
                   concept={e.l.concept}
-                  offen={hlOffen[e.l.id] ?? istLetzt(e.id)}
-                  onToggle={() => setHlOffen(p => ({ ...p, [e.l.id]: !(p[e.l.id] ?? istLetzt(e.id)) }))}
+                  offen={hlOffen[e.l.id] ?? false}
+                  onToggle={() => setHlOffen(p => ({ ...p, [e.l.id]: !(p[e.l.id] ?? false) }))}
+                  alles={hlAlles === e.l.id}
+                  onAlles={() => setHlAlles(hlAlles === e.l.id ? null : e.l.id)}
                 />
               )}
               {istLetzt(e.id) && e.l.concept?.design_code && (
