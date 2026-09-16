@@ -1578,7 +1578,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     if (!q) return;
     setDryStatus('loading'); setRerror('');
     try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true };
+      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true, sucheQuery: sucheQuery || null };
       const capId = caps[cap]?.id || null;
       if (capId) body.selectedCapId = capId;
       const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1614,7 +1614,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     if (!q) return;
     setRstatus('loading'); setRerror('');
     try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite' };
+      const body: any = { systemId: product.id, query: q, tier: 'lite', sucheQuery: sucheQuery || null };
       const capId = caps[cap]?.id || null;
       if (capId) body.selectedCapId = capId;
       if (codeId) body.forceCodeId = codeId; // Behauptungs-Code — das Bild darf der Behauptung nicht widersprechen
