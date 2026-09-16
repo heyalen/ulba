@@ -430,9 +430,11 @@ function Herleitung({ concept, offen, onToggle, alles, onAlles }: {
   const vw = concept.verworfen;
   const dn = concept.do_not || [];
   if (!kette.length && !fs?.rollen?.length && !vw && !dn.length) return null;
-  // Drei Zeilen. Der Rest liegt hinter "alle Schritte" — eine Leiter mit
-  // fünfzehn gleich lauten Sprossen ist ein Logfile, keine Präsentation.
-  const sicht = alles ? kette : kette.slice(0, 3);
+  // Vier Zeilen: Wirkstoff, die Brief-Einsicht, die Physik, die Farbprovenienz.
+  // Das ist die vollständige Argumentation — was drin ist, für wen, was das Teil
+  // kann, woher die Farbe stammt. Der Rest liegt hinter "alle Schritte"; eine
+  // Leiter mit fünfzehn gleich lauten Sprossen ist ein Logfile.
+  const sicht = alles ? kette : kette.slice(0, 4);
   const rest = kette.length - sicht.length;
   return (
     <div className="hl">
@@ -458,7 +460,7 @@ function Herleitung({ concept, offen, onToggle, alles, onAlles }: {
           {rest > 0 && (
             <button className="hl-mehr" onClick={onAlles}>alle Schritte ({kette.length}) ↓</button>
           )}
-          {alles && rest === 0 && kette.length > 3 && (
+          {alles && rest === 0 && kette.length > 4 && (
             <button className="hl-mehr" onClick={onAlles}>weniger ↑</button>
           )}
           {dn.length > 0 && (
