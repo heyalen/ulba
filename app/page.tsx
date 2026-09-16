@@ -367,10 +367,14 @@ function identitaetSatz(register?: string | null, laut?: number | null): string 
    Lesart und „weil" kommen aus demselben Signal-Apparat wie die Live-Lesart —
    0 LLM. Haiku veredelt die Sätze im nächsten Schritt. */
 interface BriefFrage { frage: string; hilfe: string[] }
+// Die Referenz-Runde (Index 2) läuft visuell — dort liefert ein Bild mehr
+// als ein Wort. Die Runden davor bleiben Sprache: „wer soll das in die Hand
+// nehmen" kann kein Bild beantworten.
+const BOARD_RUNDE = 2;
 const BRIEF_FRAGEN: BriefFrage[] = [
   { frage: 'Erzähl mir von der Marke — wer soll das in die Hand nehmen?', hilfe: ['Gen Z', '20–35', 'ab 40', 'premium', 'nicht Drogerie', 'Luxus'] },
   { frage: 'Wo sieht man es zuerst — Regal, Feed oder eure eigene Seite?', hilfe: ['Drogerie-Regal', 'Prestige-Regal', 'Instagram', 'TikTok', 'eigene Seite'] },
-  { frage: 'Welche Marke liebst du — und bei welcher sagst du: bloß nicht so?', hilfe: [] },
+  { frage: 'Zeig mir, was dich anspricht — und was gar nicht.', hilfe: [] },
 ];
 
 
@@ -417,6 +421,47 @@ function briefGate(k: { register: string | null; laut: number | null }, runden: 
   return { ok: true, grund: '' };
 }
 
+type BoardCode = { id: string; name: string; brand: string; bild: string | null; register: string | null; laut: number | null };
+type BoardWahl = Record<string, 'ja' | 'nein'>;
+
+/* ── Das Board: die Referenz-Runde als Bild ──────────────────────────
+   Bakic fragt „brands and packagings you aspire to". Als Text beantwortet
+   liefert das ein Wort, das erst gegen das Archiv gematcht werden muss. Ein
+   Tipp auf ein echtes Produkt liefert eine vermessene Koordinate: Welt,
+   Lautstärke und Wirkstoff-Welt sind am Referenzbild getaggt.
+   Ein Tipp schaltet durch neutral → spricht mich an → bloß nicht. Eine
+   Geste, kein Menü — das Freitextfeld bleibt darunter für alle, die lieber
+   reden. Die Auswahl ist ABGELEITET, nie das ganze Archiv: acht Bilder,
+   über die Welten gestreut, gewichtet nach dem bisherigen Brief. */
+function Board({ codes, wahl, onTipp, laden }: {
+  codes: BoardCode[]; wahl: BoardWahl; onTipp: (id: string) => void; laden: boolean;
+}) {
+  if (laden) return <div className="bd-lade">Lege ein paar echte Produkte aus …</div>;
+  if (!codes.length) return null;
+  return (
+    <div className="bd">
+      <div className="bd-grid">
+        {codes.map(c => {
+          const w = wahl[c.id];
+          return (
+            <button
+              key={c.id} type="button"
+              className={`bd-k${w === 'ja' ? ' bd-ja' : w === 'nein' ? ' bd-nein' : ''}`}
+              onClick={() => onTipp(c.id)}
+              aria-label={`${c.brand} — ${w === 'ja' ? 'spricht mich an' : w === 'nein' ? 'bloß nicht' : 'noch nicht gewählt'}`}
+            >
+              {c.bild ? <img src={c.bild} alt="" loading="lazy" /> : <span className="bd-k-leer" />}
+              <span className="bd-k-nm">{c.brand}</span>
+              {w && <span className="bd-k-mark">{w === 'ja' ? 'spricht mich an' : 'bloß nicht'}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="bd-lgd">Einmal tippen: spricht mich an · nochmal: bloß nicht · nochmal: weg</div>
+    </div>
+  );
+}
+
 /* ── Die Karte ───────────────────────────────────────────────────────
    Benchmarks, Moodboards und Competitive Landscape aus dem Agentur-Deck in
    einem Element, automatisch aus dem Archiv: sechs Welten, gefüllt mit den
@@ -425,7 +470,14 @@ function briefGate(k: { register: string | null; laut: number | null }, runden: 
    Welten bleiben leer — der weiße Fleck ist Absicht, nicht Lücke im UI.
    Das ist kein Konfigurator: der sagt „wähl eine", die Karte sagt „das ist
    deine, und hier liegt sie". */
-function Landkarte({ concept, offen, onToggle }: { concept: RenderConcept; offen: boolean; onToggle: () => void }) {
+function Landkarte({ concept, offen, onToggle, onEherDie }: {
+  concept: RenderConcept; offen: boolean; onToggle: () => void;
+  // Bestätigen, nicht wählen: ulba leitet die Welt ab und zeigt sie. Ein Tipp
+  // auf ein Nachbarprodukt heißt „nein, eher die" — die Engine leitet dann
+  // neu ab, statt ein Menü aufzuschlagen. Ohne Handler bleibt die Karte
+  // reine Anzeige (so nach dem Render, wo der Lauf eingefroren ist).
+  onEherDie?: (codeId: string) => void;
+}) {
   const k = concept.karte;
   if (!k || !k.welten?.length) return null;
   const rolle = (id: string) =>
@@ -451,17 +503,23 @@ function Landkarte({ concept, offen, onToggle }: { concept: RenderConcept; offen
                   <div className={`kt-grid${aktiv ? ' kt-grid-aktiv' : ''}`}>
                     {w.codes.map(c => {
                       const r = rolle(c.id);
-                      return (
-                        <div key={c.id} className={`kt-k${r ? ` kt-k-${r === 'Deine Richtung' ? 'dir' : r === 'Kompass' ? 'komp' : r === 'Bloß nicht' ? 'anti' : 'vw'}` : ''}`} title={`${c.name} · ${c.brand}`}>
+                      const klickbar = !!onEherDie && c.id !== k.gewaehlt;
+                      const kls = `kt-k${r ? ` kt-k-${r === 'Deine Richtung' ? 'dir' : r === 'Kompass' ? 'komp' : r === 'Bloß nicht' ? 'anti' : 'vw'}` : ''}${klickbar ? ' kt-k-klick' : ''}`;
+                      const inhalt = (
+                        <>
                           {c.bild ? <img src={c.bild} alt="" loading="lazy" /> : <div className="kt-k-leer" />}
                           {aktiv && (
                             <div className="kt-k-t">
                               {r && <b>{r}</b>}
                               <span>{c.brand || c.name}</span>
+                              {klickbar && <em>eher die →</em>}
                             </div>
                           )}
-                        </div>
+                        </>
                       );
+                      return klickbar
+                        ? <button key={c.id} type="button" className={kls} title={`${c.name} · ${c.brand} — eher die`} onClick={() => onEherDie!(c.id)}>{inhalt}</button>
+                        : <div key={c.id} className={kls} title={`${c.name} · ${c.brand}`}>{inhalt}</div>;
                     })}
                   </div>
                 )}
@@ -574,9 +632,10 @@ function Herleitung({ concept, offen, onToggle, alles, onAlles }: {
    Referenzprodukt des Codes (bei Golden Ritual: goldener Zylinder), nicht
    das gewählte Teil — sie würde ein Gebinde versprechen, das der Nutzer
    nicht gewählt hat. Sie liegt im Payload für die Haiku-Verwebung (Stufe 2). */
-function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
+function Behauptung({ concept, teilName, briefWorte, onZeigen, laden, onEherDie }: {
   concept: RenderConcept; teilName: string; briefWorte: string;
   onZeigen: () => void; laden: boolean;
+  onEherDie?: (codeId: string) => void;
 }) {
   const dc = concept.design_code;
   // Retinol-Bug-Fix: Wirkstoff kommt aus dem Brief des NUTZERS. Das Tag am
@@ -622,7 +681,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
 
       {/* Die Kette gehört VOR das Bild: hier fällt die Entscheidung, und der
           Nutzer soll eine Ableitung korrigieren, nicht aus einem Katalog raten. */}
-      <Landkarte concept={concept} offen={ktOffen} onToggle={() => setKtOffen(o => !o)} />
+      <Landkarte concept={concept} offen={ktOffen} onToggle={() => setKtOffen(o => !o)} onEherDie={onEherDie} />
       <Herleitung concept={concept} offen={hlOffen} onToggle={() => setHlOffen(o => !o)}
         alles={hlAlles} onAlles={() => setHlAlles(a => !a)} />
       <button className="bh-cta" onClick={onZeigen} disabled={laden}>
@@ -1153,6 +1212,22 @@ const STYLES = `
 .lauf-alt .lauf-cap{width:40px;max-height:70px}
 .lauf-akt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .lauf-btn{font-size:12px;padding:5px 11px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f}
+/* ── Das Board (Referenz-Runde als Bild) ────────────────────────── */
+.bd{margin:6px 0 10px}
+.bd-lade{font-size:13px;color:var(--hell);text-align:center;padding:14px 0}
+.bd-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.bd-k{display:flex;flex-direction:column;gap:5px;padding:5px;border:1px solid var(--linie);border-radius:10px;background:#fff;text-align:left;min-width:0}
+.bd-k img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;background:#F4F3EE;display:block}
+.bd-k-leer{width:100%;aspect-ratio:1;border-radius:6px;background:#F4F3EE;display:block}
+.bd-k-nm{font-size:11px;color:var(--grau);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-k-mark{font-size:10px;line-height:1.2;font-weight:600}
+.bd-ja{border:2px solid #4B7A52;padding:4px}
+.bd-ja .bd-k-mark{color:#4B7A52}
+.bd-nein{border:2px dashed var(--rouge);padding:4px;opacity:.72}
+.bd-nein img{filter:grayscale(1)}
+.bd-nein .bd-k-mark{color:var(--rouge)}
+.bd-lgd{font-size:11px;color:var(--hell);text-align:center;margin-top:8px}
+@media(max-width:560px){.bd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* ── Die Karte ──────────────────────────────────────────────────── */
 .kt{margin-top:12px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow:hidden}
 .kt-welten{display:flex;gap:6px;padding:4px 10px 12px;align-items:stretch;overflow-x:auto}
@@ -1174,6 +1249,9 @@ const STYLES = `
 .kt-k-vw{outline:2px dashed var(--hell);outline-offset:1px}
 .kt-k-t{margin-top:4px;font-size:10.5px;line-height:1.25;color:var(--grau);display:flex;flex-direction:column}
 .kt-k-t b{color:var(--tinte);font-weight:600}
+.kt-k-t em{font-style:normal;color:var(--hell);font-size:10px}
+.kt-k-klick{background:transparent;border:0;padding:2px;text-align:left;width:100%}
+.kt-k-klick:hover .kt-k-t em{color:var(--tinte)}
 .kt-laut{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:10.5px;color:var(--hell)}
 .kt-laut-bar{flex:1;height:2px;background:var(--linie);position:relative}
 .kt-laut-pt{position:absolute;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--tinte);transform:translateX(-50%)}
@@ -1567,6 +1645,11 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [hlOffen, setHlOffen] = useState<Record<number, boolean>>({});
   const [hlAlles, setHlAlles] = useState<number | null>(null);
   const [ktLauf, setKtLauf] = useState<number | null>(null);
+  // Board-Zustand: die Tipps des Kunden. Sie sind sein Moodboard, aus Geste
+  // entstanden — und gleichzeitig eine vermessene Koordinate für die Engine.
+  const [board, setBoard] = useState<BoardCode[]>([]);
+  const [boardLaden, setBoardLaden] = useState(false);
+  const [boardWahl, setBoardWahl] = useState<BoardWahl>({});
   const [feinOffen, setFeinOffen] = useState<number | null>(null);
   const [altOffen, setAltOffen] = useState<number | null>(null);
   const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
@@ -1605,6 +1688,39 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   };
   const lesart = liveLesart(justier, query, signale);
   const aktuelleFrage = verlauf.length < BRIEF_FRAGEN.length ? BRIEF_FRAGEN[verlauf.length].frage : 'Willst du noch etwas ergänzen?';
+  const boardRunde = verlauf.length === BOARD_RUNDE;
+  useEffect(() => {
+    if (!boardRunde || board.length || boardLaden) return;
+    setBoardLaden(true);
+    const bisher = verlauf.map(v => v.antwort).filter(Boolean).join('. ');
+    const k = koordinateAusBrief(bisher, signale);
+    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ board: true, brief: bisher, wirkstoff: k.wirkstoff, register: k.register }) })
+      .then(r => r.json())
+      .then(d => setBoard(Array.isArray(d?.codes) ? d.codes : []))
+      .catch(() => setBoard([]))
+      .finally(() => setBoardLaden(false));
+  }, [boardRunde, board.length, boardLaden, verlauf, signale]);
+  // Ein Tipp schaltet durch: neutral → ja → nein → weg.
+  const boardTipp = (id: string) => setBoardWahl(w => {
+    const n = { ...w };
+    if (!n[id]) n[id] = 'ja'; else if (n[id] === 'ja') n[id] = 'nein'; else delete n[id];
+    return n;
+  });
+  /* „eher die": kein Sprung in ein Menü, sondern eine neue Ableitung mit dem
+     getippten Produkt als Anker. Die Behauptung wird neu gebaut, die Kette
+     schreibt sich neu — der Kunde korrigiert eine Ableitung, statt zu wählen. */
+  const eherDie = (codeId: string) => { void ableiten(codeId); };
+  const boardJa = Object.keys(boardWahl).filter(id => boardWahl[id] === 'ja');
+  const boardNein = Object.keys(boardWahl).filter(id => boardWahl[id] === 'nein');
+  // Die Tipps werden zu genau dem Satz, den der Kunde sonst getippt hätte —
+  // damit läuft die ganze bestehende Kette (Koordinate, Reflexion, Referenz-
+  // Matching) unverändert weiter. Das Board ist Eingabeform, kein Sonderweg.
+  const boardSatz = () => {
+    const nm = (ids: string[]) => ids.map(i => board.find(c => c.id === i)?.brand).filter(Boolean).join(', ');
+    const j = nm(boardJa), n = nm(boardNein);
+    return [j && `${j} spricht mich an`, n && `bloß nicht ${n}`].filter(Boolean).join(', ');
+  };
   const briefGesamt = [...verlauf.map(v => v.antwort), briefText].filter(Boolean).join('. ');
   // Koordinate: Stichwort-Scan als Boden, Haikus Lesart schlägt ihn — echte
   // Sätze enthalten die Vokabel-Wörter fast nie ("kein Drogerie-Kram" ≠ "laut").
@@ -1639,7 +1755,8 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     const frei = (text ?? query).trim();
     const fl = frei.toLowerCase();
     const chips = justier.filter(w => !fl.includes(w.toLowerCase()));
-    const a = [frei, ...chips].filter(Boolean).join(', ');
+    const bs = boardRunde ? boardSatz() : '';
+    const a = [frei, ...chips, bs].filter(Boolean).join(', ');
     if (!a) return;
     const brief = [...verlauf.map(v => v.antwort), a].filter(Boolean).join('. ');
     const k = koordinateAusBrief(brief, signale);
@@ -1671,12 +1788,13 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   };
 
   /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
-  const ableiten = async () => {
+  const ableiten = async (ankerCodeId?: string) => {
     const q = briefGesamt.trim();
     if (!q) return;
     setDryStatus('loading'); setRerror('');
     try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true, sucheQuery: sucheQuery || null };
+      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true, sucheQuery: sucheQuery || null, boardLikes: boardJa, boardDislikes: boardNein };
+      if (ankerCodeId) body.forceCodeId = ankerCodeId;
       const capId = caps[cap]?.id || null;
       if (capId) body.selectedCapId = capId;
       const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1712,7 +1830,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
     if (!q) return;
     setRstatus('loading'); setRerror('');
     try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite', sucheQuery: sucheQuery || null };
+      const body: any = { systemId: product.id, query: q, tier: 'lite', sucheQuery: sucheQuery || null, boardLikes: boardJa, boardDislikes: boardNein };
       const capId = caps[cap]?.id || null;
       if (capId) body.selectedCapId = capId;
       if (codeId) body.forceCodeId = codeId; // Behauptungs-Code — das Bild darf der Behauptung nicht widersprechen
@@ -1902,7 +2020,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
 
       {phase === 'behauptung' && dryConcept && rstatus !== 'loading' && (
         <>
-          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefGesamt} laden={false} onZeigen={zeigen} />
+          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefGesamt} laden={false} onZeigen={zeigen} onEherDie={eherDie} />
           <div className="lt-abl"><button onClick={() => setPhase('brief')}>← doch nochmal reden</button></div>
         </>
       )}
@@ -1910,6 +2028,9 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
       {phase === 'brief' && rstatus !== 'loading' && !warten && (
         <>
           <div className="ch-ulba ch-frage">{aktuelleFrage}</div>
+
+          {/* Die Referenz-Runde: echte Produkte statt eines Textfelds. */}
+          {boardRunde && <Board codes={board} wahl={boardWahl} onTipp={boardTipp} laden={boardLaden} />}
 
           {/* Die Wolke: mittig, als Buttons. Antippen heftet an. */}
           {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
