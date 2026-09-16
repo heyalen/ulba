@@ -163,6 +163,13 @@ interface RenderConcept {
     // v27-Backend: Material für die Behauptung.
     beschreibung?: string | null; wirkstoff_welt?: string[]; zielgruppe?: string[];
   };
+  // Die Herleitungs-Leiter: pro Signal eine Zeile Bedeutung → Form → weil.
+  kette?: Array<{ typ: string; bedeutung: string; form: string; weil: string }>;
+  verworfen?: { name: string; grund: string } | null;
+  farbsystem?: {
+    rollen: Array<{ rolle: string; hex: string; ort: string; cue?: string }>;
+    laut: string | null; warnungen: string[];
+  };
 }
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
@@ -404,6 +411,72 @@ function briefGate(k: { register: string | null; laut: number | null }, runden: 
   return { ok: true, grund: '' };
 }
 
+/* ── Die Herleitung ──────────────────────────────────────────────────
+   Der eigentliche Agentur-Unterschied. Ein Profi-Brief wählt nie, er leitet
+   her: jede Design-Eigenschaft hängt an einer Bedeutungsebene darüber, mit
+   sichtbarem „weil". Bisher passierte die Ableitung im Code und wurde als
+   Knopfleiste präsentiert — das war der verbotene Pre-Render-Configurator,
+   nur nach dem Render. Hier wird die Kette sichtbar, und die Nachbarn werden
+   zu benannten Justierungen statt anonymen Optionen.
+   Die Farbzeile behauptet NIE, die Farbe sei hergeleitet: ein Hex aus einem
+   real produzierten Produkt ist stärker als ein erfundener. Also Provenienz. */
+function Herleitung({ concept, offen, onToggle }: {
+  concept: RenderConcept; offen: boolean; onToggle: () => void;
+}) {
+  const kette = concept.kette || [];
+  const fs = concept.farbsystem;
+  const vw = concept.verworfen;
+  if (!kette.length && !fs?.rollen?.length && !vw) return null;
+  return (
+    <div className="hl">
+      <button className="hl-kopf" onClick={onToggle} aria-expanded={offen}>
+        <span className="hl-kopf-lbl">Herleitung</span>
+        <span className="hl-kopf-n">{kette.length} Schritte</span>
+        <span className="hl-kopf-pf">{offen ? '↑' : '↓'}</span>
+      </button>
+      {offen && (
+        <div className="hl-body">
+          {kette.map((z, i) => (
+            <div key={i} className="hl-z">
+              <div className="hl-typ">{z.typ}</div>
+              <div className="hl-mitte">
+                <span className="hl-bed">{z.bedeutung}</span>
+                <span className="hl-pf">→</span>
+                <span className="hl-form">{z.form}</span>
+              </div>
+              {z.weil && <div className="hl-weil">{z.weil}</div>}
+            </div>
+          ))}
+          {fs && fs.rollen.length > 0 && (
+            <div className="hl-farb">
+              <div className="hl-typ">Farbrollen</div>
+              <div className="hl-rollen">
+                {fs.rollen.map((r, i) => (
+                  <span key={i} className="hl-rolle">
+                    <span className="hl-sw" style={r.hex ? { background: r.hex } : { background: 'repeating-linear-gradient(45deg,#EEE,#EEE 4px,#FFF 4px,#FFF 8px)' }} />
+                    <span className="hl-rolle-t">
+                      <b>{r.rolle}</b>
+                      {r.hex ? ` ${r.hex}` : ''} · {r.ort}{r.cue ? ` (${r.cue.replace(/_/g, ' ')})` : ''}
+                      {fs.laut === r.rolle ? ' · trägt die Lautstärke' : ''}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              {fs.warnungen.map((w, i) => <div key={i} className="hl-warn">{w}</div>)}
+            </div>
+          )}
+          {vw && (
+            <div className="hl-vw">
+              <div className="hl-typ">Verworfen</div>
+              <div className="hl-vw-t"><b>{vw.name}</b> — {vw.grund}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Die Behauptung (Phase ②) ────────────────────────────────────────
    Der Agentur-Moment: EINE benannte Richtung, hergeleitet, in Prosa, ohne
    Bild. Alles hier kommt aus dem dryRun-Concept — es ist derselbe Code, den
@@ -428,6 +501,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
   // klarem Glas wandert die Farbe in die Formel. Wer das verschweigt, lässt
   // den Nutzer über das Bild rätseln.
   const umgeleitet = !!dc?.umleitung;
+  const [hlOffen, setHlOffen] = useState(true);
   return (
     <div className="behaupt">
       <div className="bh-eyebrow">Unsere Richtung</div>
@@ -473,6 +547,9 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
         </div>
       )}
 
+      {/* Die Kette gehört VOR das Bild: hier fällt die Entscheidung, und der
+          Nutzer soll eine Ableitung korrigieren, nicht aus einem Katalog raten. */}
+      <Herleitung concept={concept} offen={hlOffen} onToggle={() => setHlOffen(o => !o)} />
       <button className="bh-cta" onClick={onZeigen} disabled={laden}>
         {laden ? 'Rendert …' : 'Zeig es mir →'}
       </button>
@@ -1015,6 +1092,45 @@ const STYLES = `
 .lauf-alt .lauf-cap{width:40px;max-height:70px}
 .lauf-akt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .lauf-btn{font-size:12px;padding:5px 11px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f}
+/* ── Herleitung (die Leiter) ──────────────────────────────────────── */
+.hl{margin-top:12px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow:hidden}
+.hl-kopf{display:flex;align-items:center;gap:9px;width:100%;padding:10px 13px;background:#fff;border:0;text-align:left}
+.hl-kopf-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--tinte)}
+.hl-kopf-n{font-size:11.5px;color:var(--hell);flex:1}
+.hl-kopf-pf{font-size:12px;color:var(--hell)}
+.hl-body{padding:2px 13px 13px}
+.hl-z,.hl-farb,.hl-vw{padding:9px 0;border-top:1px solid var(--linie2)}
+.hl-typ{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--hell);margin-bottom:4px}
+.hl-mitte{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;font-size:13.5px;line-height:1.45}
+.hl-bed{color:var(--tinte);font-weight:600}
+.hl-pf{color:var(--hell)}
+.hl-form{color:var(--tinte)}
+.hl-weil{font-size:12.5px;line-height:1.5;color:var(--grau);margin-top:3px;max-width:60ch}
+.hl-rollen{display:flex;flex-direction:column;gap:5px}
+.hl-rolle{display:flex;align-items:center;gap:8px}
+.hl-sw{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.08);flex:none}
+.hl-rolle-t{font-size:12.5px;color:var(--grau)}
+.hl-rolle-t b{color:var(--tinte);font-weight:600}
+.hl-warn{font-size:12px;line-height:1.45;color:var(--rouge);margin-top:6px;padding-left:9px;border-left:2px solid var(--rouge)}
+.hl-vw-t{font-size:13px;line-height:1.5;color:var(--grau);max-width:60ch}
+.hl-vw-t b{color:var(--tinte);font-weight:600}
+/* ── Justierung: benannte Vorschläge mit Konsequenz, nie anonyme Knöpfe ── */
+.just{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.just-lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--hell)}
+.just-v{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;padding:10px 13px;border:1px solid var(--linie);border-radius:11px;background:#fff}
+.just-v:hover:not(:disabled){border-color:var(--tinte)}
+.just-v:disabled{opacity:.45;cursor:default}
+.just-v-t{font-size:13.5px;color:var(--tinte);font-weight:600;flex:none}
+.just-v-k{font-size:12.5px;color:var(--grau);line-height:1.45}
+.just-mehr{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.just-mehr-btn{font-size:12px;padding:4px 10px;border-radius:13px;border:1px dashed var(--linie);background:transparent;color:var(--hell)}
+/* Farbort gehört ans Bild — es ist keine Richtungsänderung, sondern der Träger. */
+.stage-chips{display:flex;gap:6px;justify-content:center;margin-top:9px;flex-wrap:wrap}
+.stage-chip{font-size:11.5px;padding:4px 10px;border-radius:13px;border:1px solid var(--linie);background:rgba(255,255,255,.9);color:#55554f}
+/* Ältere Läufe: eingeklappt auf Name + Claim. */
+.lauf-zu{display:flex;align-items:baseline;gap:9px;width:100%;text-align:left;padding:10px 13px;border:1px solid var(--linie);border-radius:11px;background:#fff;margin-bottom:8px}
+.lauf-zu b{font-size:14px;color:var(--tinte)}
+.lauf-zu span{font-size:12.5px;color:var(--hell);flex:1}
 .lauf-btn:hover{border-color:var(--hell)} .lauf-btn:disabled{opacity:.4;cursor:default}
 .lauf-cta{margin-left:auto;background:var(--tinte);color:#fff;border-radius:999px;padding:8px 18px;font-size:13px}
 .lauf-cta:hover{background:var(--rouge)} .lauf-cta:disabled{opacity:.5;cursor:default}
@@ -1356,7 +1472,13 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   const [detailsLauf, setDetailsLauf] = useState<number | null>(null);
+  // Herleitung: neuester Lauf offen, ältere eingeklappt — Präsi-Logik, ohne
+  // dass sich drei Blätter zu einer Bildschirmwand stapeln.
+  const [hlOffen, setHlOffen] = useState<Record<number, boolean>>({});
+  const [feinOffen, setFeinOffen] = useState<number | null>(null);
+  const [altOffen, setAltOffen] = useState<number | null>(null);
   const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
+  const istLetzt = (id: number) => id === (letzt?.id ?? -1);
 
   // v13: geöffnete Nachbarschaft + Live-Lesart. Anker abwählen räumt auch
   // seine gewählten Kinder ab — halbe Zustände verwirren mehr als sie helfen.
@@ -1589,45 +1711,93 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
         </div>
       ) : (
         <div key={`l${e.id}`} className="ch-lauf">
-          {e.l.concept && (
-            <div className="ch-ulba ch-konzept">
-              <b>{e.l.concept.konzept_name}</b>
-              {e.l.concept.design_code?.register ? <span className="lauf-ident"> — {identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut)}</span> : null}
-              {e.l.concept.story && <div className="ch-story">{e.l.concept.story}</div>}
-            </div>
+          {/* Das Konzept-Blatt: Richtung → Bild → Herleitung → Justierung.
+              Ältere Läufe klappen auf Name + Claim zusammen; offen ist immer
+              der neueste, damit sich nicht drei Blätter zur Wand stapeln. */}
+          {!istLetzt(e.id) && altOffen !== e.l.id ? (
+            <button className="lauf-zu" onClick={() => setAltOffen(e.l.id)}>
+              <b>{e.l.concept?.konzept_name || 'Lauf'}</b>
+              <span>{e.l.concept?.design_code?.register ? identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut) : ''}</span>
+              <span className="hl-kopf-pf">↓</span>
+            </button>
+          ) : (
+            <>
+              {e.l.concept && (
+                <div className="ch-ulba ch-konzept">
+                  <b>{e.l.concept.konzept_name}</b>
+                  {e.l.concept.design_code?.register ? <span className="lauf-ident"> — {identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut)}</span> : null}
+                  {e.l.concept.story && <div className="ch-story">{e.l.concept.story}</div>}
+                  {e.l.concept.design_code?.brand && (
+                    <div className="bh-code">Design-Code <b>{e.l.concept.design_code.name}</b>{e.l.concept.design_code.register ? ` · ${e.l.concept.design_code.register}` : ''} · aus <b>{e.l.concept.design_code.brand}</b>{e.l.concept.design_code.produkt ? ` ${e.l.concept.design_code.produkt}` : ''}</div>
+                  )}
+                </div>
+              )}
+              <div className="lauf-stage">
+                {caps.length > 0 && (e.l.capRenderUrl || caps[cap]?.imageUrl) && (
+                  <img className="lauf-cap" src={(e.l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={ev => { (ev.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                )}
+                {e.l.heroUrl && <img className="lauf-hero" src={e.l.heroUrl} alt={e.l.concept?.konzept_name || product.name} />}
+                {/* Farbort sitzt AM BILD: er wechselt den Träger der Farbe,
+                    er ändert nicht die Richtung. Darum kein Richtungsknopf. */}
+                {istLetzt(e.id) && (e.l.concept?.design_code?.can_koerper || e.l.concept?.design_code?.can_liquid) && (
+                  <div className="stage-chips">
+                    {e.l.concept?.design_code?.can_koerper && (
+                      <button className="stage-chip" disabled={rstatus === 'loading'} onClick={() => farbortCursor('koerper')}>Farbe in den Körper</button>
+                    )}
+                    {e.l.concept?.design_code?.can_liquid && (
+                      <button className="stage-chip" disabled={rstatus === 'loading'} onClick={() => farbortCursor('liquid')}>Farbe in die Flüssigkeit</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {e.l.concept && (
+                <Herleitung
+                  concept={e.l.concept}
+                  offen={hlOffen[e.l.id] ?? istLetzt(e.id)}
+                  onToggle={() => setHlOffen(p => ({ ...p, [e.l.id]: !(p[e.l.id] ?? istLetzt(e.id)) }))}
+                />
+              )}
+              {istLetzt(e.id) && e.l.concept?.design_code && (
+                <div className="just">
+                  <div className="just-lbl">Justierung</div>
+                  {e.l.concept.design_code.can_quieter && (
+                    <button className="just-v" disabled={rstatus === 'loading'} onClick={() => lautCursor('quieter')}>
+                      <span className="just-v-t">Ruhiger</span>
+                      <span className="just-v-k">Gewinnt im Prestige-Regal, kostet dich Sichtbarkeit im Feed.</span>
+                    </button>
+                  )}
+                  {e.l.concept.design_code.can_louder && (
+                    <button className="just-v" disabled={rstatus === 'loading'} onClick={() => lautCursor('louder')}>
+                      <span className="just-v-t">Lauter</span>
+                      <span className="just-v-k">Setzt sich im Feed durch, wirkt im Prestige-Regal unruhiger.</span>
+                    </button>
+                  )}
+                  <div className="just-mehr">
+                    <button className="just-mehr-btn" onClick={() => setFeinOffen(feinOffen === e.l.id ? null : e.l.id)}>
+                      {feinOffen === e.l.id ? 'Feinjustierung ↑' : 'Feiner justieren ↓'}
+                    </button>
+                    {feinOffen === e.l.id && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
+                      <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="lauf-akt">
+                {e.l.concept && (
+                  <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === e.l.id ? null : e.l.id)}>
+                    {detailsLauf === e.l.id ? 'Machbarkeit ↑' : 'Machbarkeit ↓'}
+                  </button>
+                )}
+                {istLetzt(e.id) && (
+                  <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(e.l)}>Muster anfragen →</button>
+                )}
+                {!istLetzt(e.id) && altOffen === e.l.id && (
+                  <button className="lauf-btn" onClick={() => setAltOffen(null)}>einklappen ↑</button>
+                )}
+              </div>
+              {detailsLauf === e.l.id && e.l.concept && <div className="lauf-details"><SpecSheet concept={e.l.concept} /></div>}
+            </>
           )}
-          <div className="lauf-stage">
-            {caps.length > 0 && (e.l.capRenderUrl || caps[cap]?.imageUrl) && (
-              <img className="lauf-cap" src={(e.l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={ev => { (ev.target as HTMLImageElement).style.opacity = '0.2'; }} />
-            )}
-            {e.l.heroUrl && <img className="lauf-hero" src={e.l.heroUrl} alt={e.l.concept?.konzept_name || product.name} />}
-          </div>
-          <div className="lauf-akt">
-            {e.l.concept && (
-              <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === e.l.id ? null : e.l.id)}>
-                {detailsLauf === e.l.id ? 'Details ↑' : 'Details ↓'}
-              </button>
-            )}
-            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code && e.l.concept.design_code.laut != null && (
-              <>
-                <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_quieter} onClick={() => lautCursor('quieter')}>← leiser</button>
-                <button className="lauf-btn" disabled={rstatus === 'loading' || !e.l.concept.design_code.can_louder} onClick={() => lautCursor('louder')}>lauter →</button>
-              </>
-            )}
-            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code?.can_koerper && (
-              <button className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => farbortCursor('koerper')}>Farbe in den Körper</button>
-            )}
-            {e.id === (letzt?.id ?? -1) && e.l.concept?.design_code?.can_liquid && (
-              <button className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => farbortCursor('liquid')}>Farbe in die Flüssigkeit</button>
-            )}
-            {e.id === (letzt?.id ?? -1) && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
-              <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
-            ))}
-            {e.id === (letzt?.id ?? -1) && (
-              <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(e.l)}>Muster anfragen →</button>
-            )}
-          </div>
-          {detailsLauf === e.l.id && e.l.concept && <div className="lauf-details"><SpecSheet concept={e.l.concept} /></div>}
         </div>
       ))}
 
