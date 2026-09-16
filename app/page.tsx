@@ -166,6 +166,11 @@ interface RenderConcept {
   // Die Herleitungs-Leiter: pro Signal eine Zeile Bedeutung → Form → weil.
   kette?: Array<{ typ: string; bedeutung: string; form: string; weil: string }>;
   do_not?: string[];
+  karte?: {
+    register: string | null; laut: number | null;
+    gewaehlt: string; kompass: string | null; anti: string | null; verworfen: string | null;
+    welten: Array<{ register: string; anzahl: number; codes: Array<{ id: string; name: string; brand: string; bild: string | null; laut: number | null }> }>;
+  };
   verworfen?: { name: string; grund: string } | null;
   farbsystem?: {
     rollen: Array<{ rolle: string; hex: string; ort: string; cue?: string }>;
@@ -412,6 +417,70 @@ function briefGate(k: { register: string | null; laut: number | null }, runden: 
   return { ok: true, grund: '' };
 }
 
+/* ── Die Karte ───────────────────────────────────────────────────────
+   Benchmarks, Moodboards und Competitive Landscape aus dem Agentur-Deck in
+   einem Element, automatisch aus dem Archiv: sechs Welten, gefüllt mit den
+   Referenzbildern echter Marktprodukte. Die gewählte Welt breit, mit
+   Richtung, Kompass, Anti und verworfener Alternative markiert. Leere
+   Welten bleiben leer — der weiße Fleck ist Absicht, nicht Lücke im UI.
+   Das ist kein Konfigurator: der sagt „wähl eine", die Karte sagt „das ist
+   deine, und hier liegt sie". */
+function Landkarte({ concept, offen, onToggle }: { concept: RenderConcept; offen: boolean; onToggle: () => void }) {
+  const k = concept.karte;
+  if (!k || !k.welten?.length) return null;
+  const rolle = (id: string) =>
+    id === k.gewaehlt ? 'Deine Richtung' : id === k.kompass ? 'Kompass' : id === k.anti ? 'Bloß nicht' : id === k.verworfen ? 'Verworfen' : null;
+  return (
+    <div className="kt">
+      <button className="hl-kopf" onClick={onToggle} aria-expanded={offen}>
+        <span className="hl-kopf-lbl">Die Karte</span>
+        <span className="hl-kopf-n">wo deine Richtung sitzt — und was daneben liegt</span>
+        <span className="hl-kopf-pf">{offen ? '↑' : '↓'}</span>
+      </button>
+      {offen && (
+        <div className="kt-welten">
+          {k.welten.map(w => {
+            const aktiv = w.register === k.register;
+            return (
+              <div key={w.register} className={`kt-welt${aktiv ? ' kt-welt-aktiv' : ''}${w.anzahl === 0 ? ' kt-welt-leer' : ''}`}>
+                <div className="kt-welt-kopf">
+                  <span className="kt-welt-nm">{w.register}</span>
+                  <span className="kt-welt-n">{w.anzahl === 0 ? 'weißer Fleck' : aktiv ? `deine Welt · ${w.anzahl}` : w.anzahl}</span>
+                </div>
+                {w.anzahl > 0 && (
+                  <div className={`kt-grid${aktiv ? ' kt-grid-aktiv' : ''}`}>
+                    {w.codes.map(c => {
+                      const r = rolle(c.id);
+                      return (
+                        <div key={c.id} className={`kt-k${r ? ` kt-k-${r === 'Deine Richtung' ? 'dir' : r === 'Kompass' ? 'komp' : r === 'Bloß nicht' ? 'anti' : 'vw'}` : ''}`} title={`${c.name} · ${c.brand}`}>
+                          {c.bild ? <img src={c.bild} alt="" loading="lazy" /> : <div className="kt-k-leer" />}
+                          {aktiv && (
+                            <div className="kt-k-t">
+                              {r && <b>{r}</b>}
+                              <span>{c.brand || c.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {aktiv && k.laut != null && (
+                  <div className="kt-laut">
+                    <span>leise</span>
+                    <div className="kt-laut-bar"><div className="kt-laut-pt" style={{ left: `${Math.max(0, Math.min(10, k.laut)) * 10}%` }} /></div>
+                    <span>laut</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Die Herleitung ──────────────────────────────────────────────────
    Der eigentliche Agentur-Unterschied. Ein Profi-Brief wählt nie, er leitet
    her: jede Design-Eigenschaft hängt an einer Bedeutungsebene darüber, mit
@@ -522,6 +591,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
   const umgeleitet = !!dc?.umleitung;
   const [hlOffen, setHlOffen] = useState(true);
   const [hlAlles, setHlAlles] = useState(false);
+  const [ktOffen, setKtOffen] = useState(true);
   return (
     <div className="behaupt">
       <div className="bh-eyebrow">Unsere Richtung</div>
@@ -552,6 +622,7 @@ function Behauptung({ concept, teilName, briefWorte, onZeigen, laden }: {
 
       {/* Die Kette gehört VOR das Bild: hier fällt die Entscheidung, und der
           Nutzer soll eine Ableitung korrigieren, nicht aus einem Katalog raten. */}
+      <Landkarte concept={concept} offen={ktOffen} onToggle={() => setKtOffen(o => !o)} />
       <Herleitung concept={concept} offen={hlOffen} onToggle={() => setHlOffen(o => !o)}
         alles={hlAlles} onAlles={() => setHlAlles(a => !a)} />
       <button className="bh-cta" onClick={onZeigen} disabled={laden}>
@@ -1082,6 +1153,30 @@ const STYLES = `
 .lauf-alt .lauf-cap{width:40px;max-height:70px}
 .lauf-akt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .lauf-btn{font-size:12px;padding:5px 11px;border-radius:14px;border:1px solid var(--linie);background:#fff;color:#55554f}
+/* ── Die Karte ──────────────────────────────────────────────────── */
+.kt{margin-top:12px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow:hidden}
+.kt-welten{display:flex;gap:6px;padding:4px 10px 12px;align-items:stretch;overflow-x:auto}
+.kt-welt{flex:0 0 60px;border:1px solid var(--linie);border-radius:9px;padding:7px 5px;background:#fff;min-width:0}
+.kt-welt-aktiv{flex:1 1 300px;border:2px solid var(--tinte);padding:9px 10px}
+.kt-welt-leer{border-style:dashed;background:transparent}
+.kt-welt-kopf{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.kt-welt-nm{font-size:10.5px;color:var(--grau);line-height:1.2;word-break:break-word}
+.kt-welt-aktiv .kt-welt-nm{font-size:13px;color:var(--tinte);font-weight:600}
+.kt-welt-n{font-size:10px;color:var(--hell)}
+.kt-grid{display:grid;grid-template-columns:1fr;gap:4px}
+.kt-grid-aktiv{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.kt-k{border-radius:6px;padding:2px;min-width:0}
+.kt-k img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#F4F3EE;display:block}
+.kt-k-leer{width:100%;aspect-ratio:1;border-radius:4px;background:#F4F3EE}
+.kt-k-dir{outline:2px solid var(--tinte);outline-offset:1px}
+.kt-k-komp{outline:2px solid #7A8F6B;outline-offset:1px}
+.kt-k-anti{outline:2px dashed var(--rouge);outline-offset:1px}
+.kt-k-vw{outline:2px dashed var(--hell);outline-offset:1px}
+.kt-k-t{margin-top:4px;font-size:10.5px;line-height:1.25;color:var(--grau);display:flex;flex-direction:column}
+.kt-k-t b{color:var(--tinte);font-weight:600}
+.kt-laut{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:10.5px;color:var(--hell)}
+.kt-laut-bar{flex:1;height:2px;background:var(--linie);position:relative}
+.kt-laut-pt{position:absolute;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--tinte);transform:translateX(-50%)}
 /* ── Herleitung (die Leiter) ──────────────────────────────────────── */
 .hl{margin-top:12px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow:hidden}
 .hl-kopf{display:flex;align-items:center;gap:9px;width:100%;padding:10px 13px;background:#fff;border:0;text-align:left}
@@ -1471,6 +1566,7 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
   // dass sich drei Blätter zu einer Bildschirmwand stapeln.
   const [hlOffen, setHlOffen] = useState<Record<number, boolean>>({});
   const [hlAlles, setHlAlles] = useState<number | null>(null);
+  const [ktLauf, setKtLauf] = useState<number | null>(null);
   const [feinOffen, setFeinOffen] = useState<number | null>(null);
   const [altOffen, setAltOffen] = useState<number | null>(null);
   const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
@@ -1746,6 +1842,9 @@ function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJus
                   </div>
                 )}
               </div>
+              {e.l.concept && (
+                <Landkarte concept={e.l.concept} offen={ktLauf === e.l.id} onToggle={() => setKtLauf(ktLauf === e.l.id ? null : e.l.id)} />
+              )}
               {e.l.concept && (
                 <Herleitung
                   concept={e.l.concept}
