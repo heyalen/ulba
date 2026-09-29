@@ -1480,6 +1480,52 @@ const STYLES = `
 .anfr-status.s-weitergeleitet{background:#EAF2FF;color:#1a4b8a;border-color:#C9DEF9}
 .anfr-status.s-erledigt{background:#EAF7EE;color:#1a6b34;border-color:#C4E7CE}
 .anfr-status.s-abgebrochen{background:#FDECEC;color:#9a2323;border-color:#F5C9C9}
+/* ── v45 — Die Design-Wand + Look im Panel ── */
+.pn-look{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 24px 0}
+.pn-look-btn{border:1px solid var(--linie);border-radius:999px;padding:11px 20px;font-size:14px;background:var(--panel);transition:border-color .15s}
+.pn-look-btn:hover{border-color:var(--tinte)}
+.pn-look-jetzt{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--grau)}
+.pn-look-jetzt i{width:13px;height:13px;border-radius:50%;border:1px solid rgba(0,0,0,.1);display:block}
+.pn-look-fehler{font-size:12.5px;color:#dc2626}
+.pn-waechter{margin:12px 24px 0;background:var(--nische);border-radius:12px;padding:12px 15px;display:flex;flex-direction:column;gap:5px}
+.pn-waechter b{font-family:var(--serif);font-weight:800;font-size:16px;letter-spacing:-.015em}
+.pn-waechter span{font-size:13px;line-height:1.5;color:var(--grau)}
+.pn-waechter .pn-w-warn{font-size:12.5px;line-height:1.5;color:#9a6b1f}
+.pn-waechter .pn-w-prod{font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--hell)}
+
+.dw-ov{position:fixed;inset:0;background:rgba(20,24,26,.42);z-index:60;display:flex;align-items:center;justify-content:center;padding:clamp(12px,3vw,36px)}
+.dw-box{background:var(--panel);border-radius:20px;width:100%;max-width:1180px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(20,24,26,.28)}
+.dw-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px 26px 14px;flex:none}
+.dw-kopf h3{font-size:23px;margin:0}
+.dw-sub{display:block;font-size:13px;color:var(--hell);margin-top:3px}
+.dw-filter{flex:none;padding:0 26px 14px;border-bottom:1px solid var(--linie);display:flex;flex-direction:column;gap:9px}
+.dw-suche input{width:100%;max-width:360px;border:1px solid var(--linie);border-radius:11px;background:#fff;padding:9px 14px;font-size:13.5px;outline:none}
+.dw-suche input:focus{border-color:var(--hell)}
+.dw-suche input::placeholder{color:var(--hell)}
+.dw-dim{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.dw-dim-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);width:86px;flex:none}
+.dw-dim-opt{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.dw-pill{padding:6px 13px;border-radius:999px;font-size:12.5px;color:var(--grau);border:1px solid var(--linie);background:var(--panel);transition:.14s}
+.dw-pill:hover{border-color:var(--tinte);color:var(--tinte)}
+.dw-pill.an{background:var(--blase);border-color:var(--blase);color:var(--blase-txt);font-weight:600}
+.dw-reset{align-self:flex-start;font-size:12.5px;color:var(--rouge);text-decoration:underline;padding:2px 0}
+.dw-body{flex:1;overflow-y:auto;min-height:0;padding:16px 26px 26px}
+.dw-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell);margin:6px 0 10px}
+.dw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:8px}
+.dw-k{border:1px solid #E6E6E8;border-radius:12px;background:#fff;overflow:hidden;text-align:left;transition:border-color .15s,transform .15s;display:flex;flex-direction:column}
+.dw-k:hover{border-color:var(--tinte);transform:translateY(-2px)}
+.dw-k-bild{position:relative;height:150px;background:var(--nische);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.dw-k-bild img{width:100%;height:100%;object-fit:cover;display:block}
+.dw-k-ph{font-size:30px;color:#d8d8d6}
+.dw-k-farben{position:absolute;bottom:7px;right:7px;display:flex;gap:4px}
+.dw-k-farben i{width:13px;height:13px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);display:block}
+.dw-k-nm{display:block;font-size:13px;padding:9px 11px 0;line-height:1.3}
+.dw-k-brand{display:block;font-family:var(--mono);font-size:10px;color:var(--hell);padding:2px 11px 10px;letter-spacing:.03em}
+.dw-mehr{display:block;width:100%;border:1px solid var(--linie);border-radius:11px;padding:12px;font-size:13.5px;color:var(--grau);background:var(--panel);margin-top:6px}
+.dw-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
+.dw-leer{color:var(--hell);font-size:14px;padding:32px 2px;text-align:center}
+@media(max-width:620px){.dw-box{max-height:96vh;border-radius:14px}.dw-dim-lbl{width:100%}.dw-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
 @keyframes pnspin{to{transform:rotate(360deg)}}
@@ -1515,15 +1561,211 @@ function capsFuer(product: Result, capWall?: CapWall): { caps: CapRef[]; dropper
   return { caps, dropperDepri };
 }
 
-/* ── Detail-Panel rechts: Inspektor. Teil ansehen, Verschluss wählen, Specs.
-   Kein Render hier — „Design rendern →" schließt das Panel und öffnet den Look-Turn im Chat. ── */
-function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onCommit, onClose }: {
+/* ── v45 — Die Design-Wand.
+   Eine Fläche, alle kuratierten Design-Codes als Bilder. Kein Briefing, keine
+   Runden: der Kunde sieht, tippt an, und das eigene Teil steht danach in genau
+   diesem Design. Die Filter kommen aus der Design_Code-Tabelle selbst
+   (Register, Segment, Form, Material, Wirkstoff-Welt) — nichts Erfundenes.
+   Was das Teil physikalisch nicht kann, meldet der Render als Wächterzeile;
+   die Wand blendet nichts stumm aus. */
+interface DesignCodeKarte {
+  id: string; name: string; brand: string; bild: string | null;
+  register: string | null; segments: string[]; wirkstoffWelt: string[];
+  laut: number | null; ton: number | null; form: number | null; farbtemp: number | null; deko: number | null;
+  hfForm: string | null; hfMaterial: string | null; hfTyp: string | null;
+  bodyHex: string | null; capHex: string | null; wirkung: string; passend: boolean;
+}
+interface CodeFacetten { register: string[]; segment: string[]; form: string[]; material: string[]; wirkstoff: string[] }
+type FacettenDim = keyof CodeFacetten;
+const FACETTEN_LABEL: Record<FacettenDim, string> = {
+  register: 'Welt', segment: 'Preisniveau', form: 'Form', material: 'Material', wirkstoff: 'Wirkstoff',
+};
+
+function DesignWand({ suche, register, wirkstoff, onWahl, onClose }: {
+  suche?: string; register?: string | null; wirkstoff?: string | null;
+  onWahl: (c: DesignCodeKarte) => void; onClose: () => void;
+}) {
+  const [codes, setCodes] = useState<DesignCodeKarte[]>([]);
+  const [facetten, setFacetten] = useState<CodeFacetten>({ register: [], segment: [], form: [], material: [], wirkstoff: [] });
+  const [laden, setLaden] = useState(true);
+  const [aktiv, setAktiv] = useState<Partial<Record<FacettenDim, string>>>({});
+  const [alleZeigen, setAlleZeigen] = useState(false);
+  const [suchwort, setSuchwort] = useState('');
+
+  useEffect(() => {
+    let tot = false;
+    setLaden(true);
+    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codes: true, register: register || null, wirkstoff: wirkstoff || null }) })
+      .then(r => r.json())
+      .then(d => { if (tot) return;
+        setCodes(Array.isArray(d?.codes) ? d.codes : []);
+        if (d?.facetten) setFacetten(d.facetten);
+      })
+      .catch(() => { if (!tot) setCodes([]); })
+      .finally(() => { if (!tot) setLaden(false); });
+    return () => { tot = true; };
+  }, [register, wirkstoff]);
+
+  const setzeFacette = (dim: FacettenDim, wert: string) =>
+    setAktiv(a => ({ ...a, [dim]: a[dim] === wert ? undefined : wert }));
+
+  const gefiltert = useMemo(() => {
+    const w = suchwort.trim().toLowerCase();
+    return codes.filter(c => {
+      if (aktiv.register && c.register !== aktiv.register) return false;
+      if (aktiv.segment && !c.segments.includes(aktiv.segment)) return false;
+      if (aktiv.form && c.hfForm !== aktiv.form) return false;
+      if (aktiv.material && c.hfMaterial !== aktiv.material) return false;
+      if (aktiv.wirkstoff && !c.wirkstoffWelt.includes(aktiv.wirkstoff)) return false;
+      if (w && !(`${c.name} ${c.brand} ${c.wirkung}`.toLowerCase().includes(w))) return false;
+      return true;
+    });
+  }, [codes, aktiv, suchwort]);
+
+  const filterAktiv = Object.values(aktiv).some(Boolean) || !!suchwort.trim();
+  const passende = gefiltert.filter(c => c.passend);
+  const uebrige = gefiltert.filter(c => !c.passend);
+  // Ohne Filter führt die Vorsortierung; sobald gefiltert wird, ist die Wand flach.
+  const oben = filterAktiv ? gefiltert : (passende.length ? passende : gefiltert.slice(0, 12));
+  const unten = filterAktiv ? [] : (passende.length ? uebrige : gefiltert.slice(12));
+
+  const kachel = (c: DesignCodeKarte) => (
+    <button key={c.id} className="dw-k" onClick={() => onWahl(c)} title={c.wirkung || c.name}>
+      <div className="dw-k-bild">
+        {c.bild ? <img src={c.bild} alt={c.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
+                : <span className="dw-k-ph">◻</span>}
+        <span className="dw-k-farben">
+          {c.bodyHex && <i style={{ background: c.bodyHex }} />}
+          {c.capHex && <i style={{ background: c.capHex }} />}
+        </span>
+      </div>
+      <span className="dw-k-nm">{c.name}</span>
+      {c.brand && <span className="dw-k-brand">{c.brand}</span>}
+    </button>
+  );
+
+  return (
+    <div className="dw-ov" role="dialog" aria-label="Design wählen">
+      <div className="dw-box">
+        <div className="dw-kopf">
+          <div>
+            <h3 className="serif">In welchem Design?</h3>
+            <span className="dw-sub">Tipp eins an — dein Teil steht danach genau so da.</span>
+          </div>
+          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
+        </div>
+
+        <div className="dw-filter">
+          <div className="dw-suche">
+            <input value={suchwort} onChange={e => setSuchwort(e.target.value)} placeholder="Marke, Name oder Wirkung …" />
+          </div>
+          {(Object.keys(FACETTEN_LABEL) as FacettenDim[]).map(dim => {
+            const opt = facetten[dim] || [];
+            if (!opt.length) return null;
+            return (
+              <div key={dim} className="dw-dim">
+                <span className="dw-dim-lbl">{FACETTEN_LABEL[dim]}</span>
+                <div className="dw-dim-opt">
+                  {opt.map(o => (
+                    <button key={o} className={`dw-pill${aktiv[dim] === o ? ' an' : ''}`} onClick={() => setzeFacette(dim, o)}>
+                      {o.replace(/_/g, ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {filterAktiv && (
+            <button className="dw-reset" onClick={() => { setAktiv({}); setSuchwort(''); }}>Filter zurücksetzen</button>
+          )}
+        </div>
+
+        <div className="dw-body">
+          {laden && <div className="dw-leer">Lade die Design-Welten …</div>}
+          {!laden && !gefiltert.length && (
+            <div className="dw-leer">
+              Kein Design passt zu dieser Auswahl. {filterAktiv ? 'Nimm einen Filter weg.' : 'Das Archiv trägt hier noch nichts.'}
+            </div>
+          )}
+          {!laden && !!oben.length && (
+            <>
+              {!filterAktiv && !!passende.length && <div className="dw-lbl">Passt zu deiner Suche</div>}
+              <div className="dw-grid">{oben.map(kachel)}</div>
+            </>
+          )}
+          {!laden && !!unten.length && (
+            <>
+              {!alleZeigen && (
+                <button className="dw-mehr" onClick={() => setAlleZeigen(true)}>
+                  Alle {unten.length} weiteren Designs zeigen →
+                </button>
+              )}
+              {alleZeigen && (
+                <>
+                  <div className="dw-lbl">Alle weiteren</div>
+                  <div className="dw-grid">{unten.map(kachel)}</div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Detail-Panel rechts: Inspektor UND Bühne. Teil ansehen, Verschluss wählen,
+   Specs — und mit einem Klick das Teil in einem kuratierten Design sehen.
+   Der Render passiert hier, nicht mehr im Chat: ein Design, ein Bild, eine
+   Wächterzeile. Der gewählte Look gilt für die Sitzung (lookCode), so lassen
+   sich mehrere Teile im selben Design vergleichen. ── */
+function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample }: {
   product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
-  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onCommit: () => void; onClose: () => void;
+  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onClose: () => void;
+  sucheQuery?: string; lookCode: DesignCodeKarte | null; onLook: (c: DesignCodeKarte | null) => void;
+  onSample: (ctx: SampleContext) => void;
 }) {
   const { caps, dropperDepri } = capsFuer(product, capWall);
   const istPipette = istPipetteCap;
   const capIdx = Math.min(cap, Math.max(0, caps.length - 1));
+  const [wandOffen, setWandOffen] = useState(false);
+  const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [rerror, setRerror] = useState('');
+  const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
+
+  // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
+  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
+
+  const rendern = async (code: DesignCodeKarte) => {
+    setWandOffen(false);
+    onLook(code);
+    setRstatus('loading'); setRerror('');
+    try {
+      const body: Record<string, unknown> = {
+        systemId: product.id,
+        query: sucheQuery || code.name,
+        tier: 'lite',
+        forceCodeId: code.id,
+        sucheQuery: sucheQuery || null,
+      };
+      const capId = caps[capIdx]?.id || null;
+      if (capId) body.selectedCapId = capId;
+      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Render fehlgeschlagen');
+      if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
+      setRender({ url: data.renderingUrl, capUrl: data.capRenderingUrl || null, concept: data.concept || null, codeId: code.id });
+      setRstatus('idle');
+      try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [data.renderingUrl, ...h.filter(u => u !== data.renderingUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
+    } catch (e) {
+      setRstatus('error');
+      setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
+    }
+  };
+
+  const zeigtRender = !!render && rstatus !== 'loading';
+
   return (
     <aside className="panel">
       <div className="pn-kopf">
@@ -1568,15 +1810,52 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
               : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
           </div>
         )}
-        <div className="pn-bild" style={{ width: '100%' }}>
-          {product.imageUrl
-            ? <img src={product.imageUrl} alt={product.name} />
-            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◇</span>}
+        <div className="pn-bild" style={{ width: '100%', position: 'relative' }}>
+          {zeigtRender
+            ? <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
+            : product.imageUrl
+              ? <img src={product.imageUrl} alt={product.name} />
+              : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◻</span>}
+          {rstatus === 'loading' && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: 'rgba(255,255,255,.87)', zIndex: 3, fontFamily: 'var(--mono)', fontSize: 11.5, letterSpacing: '.05em', color: 'var(--grau)' }}>
+              <span className="pn-lade-sp" />
+              <span>RENDERT IN {(lookCode?.name || 'DIESEM DESIGN').toUpperCase()} …</span>
+            </div>
+          )}
         </div>
       </div>
-      <div className="pn-prov" style={{ textAlign: 'center', fontSize: 12, color: '#9a9a97', marginTop: 8, fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>
-        blanko · reales Teil · der Look entsteht im Chat
+
+      {/* Ein Knopf, kein Weg: das Teil im kuratierten Design. */}
+      <div className="pn-look">
+        <button className="pn-look-btn" onClick={() => setWandOffen(true)}>
+          {zeigtRender ? 'Anderes Design' : lookCode ? `In ${lookCode.name} zeigen` : 'In einem Design zeigen'}
+        </button>
+        {zeigtRender && lookCode && (
+          <span className="pn-look-jetzt">
+            {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
+            {lookCode.capHex && <i style={{ background: lookCode.capHex }} />}
+            {lookCode.name}
+          </span>
+        )}
+        {rstatus === 'error' && <span className="pn-look-fehler">{rerror || 'Render fehlgeschlagen.'}</span>}
       </div>
+
+      {/* Die Wächterzeile: was das reale Teil nicht kann, steht hier — nicht im Bild. */}
+      {zeigtRender && render?.concept && (
+        <div className="pn-waechter">
+          {render.concept.konzept_name && <b>{render.concept.konzept_name}</b>}
+          {render.concept.story && <span>{render.concept.story}</span>}
+          {!!render.concept.farbsystem?.warnungen?.length && (
+            <span className="pn-w-warn">{render.concept.farbsystem.warnungen.join(' · ')}</span>
+          )}
+          {!!render.concept.do_not?.length && (
+            <span className="pn-w-prod">Nicht: {render.concept.do_not.slice(0, 3).join(' · ')}</span>
+          )}
+          {produzierbarText(render.concept.produzierbar) && (
+            <span className="pn-w-prod">{produzierbarText(render.concept.produzierbar)}</span>
+          )}
+        </div>
+      )}
 
       <div className="pn-body">
         <div className="specs">
@@ -1593,499 +1872,25 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       </div>
 
       <div className="pn-aktion">
-        <button className="cta" onClick={onCommit}>Design rendern →</button>
+        <button className="cta" onClick={() => onSample({
+          product,
+          renderUrl: render?.url || '',
+          wishValues: render?.concept ? produzierbarText(render.concept.produzierbar) : '',
+          capLabel: caps[capIdx]?.name || '',
+          konzept: render?.concept || null,
+        })}>Muster anfragen →</button>
         <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
       </div>
+
+      {wandOffen && (
+        <DesignWand
+          suche={sucheQuery}
+          wirkstoff={wirkstoffAusBrief(sucheQuery || '')}
+          onWahl={rendern}
+          onClose={() => setWandOffen(false)}
+        />
+      )}
     </aside>
-  );
-}
-
-/* ── Look-Turn (v12, Lauf-Modell): eingefrorene Läufe + EIN aktiver Bereich.
-   Jeder abgeschlossene Render wird als Lauf an den Commit gehängt und nie
-   wieder angefasst — wie ein Suchblock im Chat. Der aktive Bereich unten
-   zeigt immer genau eine Sache: Wolke+Feld (Brief) oder die Behauptung. ── */
-function LookTurn({ product, allLooks, capWall, initialCap, savedBrief, savedJustier, sucheQuery, kategorie, laeufe, onBrief, onLauf, onSample, onClose, onAktiv }: {
-  product: Result; allLooks: DesignLook[]; capWall?: CapWall;
-  initialCap: number; savedBrief?: string; savedJustier?: string[]; sucheQuery?: string; kategorie?: string;
-  laeufe: Lauf[];
-  onBrief: (brief: string, justier: string[]) => void;
-  onLauf: (l: Lauf) => void;
-  onSample: (ctx: SampleContext) => void; onClose: () => void;
-  // Bindet die untere Leiste an dieses Briefing (ein Feld fuer alles).
-  onAktiv?: (ctx: BriefBarCtx | null, api: { current: BriefBarApi } | null) => void;
-}) {
-  // v14.3: leer starten — die Packmittel-Suche gehört NICHT in den Design-Brief.
-  const [query, setQuery] = useState(savedBrief || '');
-  const [justier, setJustier] = useState<string[]>(savedJustier || []);
-  const toggleJust = (t: string) => setJustier(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
-  // v14.1: Chips, deren Wort bereits im Freitext steht, fallen raus —
-  // sonst zitiert die weil-Zeile denselben Begriff doppelt.
-  const briefText = useMemo(() => {
-    const frei = query.trim();
-    const freiLower = frei.toLowerCase();
-    const extra = justier.filter(w => !freiLower.includes(w.toLowerCase()));
-    return [frei, ...extra].filter(Boolean).join(', ');
-  }, [query, justier]);
-
-  // Kompatible Richtungen — nur noch Info („kann N Richtungen tragen"). Die
-  // Wahl trifft die Ableitung; es gibt keine Code-Auswahl im UI.
-  const compatLooks = useMemo(() => looksForBase(product, allLooks || []), [product, allLooks]);
-  const { caps } = capsFuer(product, capWall);
-  const [cap, setCap] = useState(initialCap);
-
-  const [phase, setPhase] = useState<'brief' | 'behauptung'>('brief');
-  const [verlauf, setVerlauf] = useState<{ id: number; frage: string; antwort: string; frei: string; chips: string[]; lesart: string; weil: string; pending?: boolean; register?: string | null; laut?: number | null; worte?: string[]; konflikt?: string | null; referenz?: { brand: string; name: string; register: string | null } | null; antiReferenz?: { brand: string; name: string; register: string | null } | null }[]>([]);
-  const [dryConcept, setDryConcept] = useState<RenderConcept | null>(null);
-  const [dryStatus, setDryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [rerror, setRerror] = useState('');
-  const [detailsLauf, setDetailsLauf] = useState<number | null>(null);
-  // Herleitung: neuester Lauf offen, ältere eingeklappt — Präsi-Logik, ohne
-  // dass sich drei Blätter zu einer Bildschirmwand stapeln.
-  const [hlOffen, setHlOffen] = useState<Record<number, boolean>>({});
-  const [hlAlles, setHlAlles] = useState<number | null>(null);
-  const [ktLauf, setKtLauf] = useState<number | null>(null);
-  // Board-Zustand: die Tipps des Kunden. Sie sind sein Moodboard, aus Geste
-  // entstanden — und gleichzeitig eine vermessene Koordinate für die Engine.
-  const [board, setBoard] = useState<BoardCode[]>([]);
-  const [boardLaden, setBoardLaden] = useState(false);
-  const [boardWahl, setBoardWahl] = useState<BoardWahl>({});
-  const [feinOffen, setFeinOffen] = useState<number | null>(null);
-  const [altOffen, setAltOffen] = useState<number | null>(null);
-  const letzt = laeufe.length ? laeufe[laeufe.length - 1] : null;
-  const istLetzt = (id: number) => id === (letzt?.id ?? -1);
-
-  // v13: geöffnete Nachbarschaft + Live-Lesart. Anker abwählen räumt auch
-  // seine gewählten Kinder ab — halbe Zustände verwirren mehr als sie helfen.
-  const [offenAnker, setOffenAnker] = useState<string | null>(null);
-  const [hilfeOffen, setHilfeOffen] = useState(false);
-  // v14: emergentes Vokabular — einmal laden, dann mergen.
-  const [vokab, setVokab] = useState<VokabWort[]>(VOKAB_CACHE || []);
-  useEffect(() => { ladeVokabular().then(setVokab); }, []);
-  const signale = useMemo(() => {
-    const m: Record<string, { welt?: string; laut?: number }> = { ...WORT_SIGNAL };
-    for (const v of vokab) m[v.wort] = { welt: v.register || undefined, laut: v.laut_delta ?? undefined };
-    return m;
-  }, [vokab]);
-  const kinderVon = useMemo(() => {
-    const m: Record<string, string[]> = {};
-    for (const a of HALTUNG_ANKER) m[a.w] = [...a.kinder];
-    for (const v of vokab) {
-      if (!m[v.anker]) continue;
-      if (!m[v.anker].includes(v.wort)) m[v.anker].push(v.wort);
-    }
-    return m;
-  }, [vokab]);
-  const toggleAnker = (a: string) => {
-    if (justier.includes(a)) {
-      const kinder = kinderVon[a] || [];
-      setJustier(prev => prev.filter(x => x !== a && !kinder.includes(x)));
-      if (offenAnker === a) setOffenAnker(null);
-    } else {
-      setJustier(prev => [...prev, a]);
-      setOffenAnker(a);
-    }
-  };
-  const lesart = liveLesart(justier, query, signale);
-  const aktuelleFrage = verlauf.length < BRIEF_FRAGEN.length ? BRIEF_FRAGEN[verlauf.length].frage : 'Willst du noch etwas ergänzen?';
-  const boardRunde = verlauf.length === BOARD_RUNDE;
-  useEffect(() => {
-    if (!boardRunde || board.length || boardLaden) return;
-    setBoardLaden(true);
-    const bisher = verlauf.map(v => v.antwort).filter(Boolean).join('. ');
-    const k = koordinateAusBrief(bisher, signale);
-    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ board: true, brief: bisher, wirkstoff: k.wirkstoff, register: k.register }) })
-      .then(r => r.json())
-      .then(d => setBoard(Array.isArray(d?.codes) ? d.codes : []))
-      .catch(() => setBoard([]))
-      .finally(() => setBoardLaden(false));
-  }, [boardRunde, board.length, boardLaden, verlauf, signale]);
-  // Ein Tipp schaltet durch: neutral → ja → nein → weg.
-  const boardTipp = (id: string) => setBoardWahl(w => {
-    const n = { ...w };
-    if (!n[id]) n[id] = 'ja'; else if (n[id] === 'ja') n[id] = 'nein'; else delete n[id];
-    return n;
-  });
-  /* „eher die": kein Sprung in ein Menü, sondern eine neue Ableitung mit dem
-     getippten Produkt als Anker. Die Behauptung wird neu gebaut, die Kette
-     schreibt sich neu — der Kunde korrigiert eine Ableitung, statt zu wählen. */
-  const eherDie = (codeId: string) => { void ableiten(codeId); };
-  const boardJa = Object.keys(boardWahl).filter(id => boardWahl[id] === 'ja');
-  const boardNein = Object.keys(boardWahl).filter(id => boardWahl[id] === 'nein');
-  // Die Tipps werden zu genau dem Satz, den der Kunde sonst getippt hätte —
-  // damit läuft die ganze bestehende Kette (Koordinate, Reflexion, Referenz-
-  // Matching) unverändert weiter. Das Board ist Eingabeform, kein Sonderweg.
-  const boardSatz = () => {
-    const nm = (ids: string[]) => ids.map(i => board.find(c => c.id === i)?.brand).filter(Boolean).join(', ');
-    const j = nm(boardJa), n = nm(boardNein);
-    return [j && `${j} spricht mich an`, n && `bloß nicht ${n}`].filter(Boolean).join(', ');
-  };
-  const briefGesamt = [...verlauf.map(v => v.antwort), briefText].filter(Boolean).join('. ');
-  // Koordinate: Stichwort-Scan als Boden, Haikus Lesart schlägt ihn — echte
-  // Sätze enthalten die Vokabel-Wörter fast nie ("kein Drogerie-Kram" ≠ "laut").
-  const koord = useMemo(() => {
-    const det = koordinateAusBrief(briefGesamt, signale);
-    let register = det.register, laut = det.laut;
-    for (const v of verlauf) { if (v.register) register = v.register; if (v.laut != null) laut = v.laut; }
-    return { register, laut, wirkstoff: det.wirkstoff };
-  }, [briefGesamt, verlauf, signale]);
-  const spiegelWorte = useMemo(() => {
-    const set = new Set<string>();
-    for (const v of verlauf) for (const w of (v.worte || [])) set.add(w);
-    return set;
-  }, [verlauf]);
-  const gate = briefGate(koord, verlauf.length);
-
-  useEffect(() => {
-    setQuery(savedBrief || '');
-    setJustier(savedJustier || []);
-    setCap(initialCap);
-    setPhase('brief'); setDryConcept(null);
-    setDryStatus('idle'); setRstatus('idle'); setRerror('');
-    setDetailsLauf(null);
-    setOffenAnker(null); setVerlauf([]); setHilfeOffen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id]);
-
-  /* Ein Gesprächszug: Antwort einfrieren + Rückspiegelung. Deterministisch
-     SOFORT (Wahrheit), Haiku veredelt die Stimme im Nachgang — 0 gefühlte
-     Latenz; fällt Haiku aus, bleibt die deterministische Lesart stehen. */
-  const antworten = (text?: string) => {
-    const frei = (text ?? query).trim();
-    const fl = frei.toLowerCase();
-    const chips = justier.filter(w => !fl.includes(w.toLowerCase()));
-    const bs = boardRunde ? boardSatz() : '';
-    const a = [frei, ...chips, bs].filter(Boolean).join(', ');
-    if (!a) return;
-    const brief = [...verlauf.map(v => v.antwort), a].filter(Boolean).join('. ');
-    const k = koordinateAusBrief(brief, signale);
-    const id = Date.now();
-    const runde = verlauf.length + 1;
-    const frage = BRIEF_FRAGEN[Math.min(verlauf.length, BRIEF_FRAGEN.length - 1)].frage;
-    // Erst Denk-Indikator, dann EINE fertige Antwort. Deterministik nur als Fallback.
-    setVerlauf(v => [...v, { id, frage, antwort: a, frei, chips, lesart: '', weil: '', pending: true }]);
-    setQuery(''); setJustier([]); setOffenAnker(null);
-    const fallback = () => { const r = rueckspiegelung(brief, signale); setVerlauf(v => v.map(e => e.id === id ? { ...e, lesart: r.lesart, weil: r.weil, pending: false } : e)); };
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 30000);
-    fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal,
-      body: JSON.stringify({ reflect: true, brief, frage, register: k.register, laut: k.laut, wirkstoff: k.wirkstoff, runde }) })
-      .then(res => res.json())
-      .then(d => {
-        clearTimeout(timer);
-        if (!d || typeof d.lesart !== 'string' || typeof d.weil !== 'string') { fallback(); return; }
-        setVerlauf(v => v.map(e => e.id !== id ? e : {
-          ...e, pending: false, lesart: d.lesart, weil: d.weil,
-          register: d.register ?? null, laut: typeof d.laut === 'number' ? d.laut : null,
-          worte: Array.isArray(d.worte) ? d.worte : [],
-          konflikt: typeof d.konflikt === 'string' ? d.konflikt : null,
-          referenz: d.referenz && typeof d.referenz.brand === 'string' ? d.referenz : null,
-          antiReferenz: d.antiReferenz && typeof d.antiReferenz.brand === 'string' ? d.antiReferenz : null,
-        }));
-      })
-      .catch(() => { clearTimeout(timer); fallback(); });
-  };
-
-  /* Brief → Behauptung: gleiche Engine, dryRun — kein Bild, keine Kosten. */
-  const ableiten = async (ankerCodeId?: string) => {
-    const q = briefGesamt.trim();
-    if (!q) return;
-    setDryStatus('loading'); setRerror('');
-    try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite', dryRun: true, sucheQuery: sucheQuery || null, boardLikes: boardJa, boardDislikes: boardNein };
-      if (ankerCodeId) body.forceCodeId = ankerCodeId;
-      const capId = caps[cap]?.id || null;
-      if (capId) body.selectedCapId = capId;
-      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Ableitung fehlgeschlagen');
-      setDryConcept(data.concept || null);
-      setDryStatus('idle');
-      setPhase('behauptung');
-    } catch (e) {
-      setDryStatus('error');
-      setRerror(e instanceof Error ? e.message : 'Ableitung fehlgeschlagen');
-    }
-  };
-
-  /* Die untere Leiste bedient dieses Briefing. Die API liegt in einer Ref —
-     so liest die Leiste immer den frischen Closure, ohne Re-Render-Schleife. */
-  const apiRef = useRef<BriefBarApi>({ antworten: () => {}, ableiten: () => {}, entfernen: () => {} });
-  apiRef.current = { antworten: (t: string) => antworten(t), ableiten: () => ableiten(), entfernen: (w: string) => (istAnker(w) ? toggleAnker(w) : toggleJust(w)) };
-  const barAktiv = phase === 'brief' && rstatus !== 'loading';
-  const warten = verlauf.some(v => v.pending);
-  const chipsKey = justier.join('|');
-  useEffect(() => {
-    if (!onAktiv) return;
-    if (barAktiv) onAktiv({ frage: aktuelleFrage, gateOk: gate.ok, grund: gate.grund, laden: dryStatus === 'loading', ersterLauf: laeufe.length === 0, chips: justier, denkt: warten }, apiRef);
-    else onAktiv(null, null);
-    return () => { onAktiv(null, null); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barAktiv, aktuelleFrage, gate.ok, gate.grund, dryStatus, laeufe.length, chipsKey, warten]);
-
-  /* Render: erzeugt IMMER einen neuen Lauf — nichts wird ersetzt. */
-  const rendern = async (worte: string, codeId?: string | null, nudge?: 'quieter' | 'louder', farbort?: 'koerper' | 'liquid') => {
-    const q = worte.trim();
-    if (!q) return;
-    setRstatus('loading'); setRerror('');
-    try {
-      const body: any = { systemId: product.id, query: q, tier: 'lite', sucheQuery: sucheQuery || null, boardLikes: boardJa, boardDislikes: boardNein };
-      const capId = caps[cap]?.id || null;
-      if (capId) body.selectedCapId = capId;
-      if (codeId) body.forceCodeId = codeId; // Behauptungs-Code — das Bild darf der Behauptung nicht widersprechen
-      if (nudge) body.lautNudge = nudge;
-      if (farbort) body.farbortNudge = farbort;
-      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'render failed');
-      if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
-      onLauf({
-        id: Date.now(),
-        worte: q + (nudge ? (nudge === 'quieter' ? ' · leiser' : ' · lauter') : '') + (farbort ? (farbort === 'koerper' ? ' · Farbe im Körper' : ' · Farbe in der Flüssigkeit') : ''),
-        heroUrl: data.renderingUrl,
-        capRenderUrl: data.capRenderingUrl || null,
-        lastPrompt: data.renderingPrompt || '',
-        concept: data.concept || null,
-      });
-      setRstatus('idle');
-      setPhase('brief'); setDryConcept(null);
-    } catch (e) {
-      setRstatus('error');
-      setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
-    }
-  };
-
-  const zeigen = () => { onBrief(briefGesamt, justier); rendern(briefGesamt, dryConcept?.design_code?.id || null); };
-  const nudge = (n: string) => { if (letzt) rendern(`${letzt.worte}, ${n}`, letzt.concept?.design_code?.id || null); };
-  const lautCursor = (dir: 'quieter' | 'louder') => {
-    if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, dir);
-  };
-  /* Seitliche Ausprägung: gleicher Code, anderer Farbträger — kein Abstieg. */
-  const farbortCursor = (ort: 'koerper' | 'liquid') => {
-    if (letzt?.concept?.design_code?.id) rendern(letzt.worte, letzt.concept.design_code.id, undefined, ort);
-  };
-  const anfrage = (l: Lauf) => onSample({
-    product,
-    renderUrl: l.heroUrl || '',
-    wishValues: produzierbarText(l.concept?.produzierbar || null) || l.lastPrompt,
-    capLabel: caps[cap]?.name || '',
-    konzept: l.concept,
-  });
-
-  /* Chronologischer Strom: Gesprächszüge und Läufe in EINER Zeitachse —
-     nie wieder Bild über Gespräch. Beide tragen ms-Timestamps als id. */
-  const strom = useMemo(() => {
-    const a = verlauf.map(v => ({ t: 'zug' as const, id: v.id, v }));
-    const b = laeufe.map(l => ({ t: 'lauf' as const, id: l.id, l }));
-    return [...a, ...b].sort((x, y) => x.id - y.id);
-  }, [verlauf, laeufe]);
-
-  return (
-    <section className="lookturn">
-      <div className="ch-teil">
-        {product.imageUrl && <img src={product.imageUrl} alt="" />}
-        <div className="ch-teil-txt">
-          <b>{product.name}{caps.length > 0 && caps[cap]?.name ? ` + ${caps[cap].name}` : ''}</b>
-          <span>{specText(product)}</span>
-        </div>
-        <button className="ch-zu" onClick={onClose} aria-label="schließen">×</button>
-      </div>
-
-      <div className="ch-ulba">Wir starten mit dem Design für dein ausgewähltes Packmittel.</div>
-
-      {strom.map(e => e.t === 'zug' ? (
-        <div key={`z${e.id}`}>
-          <div className="ch-ulba ch-frage-alt">{e.v.frage}</div>
-          {(e.v.chips.length > 0 || e.v.frei) && (
-            <div className="ch-msg">
-              {e.v.chips.map(w => <span key={w} className="ch-teilm">{w}</span>)}
-              {e.v.frei && <span className="ch-teilm">{e.v.frei}</span>}
-            </div>
-          )}
-          {e.v.pending ? (
-            <div className="ch-denkt" aria-label="ulba denkt nach"><i /><i /><i /></div>
-          ) : (
-            <>
-              <div className="ch-ulba">{e.v.lesart} <span className="gf-zug-weil">{e.v.weil}</span></div>
-              {(e.v.referenz || e.v.antiReferenz) && (
-                <div className="ch-ref">
-                  {e.v.referenz && <span>Dein Kompass: <b>{e.v.referenz.brand}</b> → {e.v.referenz.name}{e.v.referenz.register ? ` · ${e.v.referenz.register}` : ''}</span>}
-                  {e.v.referenz && e.v.antiReferenz && <span className="ch-ref-tr">·</span>}
-                  {e.v.antiReferenz && <span>Bloss nicht: <b>{e.v.antiReferenz.brand}</b> → {e.v.antiReferenz.name}</span>}
-                </div>
-              )}
-              {e.v.konflikt && <div className="ch-ulba ch-frage">{e.v.konflikt}</div>}
-            </>
-          )}
-        </div>
-      ) : (
-        <div key={`l${e.id}`} className="ch-lauf">
-          {/* Das Konzept-Blatt: Richtung → Bild → Herleitung → Justierung.
-              Ältere Läufe klappen auf Name + Claim zusammen; offen ist immer
-              der neueste, damit sich nicht drei Blätter zur Wand stapeln. */}
-          {!istLetzt(e.id) && altOffen !== e.l.id ? (
-            <button className="lauf-zu" onClick={() => setAltOffen(e.l.id)}>
-              <b>{e.l.concept?.konzept_name || 'Lauf'}</b>
-              <span>{e.l.concept?.design_code?.register ? identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut) : ''}</span>
-              <span className="hl-kopf-pf">↓</span>
-            </button>
-          ) : (
-            <>
-              {e.l.concept && (
-                <div className="ch-ulba ch-konzept">
-                  <b>{e.l.concept.konzept_name}</b>
-                  {e.l.concept.design_code?.register ? <span className="lauf-ident"> — {identitaetSatz(e.l.concept.design_code.register, e.l.concept.design_code.laut)}</span> : null}
-                  {e.l.concept.story && <div className="ch-story">{e.l.concept.story}</div>}
-                  {e.l.concept.design_code?.brand && (
-                    <div className="bh-code">Design-Code <b>{e.l.concept.design_code.name}</b>{e.l.concept.design_code.register ? ` · ${e.l.concept.design_code.register}` : ''} · aus <b>{e.l.concept.design_code.brand}</b>{e.l.concept.design_code.produkt ? ` ${e.l.concept.design_code.produkt}` : ''}</div>
-                  )}
-                </div>
-              )}
-              <div className="lauf-stage">
-                {caps.length > 0 && (e.l.capRenderUrl || caps[cap]?.imageUrl) && (
-                  <img className="lauf-cap" src={(e.l.capRenderUrl || caps[cap].imageUrl) as string} alt="" onError={ev => { (ev.target as HTMLImageElement).style.opacity = '0.2'; }} />
-                )}
-                {e.l.heroUrl && <img className="lauf-hero" src={e.l.heroUrl} alt={e.l.concept?.konzept_name || product.name} />}
-                {/* Farbort sitzt AM BILD: er wechselt den Träger der Farbe,
-                    er ändert nicht die Richtung. Darum kein Richtungsknopf. */}
-                {istLetzt(e.id) && (e.l.concept?.design_code?.can_koerper || e.l.concept?.design_code?.can_liquid) && (
-                  <div className="stage-chips">
-                    {e.l.concept?.design_code?.can_koerper && (
-                      <button className="stage-chip" disabled={rstatus === 'loading'} onClick={() => farbortCursor('koerper')}>Farbe in den Körper</button>
-                    )}
-                    {e.l.concept?.design_code?.can_liquid && (
-                      <button className="stage-chip" disabled={rstatus === 'loading'} onClick={() => farbortCursor('liquid')}>Farbe in die Flüssigkeit</button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {e.l.concept && (
-                <Landkarte concept={e.l.concept} offen={ktLauf === e.l.id} onToggle={() => setKtLauf(ktLauf === e.l.id ? null : e.l.id)} />
-              )}
-              {e.l.concept && (
-                <Herleitung
-                  concept={e.l.concept}
-                  offen={hlOffen[e.l.id] ?? false}
-                  onToggle={() => setHlOffen(p => ({ ...p, [e.l.id]: !(p[e.l.id] ?? false) }))}
-                  alles={hlAlles === e.l.id}
-                  onAlles={() => setHlAlles(hlAlles === e.l.id ? null : e.l.id)}
-                />
-              )}
-              {istLetzt(e.id) && e.l.concept?.design_code && (
-                <div className="just">
-                  <div className="just-lbl">Justierung</div>
-                  {e.l.concept.design_code.can_quieter && (
-                    <button className="just-v" disabled={rstatus === 'loading'} onClick={() => lautCursor('quieter')}>
-                      <span className="just-v-t">Ruhiger</span>
-                      <span className="just-v-k">Gewinnt im Prestige-Regal, kostet dich Sichtbarkeit im Feed.</span>
-                    </button>
-                  )}
-                  {e.l.concept.design_code.can_louder && (
-                    <button className="just-v" disabled={rstatus === 'loading'} onClick={() => lautCursor('louder')}>
-                      <span className="just-v-t">Lauter</span>
-                      <span className="just-v-k">Setzt sich im Feed durch, wirkt im Prestige-Regal unruhiger.</span>
-                    </button>
-                  )}
-                  <div className="just-mehr">
-                    <button className="just-mehr-btn" onClick={() => setFeinOffen(feinOffen === e.l.id ? null : e.l.id)}>
-                      {feinOffen === e.l.id ? 'Feinjustierung ↑' : 'Feiner justieren ↓'}
-                    </button>
-                    {feinOffen === e.l.id && ['wärmer', 'kühler', 'edler', 'mehr Kontrast'].map(n => (
-                      <button key={n} className="lauf-btn" disabled={rstatus === 'loading'} onClick={() => nudge(n)}>{n}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="lauf-akt">
-                {e.l.concept && (
-                  <button className="lauf-btn" onClick={() => setDetailsLauf(detailsLauf === e.l.id ? null : e.l.id)}>
-                    {detailsLauf === e.l.id ? 'Machbarkeit ↑' : 'Machbarkeit ↓'}
-                  </button>
-                )}
-                {istLetzt(e.id) && (
-                  <button className="lauf-cta" disabled={rstatus === 'loading'} onClick={() => anfrage(e.l)}>Muster anfragen →</button>
-                )}
-                {!istLetzt(e.id) && altOffen === e.l.id && (
-                  <button className="lauf-btn" onClick={() => setAltOffen(null)}>einklappen ↑</button>
-                )}
-              </div>
-              {detailsLauf === e.l.id && e.l.concept && <div className="lauf-details"><SpecSheet concept={e.l.concept} /></div>}
-            </>
-          )}
-        </div>
-      ))}
-
-      {rstatus === 'loading' && <div className="ch-ulba ch-lade"><span className="pn-lade-sp" /> Rendert deine Richtung …</div>}
-
-      {phase === 'behauptung' && dryConcept && rstatus !== 'loading' && (
-        <>
-          <Behauptung concept={dryConcept} teilName={product.name} briefWorte={briefGesamt} laden={false} onZeigen={zeigen} onEherDie={eherDie} />
-          <div className="lt-abl"><button onClick={() => setPhase('brief')}>← doch nochmal reden</button></div>
-        </>
-      )}
-
-      {phase === 'brief' && rstatus !== 'loading' && !warten && (
-        <>
-          <div className="ch-ulba ch-frage">{aktuelleFrage}</div>
-
-          {/* Die Referenz-Runde: echte Produkte statt eines Textfelds. */}
-          {boardRunde && <Board codes={board} wahl={boardWahl} onTipp={boardTipp} laden={boardLaden} />}
-
-          {/* Die Wolke: mittig, als Buttons. Antippen heftet an. */}
-          {verlauf.length < BRIEF_FRAGEN.length && BRIEF_FRAGEN[verlauf.length].hilfe.length > 0 && (
-            <div className="ch-wolke">
-              {BRIEF_FRAGEN[verlauf.length].hilfe.filter(w => !justier.includes(w)).map(w => (
-                <button key={w} type="button" className="ch-wort" onClick={() => toggleJust(w)}>{w}</button>
-              ))}
-            </div>
-          )}
-
-          <div className="ch-hilfe-zeile">
-            <button type="button" className="gf-hilfe-btn" onClick={() => setHilfeOffen(o => !o)}>
-              {hilfeOffen ? 'Haltung ausblenden' : 'Oder eine Haltung wählen'}
-            </button>
-          </div>
-
-          {hilfeOffen && (
-            <>
-              <div className="ch-wolke-lbl">Blasse Worte trägt unser Archiv noch dünn.</div>
-              <div className="ch-wolke">
-                {HALTUNG_ANKER.filter(a => !justier.includes(a.w)).map(a => {
-                  const duenn = wortDeckung(a.w, compatLooks, signale) === 0;
-                  return (
-                    <button key={a.w} type="button"
-                      className={`ch-wort${spiegelWorte.has(a.w) ? ' an' : ''}${duenn ? ' duenn' : ''}`}
-                      title={duenn ? 'In unserem Archiv noch dünn — wir leiten zur nächstgelegenen Welt ab.' : undefined}
-                      onClick={() => toggleAnker(a.w)}>{a.w}</button>
-                  );
-                })}
-              </div>
-              {offenAnker && (
-                <div className="ch-wolke" style={{ marginTop: 12 }}>
-                  {(kinderVon[offenAnker] || []).filter(k => !justier.includes(k)).map(k => {
-                    const duenn = wortDeckung(k, compatLooks, signale) === 0;
-                    return (
-                      <button key={k} type="button" className={`ch-wort${duenn ? ' duenn' : ''}`}
-                        onClick={() => toggleJust(k)}>{k}</button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
-
-          {identitaetSatz(koord.register, koord.laut) && (
-            <div className="ch-wolke-lbl">Ich lese dich: <b style={{ color: 'var(--tinte)' }}>{identitaetSatz(koord.register, koord.laut)}</b></div>
-          )}
-          {lesart.konflikt && <div className="bw-konflikt" style={{ marginTop: 10 }}>{lesart.konflikt}</div>}
-
-          {(dryStatus === 'error' || rstatus === 'error') && (
-            <div style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{rerror || 'Fehler — bitte erneut versuchen.'}</div>
-          )}
-        </>
-      )}
-    </section>
   );
 }
 
@@ -2314,8 +2119,6 @@ function LookVorschau({ look, umgeleitet }: { look: DesignLook; umgeleitet?: boo
 
 export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
 /* Was die untere Leiste ueber das laufende Briefing wissen muss. */
-interface BriefBarCtx { frage: string; gateOk: boolean; grund: string; laden: boolean; ersterLauf: boolean; chips: string[]; denkt: boolean }
-interface BriefBarApi { antworten: (text: string) => void; ableiten: () => void; entfernen: (w: string) => void }
 function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
   const seen = new Set<string>();
   const out: LookMitStatus[] = [];
@@ -2350,24 +2153,17 @@ export default function Home() {
   const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
-  // Ein Feld fuer alles: laeuft ein Briefing, fuehrt die untere Leiste es —
-  // sonst verfeinert sie die Suche. Der Modus steht sichtbar im Strip.
-  const [briefBar, setBriefBar] = useState<BriefBarCtx | null>(null);
-  const briefBarApi = useRef<{ current: BriefBarApi } | null>(null);
-  const bindeBriefBar = useCallback((ctx: BriefBarCtx | null, api: { current: BriefBarApi } | null) => {
-    briefBarApi.current = api; setBriefBar(ctx);
-  }, []);
+  // Ein Feld, eine Aufgabe: die untere Leiste verfeinert die Suche in Worten.
   const leisteSenden = () => {
     const t = refineInput.trim();
-    if (briefBar?.denkt) return;
-    if (briefBar && briefBarApi.current) { briefBarApi.current.current.antworten(t); }
-    else if (!t) return;
-    else verfeinereText(t);
+    if (!t) return;
+    verfeinereText(t);
     setRefineInput('');
   };
   const [selected, setSelected] = useState<Result | null>(null); // Detail-Panel (Inspektor)
+  // Ein Look pro Sitzung: so lassen sich mehrere Teile im selben Design vergleichen.
+  const [lookCode, setLookCode] = useState<DesignCodeKarte | null>(null);
   const [selectedCap, setSelectedCap] = useState(0); // im Panel gewählter Verschluss
-  const [scrollToCommit, setScrollToCommit] = useState<number | null>(null); // frisch angelegter Look-Turn → hinscrollen
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -2516,40 +2312,6 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
   };
 
-  useEffect(() => {
-    if (scrollToCommit == null) return;
-    const t = setTimeout(() => {
-      document.getElementById(`commit-${scrollToCommit}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setScrollToCommit(null);
-    }, 260);
-    return () => clearTimeout(t);
-  }, [scrollToCommit]);
-
-  // Teil ins Design legen: Commit unter den Block, in dem das Teil steht (persistiert im Projekt).
-  const commitTeil = (product: Result, cap: number) => {
-    if (!active) return;
-    const blk = active.blocks.find(b => b.results.some(r => r.id === product.id)) || active.blocks[active.blocks.length - 1];
-    if (!blk) return;
-    const id = Date.now();
-    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blk.id ? { ...b, commits: [...(b.commits || []), { id, productId: product.id, cap, ts: id }] } : b) }));
-    setScrollToCommit(id);
-  };
-  // v12: Läufe eines Commits — mit Migration alter Commits (ein Render in
-  // Einzelfeldern) zu genau einem Lauf. Nichts geht verloren.
-  const laeufeVon = (c: LookCommit): Lauf[] => {
-    if (c.laeufe && c.laeufe.length) return c.laeufe;
-    if (c.heroUrl) return [{ id: c.ts, worte: c.brief || '', heroUrl: c.heroUrl, capRenderUrl: c.capRenderUrl || null, lastPrompt: c.lastPrompt || '', concept: c.concept || null }];
-    return [];
-  };
-  const patchCommit = (commitId: number, patch: Partial<LookCommit>) => {
-    if (!active) return;
-    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.map(c => c.id === commitId ? { ...c, ...patch } : c) } : b) }));
-  };
-  const removeCommit = (commitId: number) => {
-    if (!active) return;
-    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.commits?.some(c => c.id === commitId) ? { ...b, commits: b.commits!.filter(c => c.id !== commitId) } : b) }));
-  };
-
   const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
   const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
@@ -2676,21 +2438,6 @@ export default function Home() {
                                 )}
                               </div>
                             )}
-                            {(b.commits || []).map(c => {
-                              const prod = b.results.find(r => r.id === c.productId) || board.find(r => r.id === c.productId);
-                              if (!prod) return null;
-                              return (
-                                <div key={c.id} id={`commit-${c.id}`} className="msg-commit">
-                                  <div className="msg-user"><span>Design rendern → {prod.name}</span></div>
-                                  <LookTurn product={prod} allLooks={b.looks}
-                                    capWall={b.capWall} initialCap={c.cap} savedBrief={c.brief} savedJustier={c.justier} sucheQuery={b.query}
-                                    laeufe={laeufeVon(c)}
-                                    onBrief={(brief, justier) => patchCommit(c.id, { brief, justier })}
-                                    onLauf={l => patchCommit(c.id, { laeufe: [...laeufeVon(c), l] })}
-                                    onSample={setSampleCtx} onClose={() => removeCommit(c.id)} onAktiv={bindeBriefBar} />
-                                </div>
-                              );
-                            })}
                           </div>
                         </div>
                       );
@@ -2698,30 +2445,10 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="refine">
-                  {briefBar && (
-                    <div className="rf-strip">
-                      <span className="rf-modus">Du antwortest gerade <b>im Design-Brief</b></span>
-                      {briefBar.denkt && <span className="rf-grund">ulba denkt nach …</span>}
-                      {!briefBar.denkt && !briefBar.gateOk && <span className="rf-grund">{briefBar.grund}</span>}
-                      {!briefBar.denkt && briefBar.gateOk && (
-                        <button className="rf-ab" disabled={briefBar.laden}
-                          onClick={() => briefBarApi.current?.current.ableiten()}>
-                          {briefBar.laden ? 'Leitet ab …' : briefBar.ersterLauf ? 'Design ableiten →' : 'Neu ableiten →'}
-                        </button>
-                      )}
-                    </div>
-                  )}
                   <div className="feld">
-                    {briefBar && briefBar.chips.map(w => (
-                      <span key={w} className="rf-chip">{w}<button type="button" aria-label={`${w} entfernen`} onClick={() => briefBarApi.current?.current.entfernen(w)}>×</button></span>
-                    ))}
                     <input value={refineInput} onChange={e => setRefineInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') { leisteSenden(); return; }
-                        if (e.key === 'Backspace' && !refineInput && briefBar && briefBar.chips.length) { briefBarApi.current?.current.entfernen(briefBar.chips[briefBar.chips.length - 1]); }
-                      }}
-                      disabled={!!briefBar?.denkt}
-                      placeholder={briefBar ? (briefBar.chips.length ? 'Noch etwas dazu? Enter sendet alles.' : 'Antworte in ganzen Sätzen — wie du es einer Agentur erzählen würdest') : 'Verfeinern in Worten — „wärmer“, „nur Glas“, „30 ml“'} />
+                      onKeyDown={e => { if (e.key === 'Enter') leisteSenden(); }}
+                      placeholder="Verfeinern in Worten — wärmer, nur Glas, 30 ml, unter 5000 MOQ" />
                     <button className="go" onClick={leisteSenden} aria-label="senden">↑</button>
                   </div>
                 </div>
@@ -2731,7 +2458,8 @@ export default function Home() {
                   cap={selectedCap} onCap={setSelectedCap}
                   isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
-                  onCommit={() => { commitTeil(selected, selectedCap); setSelected(null); }}
+                  sucheQuery={blocks.find(b => b.results.some(r => r.id === selected.id))?.query}
+                  lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
                   onClose={() => setSelected(null)} />
               )}
             </div>
