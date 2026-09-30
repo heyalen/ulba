@@ -2323,10 +2323,11 @@ export default function Home() {
     }));
     try {
       const body: any = { query };
-      // v47 — Bildpfad. Eine korrigierte Lesart ersetzt das Bild: dieselbe
-      // Suche, aber ohne zweiten Vision-Call. Korrigieren kostet nichts.
+      // v47/v55 — Bildpfad. Eine korrigierte Lesart schlaegt das Modell,
+      // aber das BILD reist immer mit: die Silhouette misst die Geometrie
+      // bei jeder Suche, auch nach einer Chip-Korrektur.
       if (bild?.lesart) body.bildlesart = bild.lesart;
-      else if (bild?.data) body.image = bild.data;
+      if (bild?.data) body.image = bild.data;
       if (filters.sizes.length || filters.materials.length || filters.types.length || filters.closures.length) {
         body.active_filters = filters;
       }
