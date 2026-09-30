@@ -2533,7 +2533,7 @@ export default function Home() {
                             {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
                             {b.status === 'done' && (
                               <div className={`eb${isLast ? '' : ' eb-alt'}`}>
-                                {chips.length > 0 && (
+                                {chips.length > 0 && !b.lesart && (
                                   <div className="eb-filter">
                                     <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
                                     {chips.map((c, i) => (
