@@ -769,8 +769,17 @@ function SpecSheet({ concept }: { concept: RenderConcept }) {
 }
 
 // ►►► ANNAHME: /api/search liefert results: Result[] mit diesen Feldern.
+/* v47 — was ulba aus einem Referenzfoto liest. `geraten` nennt die Felder,
+   die geschaetzt sind; die zeichnet das Interface gestrichelt. */
+interface Bildlesart {
+  typ: string | null; form: string[]; schulter: string | null; proportion: string | null;
+  verschluss: string | null; material: string[]; transparenz: string | null;
+  finish: string | null; volumen: string | null; prosa: string; geraten: string[];
+}
+
 interface Result {
   id: string; name: string; score: number; reasoning: string;
+  abweichung?: string[]; // v47 — wo dieses Teil vom Referenzbild abweicht
   type: string; material: string[]; form: string[]; closure: string;
   description?: string; imageUrl: string | null;
   capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
@@ -819,6 +828,8 @@ interface Block {
   alleZeigen: boolean;
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
+  bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
+  lesart?: Bildlesart | null; // v47 — die Lesart, als korrigierbare Chips
   commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
 }
 
@@ -978,6 +989,14 @@ const STYLES = `
 .feld input:focus,.feld input:focus-visible{outline:none!important;box-shadow:none}
 .feld input{flex:1;border:0;background:none;padding:14px 4px;color:var(--tinte);min-width:0;outline:none}
 .feld input::placeholder{color:var(--hell)}
+.bildknopf{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;margin-left:-8px;margin-right:2px;border-radius:9px;color:var(--hell);cursor:pointer;font-size:17px;transition:background .15s,color .15s}
+.bildknopf:hover{background:var(--nische);color:var(--tinte)}
+.msg-bild{display:block;max-width:150px;max-height:150px;border-radius:11px;border:1px solid var(--linie);margin-bottom:8px;object-fit:contain;background:#fff}
+.eb-lesart{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:16px}
+.lz-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;background:var(--nische);border:1px solid var(--linie);color:var(--tinte)}
+.lz-pill.geraten{background:none;border-style:dashed;color:var(--grau)}
+.lz-note{font-size:11px;color:var(--hell);margin-left:2px}
+.ek-ab{display:block;font-family:var(--mono);font-size:10px;color:var(--hell);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .feld .go{flex:none;width:38px;height:38px;border-radius:10px;background:var(--tinte);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
 .feld .go:hover{background:var(--rouge)}
 .st-trend{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:22px auto 0;max-width:580px}
@@ -2133,6 +2152,56 @@ function looksForBase(base: Result, all: DesignLook[]): LookMitStatus[] {
 }
 
 
+/* Ein Handyfoto sind schnell 6 MB — Vercel nimmt 4,5. Und mehr als 1200 px
+   liest das Vision-Modell ohnehin nicht besser. Also erst schrumpfen. */
+function bildVerkleinern(datei: File): Promise<string> {
+  return new Promise((ok, fehl) => {
+    const leser = new FileReader();
+    leser.onerror = () => fehl(new Error('Datei nicht lesbar'));
+    leser.onload = () => {
+      const img = new Image();
+      img.onerror = () => fehl(new Error('Kein gueltiges Bild'));
+      img.onload = () => {
+        const max = 1200;
+        const f = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+        const ctx = c.getContext('2d');
+        if (!ctx) return fehl(new Error('Canvas fehlt'));
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        ok(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = String(leser.result);
+    };
+    leser.readAsDataURL(datei);
+  });
+}
+
+const LESART_LABEL: Record<string, string> = {
+  typ: 'Typ', form: 'Form', schulter: 'Schulter', proportion: 'Proportion',
+  verschluss: 'Verschluss', material: 'Material', transparenz: 'Transparenz',
+  finish: 'Finish', volumen: 'Volumen',
+};
+
+function lesartChips(l: Bildlesart): { feld: string; text: string; unsicher: boolean }[] {
+  const raus: { feld: string; text: string; unsicher: boolean }[] = [];
+  const push = (feld: string, wert: string | null) => {
+    if (!wert) return;
+    raus.push({ feld, text: `${LESART_LABEL[feld]}: ${wert}`, unsicher: l.geraten.includes(feld) });
+  };
+  push('typ', l.typ);
+  push('form', l.form.join(' / ') || null);
+  push('schulter', l.schulter);
+  push('proportion', l.proportion);
+  push('verschluss', l.verschluss);
+  push('material', l.material.join(' / ') || null);
+  push('transparenz', l.transparenz);
+  push('finish', l.finish);
+  push('volumen', l.volumen);
+  return raus;
+}
+
 function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
   r: Result; selected: boolean; isFav: boolean; isLead?: boolean; onOpen: () => void; onFav: (e: React.MouseEvent) => void;
 }) {
@@ -2141,7 +2210,13 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
       <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
       <button className="ek-klick" onClick={onOpen}>
         <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ek-ph">◇</span>}</div>
-        <div className="ek-info"><span className="ek-nm">{r.name}</span><span className="ek-spec">{specText(r)}</span></div>
+        <div className="ek-info">
+          <span className="ek-nm">{r.name}</span>
+          <span className="ek-spec">{specText(r)}</span>
+          {r.abweichung && r.abweichung.length > 0 && (
+            <span className="ek-ab">≠ {r.abweichung.slice(0, 2).join(' · ')}</span>
+          )}
+        </div>
         {isLead && <span className="ek-lead">Empfehlung</span>}
       </button>
     </div>
@@ -2234,16 +2309,20 @@ export default function Home() {
     }));
   };
 
-  const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string, removed?: ParsedFilters) => {
+  const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string, removed?: ParsedFilters, bild?: { data?: string; lesart?: Bildlesart | null; vorschau?: string }) => {
     const rem = removed || emptyFilters();
     let id = 0;
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       id = p.blockSeq + 1;
-      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', hinweis: '', alleZeigen: false, status: 'loading' }] };
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', hinweis: '', alleZeigen: false, status: 'loading', bild: bild?.vorschau }] };
     }));
     try {
       const body: any = { query };
+      // v47 — Bildpfad. Eine korrigierte Lesart ersetzt das Bild: dieselbe
+      // Suche, aber ohne zweiten Vision-Call. Korrigieren kostet nichts.
+      if (bild?.lesart) body.bildlesart = bild.lesart;
+      else if (bild?.data) body.image = bild.data;
       if (filters.sizes.length || filters.materials.length || filters.types.length || filters.closures.length) {
         body.active_filters = filters;
       }
@@ -2257,7 +2336,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2274,6 +2353,27 @@ export default function Home() {
     setProjects(prev => [neu, ...prev]);
     setActiveId(id); setSelected(null); setInput(''); setView('chat');
     runSearch(id, q, emptyFilters(), q);
+  };
+
+  /* Foto rein. Kein Text noetig — das Bild ist die Frage. */
+  const starteBildSuche = async (datei: File) => {
+    let data: string;
+    try { data = await bildVerkleinern(datei); }
+    catch { return; }
+    const id = neueProjektId();
+    const neu: Project = { id, name: 'Referenzbild', createdAt: Date.now(), rootQuery: '', blocks: [], board: [], blockSeq: 0 };
+    setProjects(prev => [neu, ...prev]);
+    setActiveId(id); setSelected(null); setInput(''); setView('chat');
+    runSearch(id, '', emptyFilters(), 'Referenzbild', undefined, { data, vorschau: data });
+  };
+
+  /* Chip weg = Lesart korrigiert. Neue Runde, kein neuer Vision-Call. */
+  const korrigiereLesart = (b: Block, feld: string) => {
+    if (!active || !b.lesart) return;
+    const l: Bildlesart = { ...b.lesart, geraten: b.lesart.geraten.filter(g => g !== feld) };
+    if (feld === 'form' || feld === 'material') (l as any)[feld] = [];
+    else (l as any)[feld] = null;
+    runSearch(active.id, '', b.filters, `ohne ${LESART_LABEL[feld] || feld}`, b.removed, { lesart: l, vorschau: b.bild });
   };
 
   const verfeinereText = (text: string) => {
@@ -2373,8 +2473,30 @@ export default function Home() {
             <div className="start">
               <div className="st-mitte">
                 <h1>Was möchtest du <em>launchen</em>?</h1>
-                <div className="feld">
-                  <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && starteSuche(input)} placeholder="z. B. ruhiges Vitamin-C-Serum, 30 ml, premium" autoFocus />
+                <div
+                  className="feld"
+                  onDragOver={e => { e.preventDefault(); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const f = Array.from(e.dataTransfer.files).find(x => x.type.startsWith('image/'));
+                    if (f) starteBildSuche(f);
+                  }}
+                >
+                  <label className="bildknopf" title="Referenzbild">
+                    <input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) starteBildSuche(f); e.target.value = ''; }} />
+                    <span>◫</span>
+                  </label>
+                  <input
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && starteSuche(input)}
+                    onPaste={e => {
+                      const f = Array.from(e.clipboardData.files).find(x => x.type.startsWith('image/'));
+                      if (f) { e.preventDefault(); starteBildSuche(f); }
+                    }}
+                    placeholder="Beschreiben — oder ein Foto hineinziehen"
+                    autoFocus
+                  />
                   <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">↑</button>
                 </div>
                 <div className="st-trend">
@@ -2402,7 +2524,10 @@ export default function Home() {
                       const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
                       return (
                         <div key={b.id}>
-                          <div className="msg-user"><span>{b.intro}</span></div>
+                          <div className="msg-user">
+                            {b.bild && <img className="msg-bild" src={b.bild} alt="Referenzbild" />}
+                            <span>{b.intro}</span>
+                          </div>
                           <div className="msg-ulba">
                             {b.status === 'loading' && <ScanBar />}
                             {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
@@ -2414,6 +2539,18 @@ export default function Home() {
                                     {chips.map((c, i) => (
                                       <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
                                     ))}
+                                  </div>
+                                )}
+                                {b.lesart && (
+                                  <div className="eb-lesart">
+                                    <span className="ebf-lbl">Gelesen als</span>
+                                    {lesartChips(b.lesart).map(c => (
+                                      <span key={c.feld} className={`lz-pill${c.unsicher ? ' geraten' : ''}`}>
+                                        {c.text}
+                                        {isLast && <span className="ebf-x" onClick={() => korrigiereLesart(b, c.feld)}>×</span>}
+                                      </span>
+                                    ))}
+                                    <span className="lz-note">Gestrichelt = geschätzt. Stimmt etwas nicht, nimm es weg.</span>
                                   </div>
                                 )}
                                 {b.hinweis && <div className="ch-ulba" style={{ marginBottom: 18 }}>{b.hinweis}</div>}
