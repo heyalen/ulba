@@ -780,6 +780,7 @@ interface Bildlesart {
 interface Result {
   id: string; name: string; score: number; reasoning: string;
   abweichung?: string[]; // v47 — wo dieses Teil vom Referenzbild abweicht
+  formNaehe?: number | null;  // v55 — Silhouetten-Naehe
   type: string; material: string[]; form: string[]; closure: string;
   description?: string; imageUrl: string | null;
   capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
@@ -831,6 +832,7 @@ interface Block {
   bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
   nah?: number;           // v50 — wie viele Treffer wirklich nah sind
   aehnlich?: number;      // v55 — zweite Stufe: verwandt in der Form, kein Volltreffer
+  formMessung?: { aktiv: boolean; grund?: string; seitenverhaeltnis?: number } | null;
   tags?: { kat: string; wert: string }[]; // v50 — was ulba im Bild gelesen hat
   lesart?: Bildlesart | null; // v47 — die Lesart, als korrigierbare Chips
   commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
@@ -2217,6 +2219,7 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
         <div className="ek-info">
           <span className="ek-nm">{r.name}</span>
           <span className="ek-spec">{specText(r)}</span>
+          {typeof r.formNaehe === 'number' && <span className="ek-ab">Form {r.formNaehe} %</span>}
           {r.abweichung && r.abweichung.length > 0 && (
             <span className="ek-ab">≠ {r.abweichung.slice(0, 2).join(' · ')}</span>
           )}
@@ -2341,7 +2344,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, tags: data.bild_tags || [], status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2571,7 +2574,7 @@ export default function Home() {
                                   </span>
                                   <span className="ebk-s">
                                     {b.nah
-                                      ? `${b.tags?.length || 0} Bildmerkmale gelesen · ${liste.length - b.nah} weitere im Archiv`
+                                      ? `${b.tags?.length || 0} Bildmerkmale gelesen · ${b.formMessung ? (b.formMessung.aktiv ? `Form gemessen (SV ${b.formMessung.seitenverhaeltnis})` : `Form NICHT gemessen: ${b.formMessung.grund}`) + ' · ' : ''}${liste.length - b.nah} weitere im Archiv`
                                       : `von ulba kuratiert · gelesen als ${pal}`}
                                   </span>
                                 </div>
