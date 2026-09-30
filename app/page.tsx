@@ -830,6 +830,7 @@ interface Block {
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
   bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
   nah?: number;           // v50 — wie viele Treffer wirklich nah sind
+  aehnlich?: number;      // v55 — zweite Stufe: verwandt in der Form, kein Volltreffer
   tags?: { kat: string; wert: string }[]; // v50 — was ulba im Bild gelesen hat
   lesart?: Bildlesart | null; // v47 — die Lesart, als korrigierbare Chips
   commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
@@ -994,6 +995,7 @@ const STYLES = `
 .bildknopf{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;margin-left:-8px;margin-right:2px;border-radius:9px;color:var(--hell);cursor:pointer;font-size:17px;transition:background .15s,color .15s}
 .bildknopf:hover{background:var(--nische);color:var(--tinte)}
 .msg-bild{display:block;max-width:150px;max-height:150px;border-radius:11px;border:1px solid var(--linie);margin-bottom:8px;object-fit:contain;background:#fff}
+.eb-aehnlich{display:flex;align-items:baseline;gap:10px;margin:22px 0 12px}
 .eb-lesart{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:16px}
 .lz-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;background:var(--nische);border:1px solid var(--linie);color:var(--tinte)}
 .lz-pill.geraten{background:none;border-style:dashed;color:var(--grau)}
@@ -2338,7 +2340,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, tags: data.bild_tags || [], status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2520,7 +2522,9 @@ export default function Home() {
                       // v50 — im Bildmodus schneidet das Backend ab: nur was
                       // wirklich nah ist, wird als Antwort gezeigt. Der Rest
                       // bleibt einen Klick entfernt, wird aber nicht behauptet.
-                      const grenze = b.nah && b.nah > 0 ? b.nah : 20;
+                      const nahN = b.nah && b.nah > 0 ? b.nah : 0;
+                      const aehnlichN = nahN > 0 ? (b.aehnlich || 0) : 0;
+                      const grenze = nahN > 0 ? nahN + aehnlichN : 20;
                       const zeige = b.alleZeigen ? liste : liste.slice(0, grenze);
                       const rest = liste.length - zeige.length;
                       const pal = b.categoryMatch || 'deine Suche';
@@ -2572,9 +2576,19 @@ export default function Home() {
                                 </div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
-                                  : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                    {zeige.map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
-                                  </div>}
+                                  : <>
+                                    <div className={`eb-grid${selected ? ' schmal' : ''}`}>
+                                      {(nahN > 0 && !b.alleZeigen ? zeige.slice(0, nahN) : zeige).map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                    </div>
+                                    {nahN > 0 && aehnlichN > 0 && !b.alleZeigen && (
+                                      <>
+                                        <div className="eb-aehnlich"><span className="ebf-lbl">Ähnlich in der Form</span><span className="lz-note">kein Volltreffer — verwandte Silhouette</span></div>
+                                        <div className={`eb-grid${selected ? ' schmal' : ''}`}>
+                                          {zeige.slice(nahN, nahN + aehnlichN).map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                        </div>
+                                      </>
+                                    )}
+                                  </>}
                                 {rest > 0 && !b.alleZeigen && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, true)}>Alle weiteren {rest} anzeigen ↓</button>}
                                 {b.alleZeigen && liste.length > 20 && <button className="eb-mehr" onClick={() => setBlockAlle(b.id, false)}>Nur beste 20 zeigen ↑</button>}
                                 {isLast && facetten.length > 0 && (
