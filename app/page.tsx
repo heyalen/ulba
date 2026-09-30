@@ -829,6 +829,8 @@ interface Block {
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
   bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
+  nah?: number;           // v50 — wie viele Treffer wirklich nah sind
+  tags?: { kat: string; wert: string }[]; // v50 — was ulba im Bild gelesen hat
   lesart?: Bildlesart | null; // v47 — die Lesart, als korrigierbare Chips
   commits?: LookCommit[]; // Look-Turns unter diesem Block — Teil ins Design gelegt (Verlauf, persistiert)
 }
@@ -2336,7 +2338,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2515,7 +2517,11 @@ export default function Home() {
                     {blocks.map(b => {
                       const isLast = b.id === lastId;
                       const liste = b.results;
-                      const zeige = b.alleZeigen ? liste : liste.slice(0, 20);
+                      // v50 — im Bildmodus schneidet das Backend ab: nur was
+                      // wirklich nah ist, wird als Antwort gezeigt. Der Rest
+                      // bleibt einen Klick entfernt, wird aber nicht behauptet.
+                      const grenze = b.nah && b.nah > 0 ? b.nah : 20;
+                      const zeige = b.alleZeigen ? liste : liste.slice(0, grenze);
                       const rest = liste.length - zeige.length;
                       const pal = b.categoryMatch || 'deine Suche';
                       const chips: { dim: keyof ParsedFilters; wert: string; label: string }[] = [];
@@ -2554,7 +2560,16 @@ export default function Home() {
                                   </div>
                                 )}
                                 {b.hinweis && <div className="ch-ulba" style={{ marginBottom: 18 }}>{b.hinweis}</div>}
-                                <div className="eb-kopf"><span className="ebk-h">{zeige.length} Systeme für dich</span><span className="ebk-s">von ulba kuratiert · gelesen als {pal}</span></div>
+                                <div className="eb-kopf">
+                                  <span className="ebk-h">
+                                    {b.nah ? `${b.nah} ${b.nah === 1 ? 'Teil kommt' : 'Teile kommen'} nah dran` : `${zeige.length} Systeme für dich`}
+                                  </span>
+                                  <span className="ebk-s">
+                                    {b.nah
+                                      ? `${b.tags?.length || 0} Bildmerkmale gelesen · ${liste.length - b.nah} weitere im Archiv`
+                                      : `von ulba kuratiert · gelesen als ${pal}`}
+                                  </span>
+                                </div>
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <div className={`eb-grid${selected ? ' schmal' : ''}`}>
