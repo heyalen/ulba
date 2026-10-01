@@ -228,7 +228,22 @@ function loadProjects(): Project[] {
   try { const raw = localStorage.getItem(LS_PROJECTS); if (raw) return heile(JSON.parse(raw)); } catch {}
   return [];
 }
-function saveProjects(p: Project[]) { try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); } catch {} }
+/* v60 — localStorage fasst ~5 MB. Grosse Referenzbild-Vorschauen haben das
+   Limit gesprengt; danach wurde still NICHTS mehr gespeichert. Jetzt: beim
+   Ueberlauf die Vorschauen abwerfen und erneut speichern. */
+function saveProjects(p: Project[]) {
+  try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); return; } catch {}
+  try {
+    const schlank = p.map(x => ({ ...x, blocks: x.blocks.map(b => b.bild ? { ...b, bild: undefined } : b) }));
+    localStorage.setItem(LS_PROJECTS, JSON.stringify(schlank));
+  } catch {}
+}
+/* Vollbilder der laufenden Sitzung (fuer Lesart-Korrekturen); nie persistiert. */
+const bildSpeicher = new Map<string, string>();
+function projektName(lesart: Bildlesart | null | undefined): string | null {
+  if (!lesart?.typ) return null;
+  return `Referenzbild · ${[lesart.typ, lesart.material?.[0]].filter(Boolean).join(', ')}`.slice(0, 48);
+}
 function neueProjektId(): string { return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 function loadFavorites(): FavoriteEntry[] {
@@ -1532,6 +1547,25 @@ export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
 
 /* Ein Handyfoto sind schnell 6 MB — Vercel nimmt 4,5. Und mehr als 1200 px
    liest das Vision-Modell ohnehin nicht besser. Also erst schrumpfen. */
+/* Kleine Vorschau fuer den Verlauf (persistiert). Das Vollbild geht nur ans Backend. */
+function vorschauVon(dataUrl: string, max = 320): Promise<string> {
+  return new Promise(ok => {
+    const img = new Image();
+    img.onerror = () => ok(dataUrl.length > 120000 ? '' : dataUrl);
+    img.onload = () => {
+      const f = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+      const ctx = c.getContext('2d');
+      if (!ctx) return ok('');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      ok(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.src = dataUrl;
+  });
+}
+
 function bildVerkleinern(datei: File): Promise<string> {
   return new Promise((ok, fehl) => {
     const leser = new FileReader();
@@ -1627,9 +1661,38 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    setProjects(loadProjects());
-    setFavorites(loadFavorites());
+    const gel = loadProjects().map(p => p.name === 'Referenzbild' ? { ...p, name: projektName(p.blocks[0]?.lesart) || p.name } : p);
+    const fav = loadFavorites();
+    setProjects(gel);
+    setFavorites(fav);
     setSentRequests(loadRequests());
+    // v60 — Altbestand: grosse Vorschauen (Vollbilder aus frueheren Versionen) verkleinern.
+    const gross = gel.flatMap(p => p.blocks.filter(b => (b.bild?.length || 0) > 90000).map(b => ({ pid: p.id, bid: b.id, bild: b.bild as string })));
+    if (gross.length) {
+      Promise.all(gross.map(g => vorschauVon(g.bild).then(v => ({ ...g, v })))).then(kl => {
+        setProjects(prev => prev.map(p => ({ ...p, blocks: p.blocks.map(b => {
+          const k = kl.find(x => x.pid === p.id && x.bid === b.id);
+          return k ? { ...b, bild: k.v || undefined } : b;
+        }) })));
+      });
+    }
+    // v60 — gespeicherte Teile auffrischen: Lieferantenname, Bilder, Verschluesse
+    // koennen sich seit dem Speichern geaendert haben (z. B. Record-ID statt Name).
+    const ids = new Set<string>();
+    fav.forEach(f => ids.add(f.productId));
+    gel.forEach(p => { p.board.forEach(r => ids.add(r.id)); p.blocks.forEach(b => b.results.forEach(r => ids.add(r.id))); });
+    if (ids.size === 0) return;
+    fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: Array.from(ids).slice(0, 400) }) })
+      .then(r => r.json())
+      .then(d => {
+        if (!Array.isArray(d?.frisch) || !d.frisch.length) return;
+        const map = new Map<string, Partial<Result>>(heile(d.frisch as Partial<Result>[]).map(f => [f.id as string, f]));
+        const auf = <T extends Result>(r: T): T => { const f = map.get(r.id); return f ? { ...r, ...f } : r; };
+        setFavorites(prev => { const n = prev.map(f => ({ ...f, product: auf(f.product) })); saveFavorites(n); return n; });
+        setProjects(prev => prev.map(p => ({ ...p, board: p.board.map(auf), blocks: p.blocks.map(b => ({ ...b, results: b.results.map(auf) })) })));
+        setSelected(prev => prev ? auf(prev) : prev);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSent = (r: SentRequest) => {
@@ -1716,7 +1779,8 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), looks: heile(data.design_looks || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
+        ...p, name: p.name === 'Referenzbild' ? (projektName(data.bildlesart) || p.name) : p.name,
+        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), looks: heile(data.design_looks || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -1741,10 +1805,12 @@ export default function Home() {
     try { data = await bildVerkleinern(datei); }
     catch { return; }
     const id = neueProjektId();
+    const vorschau = await vorschauVon(data);
+    bildSpeicher.set(id, data);
     const neu: Project = { id, name: 'Referenzbild', createdAt: Date.now(), rootQuery: '', blocks: [], board: [], blockSeq: 0 };
     setProjects(prev => [neu, ...prev]);
     setActiveId(id); setSelected(null); setInput(''); setView('chat');
-    runSearch(id, '', emptyFilters(), 'Referenzbild', undefined, { data, vorschau: data });
+    runSearch(id, '', emptyFilters(), 'Referenzbild', undefined, { data, vorschau });
   };
 
   /* Chip weg = Lesart korrigiert. Neue Runde, kein neuer Vision-Call. */
@@ -1753,7 +1819,7 @@ export default function Home() {
     const l: Bildlesart = { ...b.lesart, geraten: b.lesart.geraten.filter(g => g !== feld) };
     if (feld === 'form' || feld === 'material') (l as any)[feld] = [];
     else (l as any)[feld] = null;
-    runSearch(active.id, '', b.filters, `ohne ${LESART_LABEL[feld] || feld}`, b.removed, { lesart: l, vorschau: b.bild });
+    runSearch(active.id, '', b.filters, `ohne ${LESART_LABEL[feld] || feld}`, b.removed, { lesart: l, vorschau: b.bild, data: bildSpeicher.get(active.id) });
   };
 
   const verfeinereText = (text: string) => {
