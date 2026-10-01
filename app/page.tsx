@@ -833,6 +833,48 @@ const STYLES = `
 .pn-waechter .pn-w-warn{font-size:12.5px;line-height:1.5;color:#9a6b1f}
 .pn-waechter .pn-w-prod{font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--hell)}
 
+.lp-box{position:relative;background:var(--panel);border-radius:20px;width:100%;max-width:1040px;max-height:92vh;overflow:hidden;box-shadow:0 24px 70px rgba(20,24,26,.28);display:flex}
+.lp-scroll{flex:1;overflow-y:auto;min-height:0}
+.lp-zu{position:absolute;top:14px;right:14px;z-index:3;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.12);font-size:20px;line-height:1;color:var(--grau)}
+.lp-zu:hover{color:var(--rouge)}
+.lp-titel{height:150px;background:linear-gradient(135deg,#F3F1EE,#ECEDEF);overflow:hidden;position:relative}
+.lp-titel-img{width:100%;height:100%;object-fit:cover;display:block}
+.lp-titel-reihe{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:flex-end;gap:18px;padding:0 70px 0 40%;opacity:.38;filter:grayscale(1)}
+.lp-titel-reihe img{height:118px;width:auto;object-fit:contain;mix-blend-mode:multiply}
+.lp-kopf{display:flex;align-items:flex-end;gap:18px;padding:0 30px;margin-top:-44px;position:relative}
+.lp-logo{width:96px;height:96px;flex:none;border-radius:18px;background:#fff;border:4px solid #fff;box-shadow:0 2px 10px rgba(20,24,26,.1);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.lp-logo img{max-width:82%;max-height:82%;object-fit:contain}
+.lp-logo span{font-family:var(--serif);font-weight:800;font-size:30px;color:var(--rouge)}
+.lp-id{flex:1;min-width:0;padding-bottom:2px}
+.lp-id h3{font-size:26px;margin:0;line-height:1.15;display:flex;align-items:center;gap:8px}
+.lp-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--tinte);color:#fff;font-size:11px;font-family:var(--sans)}
+.lp-meta{display:block;font-size:14px;color:var(--grau);margin-top:4px}
+.lp-quelle{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--hell);margin-top:3px}
+.lp-web{flex:none;border:1px solid var(--tinte);border-radius:999px;padding:8px 16px;font-size:13px;color:var(--tinte);text-decoration:none;margin-bottom:4px}
+.lp-web:hover{background:var(--tinte);color:#fff}
+.lp-info{margin:22px 30px 0;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start}
+.lp-ueber{font-size:14px;line-height:1.65;color:var(--grau);margin:0;max-width:62ch}
+.lp-fakten{display:grid;grid-template-columns:repeat(2,minmax(130px,auto));gap:8px}
+.lp-fakten div{background:var(--nische);border-radius:11px;padding:10px 13px}
+.lp-fakten span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell)}
+.lp-fakten b{display:block;font-size:13.5px;font-weight:600;margin-top:2px}
+.lp-reiter{position:sticky;top:0;z-index:2;background:var(--panel);display:flex;gap:4px;padding:0 30px;margin-top:24px;border-bottom:1px solid var(--linie);overflow-x:auto}
+.lp-reiter button{padding:13px 12px 11px;font-size:14px;color:var(--grau);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.lp-reiter button:hover{color:var(--tinte)}
+.lp-reiter button.an{color:var(--tinte);border-bottom-color:var(--tinte);font-weight:600}
+.lp-reiter i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--hell);margin-left:6px}
+.lp-sortiment{padding:20px 30px 30px}
+.lp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+.lp-grid .ek-klick:disabled{cursor:default}
+.lp-skel{height:212px;border-radius:12px;background:linear-gradient(90deg,var(--nische) 25%,#EFEFF1 50%,var(--nische) 75%);background-size:200% 100%;animation:lpskel 1.2s ease-in-out infinite}
+@keyframes lpskel{to{background-position:-200% 0}}
+.lp-leer{padding:34px 0;color:var(--grau);font-size:14px}
+@media (max-width:720px){
+.lp-titel{height:104px}.lp-titel-reihe{padding-left:30%}.lp-titel-reihe img{height:84px}
+.lp-kopf{flex-wrap:wrap;padding:0 18px;margin-top:-36px;gap:12px}.lp-logo{width:76px;height:76px;border-radius:15px}
+.lp-id{flex-basis:100%}.lp-id h3{font-size:22px}.lp-web{margin-bottom:0}
+.lp-info{grid-template-columns:1fr;margin:18px 18px 0}.lp-reiter{padding:0 18px}.lp-sortiment{padding:16px 18px 24px}
+.lp-grid{grid-template-columns:repeat(2,1fr);gap:10px}}
 .dw-ov{position:fixed;inset:0;background:rgba(20,24,26,.42);z-index:60;display:flex;align-items:center;justify-content:center;padding:clamp(12px,3vw,36px)}
 .dw-box{background:var(--panel);border-radius:20px;width:100%;max-width:1180px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(20,24,26,.28)}
 .dw-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px 26px 14px;flex:none}
@@ -921,67 +963,105 @@ const FACETTEN_LABEL: Record<FacettenDim, string> = {
   register: 'Welt', segment: 'Preisniveau', form: 'Form', material: 'Material', wirkstoff: 'Wirkstoff',
 };
 
-/* ── Lieferanten-Profil (v58) ──────────────────────────────────────────
-   Overlay im Stil der Design-Wand: Kopf mit Name · Standort · Kontakt,
-   darunter alle Teile des Lieferanten, nach Typ gruppiert. Daten kommen
-   aus /api/search ({ lieferant }); Kontaktdaten pflegt Alen in der
-   Airtable-Tabelle "Lieferanten" — fehlen sie, zeigt der Kopf nur den
-   Namen. */
+/* ── Lieferanten-Profil (v59) ──────────────────────────────────────────
+   Aufbau wie ein Unternehmensprofil: Titelbild · Logo · Name · Standort ·
+   Kennzahlen · Über uns, darunter das Sortiment mit Typ-Reitern. Karten
+   sind die Such-Karten (.ek) und öffnen das Teil im Detail-Panel. Daten:
+   /api/search ({ lieferant }) aus der Airtable-Tabelle "Lieferant". */
 interface LieferantDaten {
-  profil: { email?: string; standort?: string; website?: string; beschreibung?: string };
+  profil: { name?: string; land?: string; standort?: string; website?: string; beschreibung?: string; status?: string;
+    logo?: string | null; titelbild?: string | null; moq?: number | null; lieferzeit_wochen?: number | null; zertifikat?: string; eu?: boolean };
   anzahl: number;
-  gruppen: { typ: string; produkte: { id: string; name: string; image_url: string | null; sizes: string[]; materials: string[]; closure: string }[] }[];
+  teile: Result[];
 }
-function LieferantProfil({ name, onClose }: { name: string; onClose: () => void }) {
+function LieferantProfil({ name, onClose, onTeil }: { name: string; onClose: () => void; onTeil?: (r: Result) => void }) {
   const [daten, setDaten] = useState<LieferantDaten | null>(null);
   const [laden, setLaden] = useState(true);
+  const [reiter, setReiter] = useState('alle');
   useEffect(() => {
     let tot = false;
-    setLaden(true);
+    setLaden(true); setReiter('alle');
     fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lieferant: name }) })
       .then(r => r.json())
-      .then(d => { if (!tot && d?.gruppen) setDaten(d); })
+      .then(d => { if (!tot && Array.isArray(d?.teile)) setDaten(d); })
       .catch(() => {})
       .finally(() => { if (!tot) setLaden(false); });
     return () => { tot = true; };
   }, [name]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
   const p = daten?.profil || {};
-  const meta = [p.standort, p.email].filter(Boolean).join(' · ');
+  const anzeigeName = p.name || name;
+  const teile = daten?.teile || [];
+  const typen = Array.from(new Set(teile.map(t => t.type || 'Weitere')));
+  const sichtbar = reiter === 'alle' ? teile : teile.filter(t => (t.type || 'Weitere') === reiter);
+  const ort = [p.standort, p.land].filter(Boolean).join(', ');
+  const fakten = [
+    p.moq ? { k: 'Mindestmenge', v: `ab ${p.moq.toLocaleString('de-CH')} Stk.` } : null,
+    p.lieferzeit_wochen ? { k: 'Lieferzeit', v: `ca. ${p.lieferzeit_wochen} Wochen` } : null,
+    p.zertifikat ? { k: 'Zertifikat', v: p.zertifikat } : null,
+    p.eu ? { k: 'Konformität', v: 'EU-konform' } : null,
+  ].filter((f): f is { k: string; v: string } => f !== null);
+  const initialen = anzeigeName.replace(/[^A-Za-zÄÖÜäöü0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '·';
+  const bestaetigt = p.status === 'bestätigt';
+  const titelBilder = teile.filter(t => t.imageUrl).slice(0, 7);
   return (
-    <div className="dw-ov" role="dialog" aria-label={`Lieferant ${name}`} onClick={onClose}>
-      <div className="dw-box" onClick={e => e.stopPropagation()}>
-        <div className="dw-kopf">
-          <div>
-            <h3 className="serif">{name}</h3>
-            <span className="dw-sub">
-              {meta || 'Lieferant'}
-              {p.website && <> · <a href={p.website} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Website ↗</a></>}
-            </span>
+    <div className="dw-ov" role="dialog" aria-label={`Lieferant ${anzeigeName}`} onClick={onClose}>
+      <div className="lp-box" onClick={e => e.stopPropagation()}>
+        <button className="lp-zu" onClick={onClose} aria-label="schließen">×</button>
+        <div className="lp-scroll">
+          <div className="lp-titel">
+            {p.titelbild
+              ? <img src={p.titelbild} alt="" className="lp-titel-img" />
+              : <div className="lp-titel-reihe" aria-hidden>{titelBilder.map(t => <img key={t.id} src={t.imageUrl as string} alt="" />)}</div>}
           </div>
-          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
-        </div>
-        {p.beschreibung && <div style={{ fontSize: 13, color: 'var(--grau)', lineHeight: 1.6, margin: '2px 0 14px' }}>{p.beschreibung}</div>}
-        {laden && <div style={{ padding: '30px 0', color: 'var(--grau)', fontSize: 13 }}>Lade Sortiment …</div>}
-        {!laden && !daten && <div style={{ padding: '30px 0', color: 'var(--grau)', fontSize: 13 }}>Profil gerade nicht erreichbar.</div>}
-        {daten && daten.gruppen.map(g => (
-          <div key={g.typ} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--grau)', margin: '14px 0 8px' }}>
-              {TYPE_LABELS[g.typ] || g.typ} · {g.produkte.length}
+          <div className="lp-kopf">
+            <div className="lp-logo">{p.logo ? <img src={p.logo} alt={`${anzeigeName} Logo`} /> : <span>{initialen}</span>}</div>
+            <div className="lp-id">
+              <h3 className="serif">{anzeigeName}{bestaetigt && <span className="lp-check" title="Vom Lieferanten bestätigt">✓</span>}</h3>
+              <span className="lp-meta">
+                {[ort, daten ? `${daten.anzahl} ${daten.anzahl === 1 ? 'Teil' : 'Teile'} auf ulba` : ''].filter(Boolean).join(' · ') || 'Lieferant'}
+              </span>
+              <span className="lp-quelle">{bestaetigt ? 'Profil vom Lieferanten bestätigt' : 'Aus dem öffentlichen Katalog des Lieferanten'}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-              {g.produkte.map(pr => (
-                <div key={pr.id} className="dw-k" title={pr.name} style={{ cursor: 'default' }}>
-                  <div className="dw-k-bild">
-                    {pr.image_url ? <img src={pr.image_url} alt={pr.name} /> : <span className="dw-k-ph">◻</span>}
+            {p.website && <a className="lp-web" href={p.website} target="_blank" rel="noreferrer">Website ↗</a>}
+          </div>
+          {(fakten.length > 0 || p.beschreibung) && (
+            <div className="lp-info">
+              {p.beschreibung && <p className="lp-ueber">{p.beschreibung}</p>}
+              {fakten.length > 0 && <div className="lp-fakten">{fakten.map(f => <div key={f.k}><span>{f.k}</span><b>{f.v}</b></div>)}</div>}
+            </div>
+          )}
+          <div className="lp-reiter">
+            {[{ id: 'alle', n: 'Alle', z: teile.length }, ...typen.map(t => ({ id: t, n: TYPE_LABELS[t] || t, z: teile.filter(x => (x.type || 'Weitere') === t).length }))].map(r => (
+              <button key={r.id} className={reiter === r.id ? 'an' : ''} onClick={() => setReiter(r.id)}>{r.n}<i>{r.z}</i></button>
+            ))}
+          </div>
+          <div className="lp-sortiment">
+            {laden && <div className="lp-grid">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="lp-skel" />)}</div>}
+            {!laden && !daten && <div className="lp-leer">Profil gerade nicht erreichbar. Bitte gleich nochmal öffnen.</div>}
+            {!laden && daten && teile.length === 0 && <div className="lp-leer">Für diesen Lieferanten sind gerade keine Teile veröffentlicht.</div>}
+            {!laden && sichtbar.length > 0 && (
+              <div className="lp-grid">
+                {sichtbar.map(r => (
+                  <div key={r.id} className="ek">
+                    <button className="ek-klick" onClick={() => { onTeil?.(r); onClose(); }} disabled={!onTeil}>
+                      <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} loading="lazy" /> : <span className="ek-ph">◇</span>}</div>
+                      <div className="ek-info">
+                        <span className="ek-nm">{r.name}</span>
+                        <span className="ek-spec">{[r.availableSizes?.[0], r.material?.[0], r.closure].filter(Boolean).join(' · ')}</span>
+                      </div>
+                    </button>
                   </div>
-                  <span className="dw-k-nm">{pr.name}</span>
-                  <span className="dw-k-brand">{[pr.sizes.join('/'), pr.materials[0], pr.closure].filter(Boolean).join(' · ')}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
@@ -1128,11 +1208,12 @@ function DesignWand({ suche, register, onWahl, onClose }: {
    Der Render passiert hier, nicht mehr im Chat: ein Design, ein Bild, eine
    Wächterzeile. Der gewählte Look gilt für die Sitzung (lookCode), so lassen
    sich mehrere Teile im selben Design vergleichen. ── */
-function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample }: {
+function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample, onTeil }: {
   product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
   isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onClose: () => void;
   sucheQuery?: string; lookCode: DesignCodeKarte | null; onLook: (c: DesignCodeKarte | null) => void;
   onSample: (ctx: SampleContext) => void;
+  onTeil?: (r: Result) => void;
 }) {
   const { caps, dropperDepri } = capsFuer(product, capWall);
   const istPipette = istPipetteCap;
@@ -1292,7 +1373,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       </div>
 
       {lieferantOffen && product.supplier && (
-        <LieferantProfil name={product.supplier} onClose={() => setLieferantOffen(false)} />
+        <LieferantProfil name={product.supplier} onClose={() => setLieferantOffen(false)} onTeil={onTeil} />
       )}
       {wandOffen && (
         <DesignWand
@@ -1897,6 +1978,7 @@ export default function Home() {
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
                   sucheQuery={blocks.find(b => b.results.some(r => r.id === selected.id))?.query}
                   lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
+                  onTeil={r => { setSelected(r); setSelectedCap(0); }}
                   onClose={() => setSelected(null)} />
               )}
             </div>
