@@ -203,15 +203,36 @@ interface FavoriteEntry { productId: string; projectId: string; savedAt: number;
 const LS_PROJECTS = 'ulba_projects_v2';
 const LS_FAVORITES = 'ulba_favorites';
 
+/* v60 — stabile Bild-Adressen. Airtable-Anhang-URLs laufen nach ~2 h ab;
+   gespeicherte Favoriten/Projekte zeigten danach leere Karten. Jede
+   Airtable-URL an einem Objekt mit Record-ID wird auf /api/bild?r=<id>
+   umgeschrieben — die Route holt bei Bedarf die frische URL. Wirkt beim
+   Laden aus localStorage (heilt Altbestand) und bei jeder neuen Antwort. */
+const AT_URL = /airtableusercontent\.com|dl\.airtable\.com/;
+const REC_ID = /^rec[A-Za-z0-9]{14}$/;
+function stabil(id: string, k?: string): string { return `/api/bild?r=${id}${k ? `&k=${k}` : ''}`; }
+function heile<T>(x: T): T {
+  if (Array.isArray(x)) return x.map(v => heile(v)) as unknown as T;
+  if (!x || typeof x !== 'object') return x;
+  const ein = x as Record<string, unknown>;
+  const id = typeof ein.id === 'string' && REC_ID.test(ein.id) ? ein.id : null;
+  const aus: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ein)) {
+    aus[k] = id && (k === 'imageUrl' || k === 'image_url') && typeof v === 'string' && AT_URL.test(v) ? stabil(id) : heile(v);
+  }
+  if (Array.isArray(aus.caps) && Array.isArray(aus.capImages)) aus.capImages = (aus.caps as { imageUrl?: string }[]).map(c => c.imageUrl || '');
+  return aus as T;
+}
+
 function loadProjects(): Project[] {
-  try { const raw = localStorage.getItem(LS_PROJECTS); if (raw) return JSON.parse(raw); } catch {}
+  try { const raw = localStorage.getItem(LS_PROJECTS); if (raw) return heile(JSON.parse(raw)); } catch {}
   return [];
 }
 function saveProjects(p: Project[]) { try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); } catch {} }
 function neueProjektId(): string { return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 function loadFavorites(): FavoriteEntry[] {
-  try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return JSON.parse(raw); } catch {}
+  try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return heile(JSON.parse(raw)); } catch {}
   return [];
 }
 function saveFavorites(f: FavoriteEntry[]) { try { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); } catch {} }
@@ -984,7 +1005,7 @@ function LieferantProfil({ name, onClose, onTeil }: { name: string; onClose: () 
     fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lieferant: name }) })
       .then(r => r.json())
-      .then(d => { if (!tot && Array.isArray(d?.teile)) setDaten(d); })
+      .then(d => { if (!tot && Array.isArray(d?.teile)) setDaten(heile(d)); })
       .catch(() => {})
       .finally(() => { if (!tot) setLaden(false); });
     return () => { tot = true; };
@@ -1245,9 +1266,12 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Render fehlgeschlagen');
       if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
-      setRender({ url: data.renderingUrl, capUrl: data.capRenderingUrl || null, concept: data.concept || null, codeId: code.id });
+      const cid = typeof data.cacheId === 'string' && REC_ID.test(data.cacheId) ? data.cacheId : null;
+      const rUrl: string = cid && AT_URL.test(data.renderingUrl) ? stabil(cid) : data.renderingUrl;
+      const cUrl: string | null = data.capRenderingUrl ? (cid && AT_URL.test(data.capRenderingUrl) ? stabil(cid, 'cap') : data.capRenderingUrl) : null;
+      setRender({ url: rUrl, capUrl: cUrl, concept: data.concept || null, codeId: code.id });
       setRstatus('idle');
-      try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [data.renderingUrl, ...h.filter(u => u !== data.renderingUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
+      try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
       setRstatus('error');
       setRerror(e instanceof Error ? e.message : 'Render fehlgeschlagen');
@@ -1401,7 +1425,7 @@ function SampleModal({ ctx, onClose, onSent }: { ctx: SampleContext; onClose: ()
         body: JSON.stringify({
           productId: product.id, productName: product.name, supplier: product.supplier || '',
           brandName: firm || name, brandEmail: email, brief,
-          renderUrl, wishValues, capLabel,
+          renderUrl: renderUrl ? new URL(renderUrl, window.location.origin).href : '', wishValues, capLabel,
           konzeptName: konzept?.konzept_name || '', story: konzept?.story || '',
           produzierbar: konzept?.produzierbar || null,
         }),
@@ -1692,7 +1716,7 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
-        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: data.results || [], looks: data.design_looks || [], categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
+        ...p, blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), looks: heile(data.design_looks || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
