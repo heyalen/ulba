@@ -22,10 +22,37 @@ async function airtableFetch(table: string, recordId: string): Promise<any> {
   return res.json();
 }
 
+/* v58-Sicherheit: die Route lief ohne Origin-Pruefung und ohne Limit — jeder
+   konnte per curl Musteranfrage-Records in Airtable kippen. Gleiche Idee wie
+   der riegel im Renderer: nur die eigene Oberflaeche, und auch die nicht
+   endlos. Pro-Instanz-Zaehler reicht (kappt Dauerbeschuss, mehr nicht). */
+const OK_ORIGINS = new Set<string>([
+  'https://ulba.vercel.app',
+  'http://localhost:3000',
+  ...String(process.env.ULBA_ORIGINS || '').split(',').map(o => o.trim()).filter(o => /^https?:\/\//.test(o)),
+]);
+const TAKT = new Map<string, number[]>();
+function abgewiesen(req: Request, max: number): Response | null {
+  const origin = req.headers.get('origin') || '';
+  // Browser schicken bei fetch POST immer Origin; ohne Origin (curl) -> zu.
+  if (!OK_ORIGINS.has(origin)) return Response.json({ error: 'Zugriff nur von ulba' }, { status: 403 });
+  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unbekannt';
+  const jetzt = Date.now();
+  const treffer = (TAKT.get(ip) || []).filter(t => jetzt - t < 300000);
+  if (treffer.length >= max) { TAKT.set(ip, treffer); return Response.json({ error: 'Zu viele Anfragen — kurz warten.' }, { status: 429 }); }
+  treffer.push(jetzt); TAKT.set(ip, treffer);
+  if (TAKT.size > 500) TAKT.forEach((v, k) => { if (!v.some((t: number) => jetzt - t < 300000)) TAKT.delete(k); });
+  return null;
+}
+
 export async function POST(req: Request) {
+  const zu = abgewiesen(req, 10);
+  if (zu) return zu;
   let payload: any;
   try {
-    payload = await req.json();
+    const roh = await req.text();
+    if (roh.length > 100000) return Response.json({ error: 'Anfrage zu gross' }, { status: 413 });
+    payload = JSON.parse(roh);
   } catch {
     return Response.json({ error: 'Ungültiger Body' }, { status: 400 });
   }
@@ -105,6 +132,8 @@ export async function POST(req: Request) {
    Record-IDs der Client selbst hält (aus localStorage). Kein Login, kein Leak:
    es werden nur die angefragten IDs zurückgegeben. */
 export async function GET(req: Request) {
+  const zu = abgewiesen(req, 60);
+  if (zu) return zu;
   const url = new URL(req.url);
   const ids = (url.searchParams.get('ids') || '')
     .split(',')
