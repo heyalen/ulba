@@ -921,6 +921,72 @@ const FACETTEN_LABEL: Record<FacettenDim, string> = {
   register: 'Welt', segment: 'Preisniveau', form: 'Form', material: 'Material', wirkstoff: 'Wirkstoff',
 };
 
+/* ── Lieferanten-Profil (v58) ──────────────────────────────────────────
+   Overlay im Stil der Design-Wand: Kopf mit Name · Standort · Kontakt,
+   darunter alle Teile des Lieferanten, nach Typ gruppiert. Daten kommen
+   aus /api/search ({ lieferant }); Kontaktdaten pflegt Alen in der
+   Airtable-Tabelle "Lieferanten" — fehlen sie, zeigt der Kopf nur den
+   Namen. */
+interface LieferantDaten {
+  profil: { email?: string; standort?: string; website?: string; beschreibung?: string };
+  anzahl: number;
+  gruppen: { typ: string; produkte: { id: string; name: string; image_url: string | null; sizes: string[]; materials: string[]; closure: string }[] }[];
+}
+function LieferantProfil({ name, onClose }: { name: string; onClose: () => void }) {
+  const [daten, setDaten] = useState<LieferantDaten | null>(null);
+  const [laden, setLaden] = useState(true);
+  useEffect(() => {
+    let tot = false;
+    setLaden(true);
+    fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lieferant: name }) })
+      .then(r => r.json())
+      .then(d => { if (!tot && d?.gruppen) setDaten(d); })
+      .catch(() => {})
+      .finally(() => { if (!tot) setLaden(false); });
+    return () => { tot = true; };
+  }, [name]);
+  const p = daten?.profil || {};
+  const meta = [p.standort, p.email].filter(Boolean).join(' · ');
+  return (
+    <div className="dw-ov" role="dialog" aria-label={`Lieferant ${name}`} onClick={onClose}>
+      <div className="dw-box" onClick={e => e.stopPropagation()}>
+        <div className="dw-kopf">
+          <div>
+            <h3 className="serif">{name}</h3>
+            <span className="dw-sub">
+              {meta || 'Lieferant'}
+              {p.website && <> · <a href={p.website} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Website ↗</a></>}
+            </span>
+          </div>
+          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
+        </div>
+        {p.beschreibung && <div style={{ fontSize: 13, color: 'var(--grau)', lineHeight: 1.6, margin: '2px 0 14px' }}>{p.beschreibung}</div>}
+        {laden && <div style={{ padding: '30px 0', color: 'var(--grau)', fontSize: 13 }}>Lade Sortiment …</div>}
+        {!laden && !daten && <div style={{ padding: '30px 0', color: 'var(--grau)', fontSize: 13 }}>Profil gerade nicht erreichbar.</div>}
+        {daten && daten.gruppen.map(g => (
+          <div key={g.typ} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--grau)', margin: '14px 0 8px' }}>
+              {TYPE_LABELS[g.typ] || g.typ} · {g.produkte.length}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+              {g.produkte.map(pr => (
+                <div key={pr.id} className="dw-k" title={pr.name} style={{ cursor: 'default' }}>
+                  <div className="dw-k-bild">
+                    {pr.image_url ? <img src={pr.image_url} alt={pr.name} /> : <span className="dw-k-ph">◻</span>}
+                  </div>
+                  <span className="dw-k-nm">{pr.name}</span>
+                  <span className="dw-k-brand">{[pr.sizes.join('/'), pr.materials[0], pr.closure].filter(Boolean).join(' · ')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DesignWand({ suche, register, onWahl, onClose }: {
   suche?: string; register?: string | null;
   onWahl: (c: DesignCodeKarte) => void; onClose: () => void;
@@ -1072,6 +1138,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const istPipette = istPipetteCap;
   const capIdx = Math.min(cap, Math.max(0, caps.length - 1));
   const [wandOffen, setWandOffen] = useState(false);
+  const [lieferantOffen, setLieferantOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
@@ -1202,7 +1269,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-body">
         <div className="specs">
           {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
-          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v">{product.supplier}</div></div>}
+          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v"><button onClick={() => setLieferantOffen(true)} style={{ all: 'unset', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>{product.supplier} →</button></div></div>}
           {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
           {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
           {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
@@ -1224,6 +1291,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
       </div>
 
+      {lieferantOffen && product.supplier && (
+        <LieferantProfil name={product.supplier} onClose={() => setLieferantOffen(false)} />
+      )}
       {wandOffen && (
         <DesignWand
           suche={sucheQuery}
