@@ -30,9 +30,10 @@ const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
 };
 
 const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
-  { dim: 'materials', label: 'Material', opt: ['Glass', 'PP', 'PETG', 'Acrylic', 'Aluminium'] },
+  // v60 — Werte sind die REALEN Airtable-Optionen (deutsch), sonst trifft der Filter nichts.
+  { dim: 'materials', label: 'Material', opt: ['Glas', 'PET', 'PETG', 'HDPE', 'PP', 'Aluminium'] },
   { dim: 'sizes', label: 'Volumen', opt: ['15ml', '30ml', '50ml', '75ml', '100ml', '200ml'] },
-  { dim: 'closures', label: 'Verschluss', opt: ['ScrewCap', 'Pump', 'Dropper', 'Spray', 'FlipTop'] },
+  { dim: 'closures', label: 'Verschluss', opt: ['Schraubverschluss', 'Pump', 'Pipette', 'Spray', 'Flip-top'] },
 ];
 
 /* Ein Verschluss aus /api/search: id + name (für die Anfrage) + imageUrl (Anzeige). */
