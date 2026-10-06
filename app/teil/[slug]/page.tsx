@@ -64,7 +64,7 @@ export default async function TeilSeite({ params }: { params: { slug: string } }
       <div style={{ display: 'flex', gap: 40, marginTop: 24, flexWrap: 'wrap' }}>
         {t.bild && (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={t.bild} alt={`${t.name}${t.supplier ? ` von ${t.supplier}` : ''}`} style={{ width: 300, maxWidth: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 14 }} />
+          <img src={`/api/bild?r=${t.id}`} alt={`${t.name}${t.supplier ? ` von ${t.supplier}` : ''}`} style={{ width: 300, maxWidth: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 14 }} />
         )}
         <div style={{ flex: 1, minWidth: 280 }}>
           <h1 style={{ fontSize: 30, margin: '0 0 4px' }}>{t.name}</h1>
@@ -105,7 +105,7 @@ export default async function TeilSeite({ params }: { params: { slug: string } }
               <Link key={c.id} href={`/?teil=${t.id}&cap=${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                 {c.bild
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  ? <img src={c.bild} alt={`${c.art || 'Verschluss'} für ${t.name}`} loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 10 }} />
+                  ? <img src={`/api/bild?r=${c.id}`} alt={`${c.art || 'Verschluss'} für ${t.name}`} loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 10 }} />
                   : <div style={{ width: '100%', aspectRatio: '1', background: farbe.nische, borderRadius: 10 }} />}
                 <div style={{ marginTop: 6, fontSize: 13 }}>{c.art || 'Verschluss'}</div>
               </Link>
