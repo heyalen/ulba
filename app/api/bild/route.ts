@@ -47,6 +47,16 @@ export async function GET(req: Request) {
   const r = sp.get('r') || '';
   const k = (sp.get('k') || 'bild').slice(0, 10);
   if (!/^rec[A-Za-z0-9]{14}$/.test(r)) return new NextResponse('ungueltig', { status: 400 });
+  if (sp.get('diag') === '1') { // Diagnose: Status je Tabelle, keine Inhalte
+    const h = { Authorization: `Bearer ${process.env.AIRTABLE_PAT}` };
+    const out: Record<string, unknown> = {};
+    for (const q of QUELLEN) {
+      const res = await fetch(`https://api.airtable.com/v0/${BASE}/${q.tbl}/${r}`, { headers: h, cache: 'no-store' });
+      const j = res.ok ? await res.json() : await res.text();
+      out[q.tbl] = { status: res.status, felder: res.ok ? Object.keys(j.fields || {}).filter(n => /bild|logo/i.test(n)) : String(j).slice(0, 120) };
+    }
+    return NextResponse.json(out);
+  }
   const key = `${r}:${k}`;
   let hit = cache.get(key);
   if (!hit || hit.bis < Date.now()) {
