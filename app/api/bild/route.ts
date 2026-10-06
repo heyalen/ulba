@@ -17,7 +17,6 @@ const QUELLEN: { tbl: string; felder: Record<string, string[]> }[] = [
 ];
 const FRISCH_MS = 60 * 60 * 1000; // Airtable-URLs halten ~2 h; wir erneuern nach 1 h
 const cache = new Map<string, { url: string; bis: number }>();
-const tabelleVon = new Map<string, string>(); // recId → Tabelle (spart Fehlversuche)
 
 function anhang(feld: unknown): string | null {
   if (!Array.isArray(feld) || !feld.length) return null;
@@ -25,20 +24,20 @@ function anhang(feld: unknown): string | null {
   return a.url || a.thumbnails?.large?.url || null;
 }
 
+/* Airtable liefert einen Record per ID unabhaengig von der angefragten Tabelle
+   (Cap-ID unter System-Tabelle → 200 mit Cap-Feldern). Darum: EIN Abruf, dann
+   die Bildfelder ALLER Tabellen in fester Reihenfolge pruefen. */
+const FELDER: Record<string, string[]> = {
+  bild: ['Bild_Harmonisiert', 'Bild_System', 'Bild', 'Cap_Bild_Harmonisiert', 'Cap_Bild', 'Logo'],
+  cap: ['Cap_Bild', 'Cap_Bild_Harmonisiert'],
+  titel: ['Titelbild'],
+};
 async function frischeUrl(r: string, k: string): Promise<string | null> {
   const h = { Authorization: `Bearer ${process.env.AIRTABLE_PAT}` };
-  const bekannt = tabelleVon.get(r);
-  const reihe = bekannt ? QUELLEN.filter(q => q.tbl === bekannt) : QUELLEN;
-  for (const q of reihe) {
-    const felder = q.felder[k] || q.felder.bild;
-    const res = await fetch(`https://api.airtable.com/v0/${BASE}/${q.tbl}/${r}`, { headers: h, cache: 'no-store' });
-    // Falscher Tisch liefert je nach Fall 403/404/422 — immer im naechsten weitersuchen.
-    if (!res.ok) continue;
-    tabelleVon.set(r, q.tbl);
-    const f = (await res.json())?.fields || {};
-    for (const name of felder) { const u = anhang(f[name]); if (u) return u; }
-    return null;
-  }
+  const res = await fetch(`https://api.airtable.com/v0/${BASE}/${QUELLEN[0].tbl}/${r}`, { headers: h, cache: 'no-store' });
+  if (!res.ok) return null;
+  const f = (await res.json())?.fields || {};
+  for (const name of FELDER[k] || FELDER.bild) { const u = anhang(f[name]); if (u) return u; }
   return null;
 }
 
@@ -47,16 +46,6 @@ export async function GET(req: Request) {
   const r = sp.get('r') || '';
   const k = (sp.get('k') || 'bild').slice(0, 10);
   if (!/^rec[A-Za-z0-9]{14}$/.test(r)) return new NextResponse('ungueltig', { status: 400 });
-  if (sp.get('diag') === '1') { // Diagnose: Status je Tabelle, keine Inhalte
-    const h = { Authorization: `Bearer ${process.env.AIRTABLE_PAT}` };
-    const out: Record<string, unknown> = {};
-    for (const q of QUELLEN) {
-      const res = await fetch(`https://api.airtable.com/v0/${BASE}/${q.tbl}/${r}`, { headers: h, cache: 'no-store' });
-      const j = res.ok ? await res.json() : await res.text();
-      out[q.tbl] = { status: res.status, felder: res.ok ? Object.keys(j.fields || {}).filter(n => /bild|logo/i.test(n)) : String(j).slice(0, 120) };
-    }
-    return NextResponse.json(out);
-  }
   const key = `${r}:${k}`;
   let hit = cache.get(key);
   if (!hit || hit.bis < Date.now()) {
