@@ -1696,6 +1696,29 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  // SEO — Einstieg über /?teil=<recordId> (von den indexierbaren Teil-Seiten):
+  // Teil laden und direkt im DetailPanel öffnen.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('teil');
+    if (!id || !/^rec[A-Za-z0-9]{14}$/.test(id)) return;
+    fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) })
+      .then(r => r.json())
+      .then(d => {
+        const t = Array.isArray(d?.frisch) ? heile(d.frisch as Partial<Result>[])[0] : null;
+        if (!t) return;
+        setView('chat'); setSelected(t as Result); setSelectedCap(0);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Geöffnetes Teil in der URL spiegeln → Link teilbar (LinkedIn, Mail, Musteranfrage).
+  useEffect(() => {
+    if (!mounted) return;
+    const url = new URL(window.location.href);
+    if (selected) url.searchParams.set('teil', selected.id); else url.searchParams.delete('teil');
+    window.history.replaceState(null, '', url.toString());
+  }, [selected, mounted]);
+
   const handleSent = (r: SentRequest) => {
     setSentRequests(prev => { const next = [r, ...prev.filter(x => x.id !== r.id)]; saveRequests(next); return next; });
   };
