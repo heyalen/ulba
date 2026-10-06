@@ -32,8 +32,8 @@ async function frischeUrl(r: string, k: string): Promise<string | null> {
   for (const q of reihe) {
     const felder = q.felder[k] || q.felder.bild;
     const res = await fetch(`https://api.airtable.com/v0/${BASE}/${q.tbl}/${r}`, { headers: h, cache: 'no-store' });
-    if (res.status === 404 || res.status === 403) continue; // anderer Tisch
-    if (!res.ok) return null;
+    // Falscher Tisch liefert je nach Fall 403/404/422 — immer im naechsten weitersuchen.
+    if (!res.ok) continue;
     tabelleVon.set(r, q.tbl);
     const f = (await res.json())?.fields || {};
     for (const name of felder) { const u = anhang(f[name]); if (u) return u; }
