@@ -7,7 +7,7 @@
 
 const AIRTABLE_BASE = 'app0QFyInfhvk66MC';
 const SYSTEM_TABLE = 'tblB1kWay9TvX3rGv';
-const LIEFERANTEN_TABLE = 'Lieferanten';
+const LIEFERANTEN_TABLE = 'tblsy3CHZbAo6GraB'; // Lieferanten (ID, stabil gegen Umbenennung)
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://ulba.ai';
@@ -48,6 +48,7 @@ export function teilSlug(name: string, recId: string): string {
   const base = (name || 'teil')
     .toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // é → e, à → a
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
