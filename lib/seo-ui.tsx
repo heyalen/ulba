@@ -33,7 +33,7 @@ export function Raster({ teile }: { teile: Teil[] }) {
         <Link key={t.id} href={`/teil/${t.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
           {t.bild
             /* eslint-disable-next-line @next/next/no-img-element */
-            ? <img src={t.bild} alt={`${t.name}${t.supplier ? ` von ${t.supplier}` : ''}`} loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 12 }} />
+            ? <img src={`/api/bild?r=${t.id}`} alt={`${t.name}${t.supplier ? ` von ${t.supplier}` : ''}`} loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'contain', background: farbe.nische, borderRadius: 12 }} />
             : <div style={{ width: '100%', aspectRatio: '1', background: farbe.nische, borderRadius: 12 }} />}
           <div style={{ marginTop: 8, fontSize: 15, fontWeight: 600 }}>{t.name}</div>
           <div style={{ color: farbe.hell, fontSize: 13 }}>
