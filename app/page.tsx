@@ -944,6 +944,72 @@ const STYLES = `
 .dw-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
 .dw-leer{color:var(--hell);font-size:14px;padding:32px 2px;text-align:center}
 @media(max-width:620px){.dw-box{max-height:96vh;border-radius:14px}.dw-dim-lbl{width:100%}.dw-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+.dr-box{max-width:1240px;height:min(780px,92vh)}
+.dr-leiste{flex:none;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 26px 16px;border-bottom:1px solid var(--linie)}
+.dr-eingabe{position:relative;flex:0 1 340px;min-width:220px}
+.dr-eingabe input{width:100%;border:1px solid var(--linie);border-radius:11px;background:#fff;padding:9px 38px 9px 14px;font-size:13.5px;outline:none;transition:border-color .15s}
+.dr-eingabe input:focus{border-color:var(--hell)}
+.dr-eingabe input::placeholder{color:var(--hell)}
+.dr-eingabe button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:8px;background:var(--tinte);color:#fff;font-size:13px}
+.dr-ws{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:center}
+.dr-ws-lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);margin-right:4px}
+.dr-ws .dw-pill{border:1px solid var(--linie);padding:6px 13px;font-size:12.5px;border-radius:999px;color:var(--grau);background:#fff}
+.dr-ws .dw-pill:hover{border-color:var(--tinte);color:var(--tinte)}
+.dr-ws .dw-pill.an{background:var(--tinte);border-color:var(--tinte);color:#fff}
+.dr-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,1fr);gap:0}
+.dr-feld-rahmen{position:relative;padding:34px 44px 38px;display:flex;align-items:stretch;justify-content:center;min-height:0;border-right:1px solid var(--linie)}
+.dr-achse{position:absolute;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--hell);pointer-events:none;white-space:nowrap}
+.dr-oben{top:12px;left:50%;transform:translateX(-50%)}
+.dr-unten{bottom:14px;left:50%;transform:translateX(-50%)}
+.dr-links{left:12px;top:50%;transform:translateY(-50%) rotate(-90deg);transform-origin:center}
+.dr-rechts{right:14px;top:50%;transform:translateY(-50%) rotate(90deg);transform-origin:center}
+.dr-feld{position:relative;flex:1;max-height:100%;aspect-ratio:1/1;margin:auto;border-radius:18px;cursor:crosshair;touch-action:none;outline:none;overflow:hidden;
+  background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,0) 60%),linear-gradient(180deg,#F6EEE3 0%,#F4F2EE 50%,#E9EEF2 100%);
+  box-shadow:inset 0 0 0 1px rgba(29,29,27,.06);transition:box-shadow .2s}
+.dr-feld:focus-visible{box-shadow:inset 0 0 0 1px rgba(29,29,27,.06),0 0 0 3px var(--blase)}
+.dr-mitte-h,.dr-mitte-v{position:absolute;background:rgba(29,29,27,.06);pointer-events:none}
+.dr-mitte-h{left:0;right:0;top:50%;height:1px}
+.dr-mitte-v{top:0;bottom:0;left:50%;width:1px}
+.dr-faden-h,.dr-faden-v{position:absolute;pointer-events:none;background:rgba(29,29,27,.14);transition:top .25s cubic-bezier(.2,.7,.2,1),left .25s cubic-bezier(.2,.7,.2,1)}
+.dr-faden-h{left:0;right:0;height:1px}
+.dr-faden-v{top:0;bottom:0;width:1px}
+.dr-punkt{position:absolute;width:0;height:0;pointer-events:none;transition:left .25s cubic-bezier(.2,.7,.2,1),top .25s cubic-bezier(.2,.7,.2,1)}
+.dr-feld.zieht .dr-punkt,.dr-feld.zieht .dr-faden-h,.dr-feld.zieht .dr-faden-v{transition:none}
+.dr-kern{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--tinte);box-shadow:0 0 0 3px #fff,0 4px 14px rgba(20,24,26,.28)}
+.dr-halo{position:absolute;left:-30px;top:-30px;width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,rgba(29,29,27,.14),rgba(29,29,27,0) 70%);animation:drAtmen 2.6s ease-in-out infinite}
+.dr-feld.zieht .dr-kern{transform:scale(1.12)}
+.dr-lesart{position:absolute;left:18px;top:-30px;background:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;color:var(--tinte);white-space:nowrap;box-shadow:0 2px 10px rgba(20,24,26,.12)}
+.dr-lesart.links{left:auto;right:18px}
+.dr-lesart.hoch{top:auto;bottom:-30px}
+.dr-hinweis{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13.5px;color:var(--hell);pointer-events:none;animation:drPuls 2.4s ease-in-out infinite}
+.dr-welten{min-height:0;overflow-y:auto;padding:22px 24px 26px}
+.dr-start{display:flex;flex-direction:column;gap:8px;padding:40px 6px;color:var(--grau);font-size:14px;line-height:1.55}
+.dr-start b{font-size:17px;color:var(--tinte);font-weight:600}
+.dr-kopfzeile{display:flex;flex-direction:column;gap:3px;margin-bottom:14px}
+.dr-kopfzeile span{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--grau)}
+.dr-kopfzeile em{font-style:normal;font-size:12.5px;color:var(--hell)}
+.dr-liste{display:flex;flex-direction:column;gap:10px}
+.dr-k{display:grid;grid-template-columns:78px 1fr;gap:14px;align-items:center;text-align:left;border:1px solid #E6E6E8;border-radius:14px;background:#fff;padding:8px;opacity:0;animation:drRein .34s cubic-bezier(.2,.7,.2,1) forwards;transition:border-color .15s,transform .15s}
+.dr-k:hover{border-color:var(--tinte);transform:translateX(2px)}
+.dr-k.erste{grid-template-columns:1fr;padding:10px;gap:12px}
+.dr-k-bild{position:relative;height:78px;border-radius:9px;background:var(--nische);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.dr-k.erste .dr-k-bild{height:220px}
+.dr-k-bild img{width:100%;height:100%;object-fit:cover;display:block}
+.dr-k-text{display:flex;flex-direction:column;gap:3px;min-width:0;padding-right:4px}
+.dr-k.erste .dr-k-text{padding:0 4px 4px}
+.dr-k-nm{font-size:14px;font-weight:600;color:var(--tinte)}
+.dr-k.erste .dr-k-nm{font-size:17px}
+.dr-k-warum{font-size:12px;color:var(--hell)}
+.dr-k-wirkung{font-size:13px;color:var(--grau);line-height:1.5;margin-top:4px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dr-k-cta{margin-top:8px;font-size:13px;font-weight:600;color:var(--tinte)}
+.dr-skel{display:flex;flex-direction:column;gap:10px}
+.dr-skel div{height:94px;border-radius:14px;background:var(--nische);animation:drPuls 1.4s ease-in-out infinite}
+.dr-skel div:first-child{height:300px}
+@keyframes drRein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes drAtmen{0%,100%{transform:scale(.85);opacity:.7}50%{transform:scale(1.15);opacity:1}}
+@keyframes drPuls{0%,100%{opacity:.55}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.dr-halo,.dr-hinweis,.dr-skel div{animation:none}.dr-k{animation-duration:.01s}.dr-punkt,.dr-faden-h,.dr-faden-v{transition:none}}
+@media(max-width:820px){.dr-box{height:96vh}.dr-body{grid-template-columns:1fr;overflow-y:auto}.dr-feld-rahmen{display:block;border-right:0;border-bottom:1px solid var(--linie);padding:30px 34px 34px}.dr-feld{width:100%;max-width:420px;margin:0 auto}.dr-ws-lbl{flex:none}.dr-welten{overflow:visible}.dr-leiste{padding:0 16px 12px}.dr-ws{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}.dr-ws .dw-pill{flex:none}}
 
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
@@ -1104,136 +1170,235 @@ function LieferantProfil({ name, onClose, onTeil }: { name: string; onClose: () 
   );
 }
 
+/* ── v61 — Der Design-Raum.
+   Statt Filterwand ein leeres Feld mit zwei Achsen: ruhig ↔ laut (Temp_Laut)
+   und klinisch-kühl ↔ warm-sinnlich (Farbtemp), beide 0–10 aus der
+   Design_Code-Tabelle. Der Kunde setzt einen Punkt; erst dann erscheinen die
+   nächstliegenden Welten. Wirkstoff filtert, verschiebt aber nie den Punkt.
+   Liegt der Punkt in einer Lücke, zeigen wir ehrlich die nächstliegende
+   Richtung — nie ein leeres Ergebnis. */
+interface RaumPunkt { x: number; y: number }
+const RAUM_MERKER = new Map<string, RaumPunkt>();
+const RAUM_WORTE: { re: RegExp; x?: number; y?: number }[] = [
+  { re: /\b(ruhig|leise|still|dezent|zur[uü]ckhaltend|schlicht|minimal)/, x: 2 },
+  { re: /\b(laut|bunt|knallig|auff[aä]llig|energ|pop|frech|mutig|kr[aä]ftig)/, x: 8 },
+  { re: /\b(k[uü]hl|klinisch|frisch|blau|silber|steril|wissenschaft|apothek)/, y: 2 },
+  { re: /\b(warm|sinnlich|gold|sonn|pfirsich|peach|natur|erdig|weich|cremig)/, y: 8 },
+  { re: /\b(teuer|luxus|edel|premium|hochwertig)/, x: 3, y: 7 },
+];
+const lautWort = (x: number) => x < 3.5 ? 'leise' : x < 6.5 ? 'ausgewogen' : 'laut';
+const tempWort = (y: number) => y < 3.5 ? 'kühl' : y < 6.5 ? 'neutral' : 'warm';
+const klemm = (v: number) => Math.max(0, Math.min(10, v));
+const rundHalb = (v: number) => Math.round(v * 2) / 2;
+
 function DesignWand({ suche, register, onWahl, onClose }: {
   suche?: string; register?: string | null;
   onWahl: (c: DesignCodeKarte) => void; onClose: () => void;
 }) {
+  const merkKey = suche || '';
   const [codes, setCodes] = useState<DesignCodeKarte[]>([]);
-  const [facetten, setFacetten] = useState<CodeFacetten>({ register: [], segment: [], form: [], material: [], wirkstoff: [] });
+  const [wirkstoffe, setWirkstoffe] = useState<string[]>([]);
   const [laden, setLaden] = useState(true);
-  const [aktiv, setAktiv] = useState<Partial<Record<FacettenDim, string>>>({});
-  const [alleZeigen, setAlleZeigen] = useState(false);
-  const [suchwort, setSuchwort] = useState('');
+  const [punkt, setPunkt] = useState<RaumPunkt | null>(RAUM_MERKER.get(merkKey) || null);
+  const [gesetzt, setGesetzt] = useState<RaumPunkt | null>(RAUM_MERKER.get(merkKey) || null);
+  const [ziehen, setZiehen] = useState(false);
+  const [wirkstoff, setWirkstoff] = useState<string | null>(null);
+  const [eingabe, setEingabe] = useState('');
+  const [lauf, setLauf] = useState(0);
+  const feldRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let tot = false;
     setLaden(true);
     fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      // Wirkstoff erkennt der Renderer aus der Suche — gegen die Airtable-Tabelle
-      // Wirkstoffe, nicht gegen eine Liste im Frontend.
       body: JSON.stringify({ codes: true, register: register || null, suche: suche || null }) })
       .then(r => r.json())
       .then(d => { if (tot) return;
-        setCodes(Array.isArray(d?.codes) ? d.codes : []);
-        if (d?.facetten) setFacetten(d.facetten);
+        const liste: DesignCodeKarte[] = Array.isArray(d?.codes) ? d.codes : [];
+        setCodes(liste);
+        const vorhanden = new Set(liste.flatMap(c => c.wirkstoffWelt));
+        setWirkstoffe(((d?.facetten?.wirkstoff || []) as string[]).filter(w => vorhanden.has(w) && !/^universal$/i.test(w)));
+        // Ohne gemerkten Punkt: Startpunkt = Mitte der Codes, die zur Suche passen.
+        if (!RAUM_MERKER.get(merkKey)) {
+          const p = liste.filter(c => c.passend && c.laut != null && c.farbtemp != null);
+          if (p.length) {
+            const s = { x: rundHalb(p.reduce((a, c) => a + (c.laut as number), 0) / p.length),
+                        y: rundHalb(p.reduce((a, c) => a + (c.farbtemp as number), 0) / p.length) };
+            setPunkt(s);
+          }
+        }
       })
       .catch(() => { if (!tot) setCodes([]); })
       .finally(() => { if (!tot) setLaden(false); });
     return () => { tot = true; };
-  }, [register, suche]);
+  }, [register, suche, merkKey]);
 
-  const setzeFacette = (dim: FacettenDim, wert: string) =>
-    setAktiv(a => ({ ...a, [dim]: a[dim] === wert ? undefined : wert }));
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
 
-  const gefiltert = useMemo(() => {
-    const w = suchwort.trim().toLowerCase();
-    return codes.filter(c => {
-      if (aktiv.register && c.register !== aktiv.register) return false;
-      if (aktiv.segment && !c.segments.includes(aktiv.segment)) return false;
-      if (aktiv.form && c.hfForm !== aktiv.form) return false;
-      if (aktiv.material && c.hfMaterial !== aktiv.material) return false;
-      if (aktiv.wirkstoff && !c.wirkstoffWelt.includes(aktiv.wirkstoff)) return false;
-      if (w && !(`${c.name} ${c.brand} ${c.wirkung}`.toLowerCase().includes(w))) return false;
-      return true;
-    });
-  }, [codes, aktiv, suchwort]);
+  const setze = useCallback((p: RaumPunkt) => {
+    const q = { x: klemm(p.x), y: klemm(p.y) };
+    setPunkt(q); setGesetzt(q); setLauf(n => n + 1);
+    RAUM_MERKER.set(merkKey, q);
+  }, [merkKey]);
 
-  const filterAktiv = Object.values(aktiv).some(Boolean) || !!suchwort.trim();
-  const passende = gefiltert.filter(c => c.passend);
-  const uebrige = gefiltert.filter(c => !c.passend);
-  // Ohne Filter führt die Vorsortierung; sobald gefiltert wird, ist die Wand flach.
-  const oben = filterAktiv ? gefiltert : (passende.length ? passende : gefiltert.slice(0, 12));
-  const unten = filterAktiv ? [] : (passende.length ? uebrige : gefiltert.slice(12));
+  const ausZeiger = (e: { clientX: number; clientY: number }): RaumPunkt | null => {
+    const r = feldRef.current?.getBoundingClientRect();
+    if (!r) return null;
+    return { x: klemm(((e.clientX - r.left) / r.width) * 10), y: klemm((1 - (e.clientY - r.top) / r.height) * 10) };
+  };
 
-  const kachel = (c: DesignCodeKarte) => (
-    <button key={c.id} className="dw-k" onClick={() => onWahl(c)} title={c.wirkung || c.name}>
-      <div className="dw-k-bild">
-        {c.bild ? <img src={c.bild} alt={c.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
-                : <span className="dw-k-ph">◻</span>}
-        <span className="dw-k-farben">
-          {c.bodyHex && <i style={{ background: c.bodyHex }} />}
-          {c.capHex && <i style={{ background: c.capHex }} />}
-        </span>
-      </div>
-      <span className="dw-k-nm">{c.name}</span>
-      {c.brand && <span className="dw-k-brand">{c.brand}</span>}
-    </button>
-  );
+  const imRaum = useMemo(() => codes.filter(c => c.laut != null && c.farbtemp != null), [codes]);
+  const ergebnis = useMemo(() => {
+    if (!gesetzt) return { liste: [] as { c: DesignCodeKarte; d: number }[], wirkstoffLeer: false };
+    const pool = wirkstoff
+      ? imRaum.filter(c => c.wirkstoffWelt.includes(wirkstoff) || c.wirkstoffWelt.some(w => /^universal$/i.test(w)))
+      : imRaum;
+    const basis = pool.length ? pool : imRaum;
+    const liste = basis
+      .map(c => ({ c, d: Math.hypot((c.laut as number) - gesetzt.x, (c.farbtemp as number) - gesetzt.y) }))
+      .sort((a, b) => a.d - b.d)
+      .filter((v, i, arr) => arr.findIndex(w => w.c.name === v.c.name) === i)
+      .slice(0, 5);
+    return { liste, wirkstoffLeer: !!wirkstoff && !pool.length };
+  }, [gesetzt, imRaum, wirkstoff]);
+
+  const naechste = ergebnis.liste[0];
+  const luecke = !!naechste && naechste.d > 2.5;
+  const anzeige = punkt;
+  const lesart = anzeige ? `${lautWort(anzeige.x)} · ${tempWort(anzeige.y)}` : '';
+
+  const warum = (c: DesignCodeKarte) => [
+    c.laut != null ? lautWort(c.laut) : '', c.farbtemp != null ? tempWort(c.farbtemp) : '',
+    c.register ? c.register.replace(/-/g, ' ') : '',
+  ].filter(Boolean).join(' · ');
+
+  const eingabeSetzen = () => {
+    const t = eingabe.trim().toLowerCase();
+    if (!t) return;
+    const treffer = imRaum.find(c => `${c.name} ${c.brand}`.toLowerCase().includes(t));
+    if (treffer) { setze({ x: treffer.laut as number, y: treffer.farbtemp as number }); return; }
+    let x: number | null = null, y: number | null = null;
+    for (const w of RAUM_WORTE) if (w.re.test(t)) { if (w.x != null) x = w.x; if (w.y != null) y = w.y; }
+    const ws = wirkstoffe.find(w => t.includes(w.replace(/_/g, ' ').toLowerCase().split(' ')[0]));
+    if (ws) setWirkstoff(ws);
+    if (x != null || y != null || ws) setze({ x: x ?? anzeige?.x ?? 5, y: y ?? anzeige?.y ?? 5 });
+  };
+
+  const taste = (e: React.KeyboardEvent) => {
+    const p = anzeige || { x: 5, y: 5 };
+    const s = e.shiftKey ? 2 : 0.5;
+    const z: Record<string, RaumPunkt> = {
+      ArrowLeft: { x: p.x - s, y: p.y }, ArrowRight: { x: p.x + s, y: p.y },
+      ArrowUp: { x: p.x, y: p.y + s }, ArrowDown: { x: p.x, y: p.y - s },
+    };
+    if (z[e.key]) { e.preventDefault(); setze(z[e.key]); }
+    else if (e.key === 'Enter' && naechste) onWahl(naechste.c);
+  };
 
   return (
-    <div className="dw-ov" role="dialog" aria-label="Design wählen">
-      <div className="dw-box">
+    <div className="dw-ov" role="dialog" aria-label="Design wählen" onClick={onClose}>
+      <div className="dw-box dr-box" onClick={e => e.stopPropagation()}>
         <div className="dw-kopf">
           <div>
             <h3 className="serif">In welchem Design?</h3>
-            <span className="dw-sub">Tipp eins an — dein Teil steht danach genau so da.</span>
+            <span className="dw-sub">Setz einen Punkt im Raum — ulba zeigt dir die Welten, die dort liegen.</span>
           </div>
           <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
         </div>
 
-        <div className="dw-filter">
-          <div className="dw-suche">
-            <input value={suchwort} onChange={e => setSuchwort(e.target.value)} placeholder="Marke, Name oder Wirkung …" />
-          </div>
-          {(Object.keys(FACETTEN_LABEL) as FacettenDim[]).map(dim => {
-            const opt = facetten[dim] || [];
-            if (!opt.length) return null;
-            return (
-              <div key={dim} className="dw-dim">
-                <span className="dw-dim-lbl">{FACETTEN_LABEL[dim]}</span>
-                <div className="dw-dim-opt">
-                  {opt.map(o => (
-                    <button key={o} className={`dw-pill${aktiv[dim] === o ? ' an' : ''}`} onClick={() => setzeFacette(dim, o)}>
-                      {o.replace(/_/g, ' ')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {filterAktiv && (
-            <button className="dw-reset" onClick={() => { setAktiv({}); setSuchwort(''); }}>Filter zurücksetzen</button>
+        <div className="dr-leiste">
+          <form className="dr-eingabe" onSubmit={e => { e.preventDefault(); eingabeSetzen(); }}>
+            <input value={eingabe} onChange={e => setEingabe(e.target.value)} placeholder="Beschreib es kurz, z. B. ruhig und warm …" aria-label="Richtung beschreiben" />
+            {!!eingabe.trim() && <button type="submit">↵</button>}
+          </form>
+          {!!wirkstoffe.length && (
+            <div className="dr-ws" role="group" aria-label="Wirkstoff"><span className="dr-ws-lbl">Wirkstoff</span>
+              {wirkstoffe.map(w => (
+                <button key={w} className={`dw-pill${wirkstoff === w ? ' an' : ''}`}
+                  onClick={() => { setWirkstoff(a => a === w ? null : w); setLauf(n => n + 1); }}>
+                  {w.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="dw-body">
-          {laden && <div className="dw-leer">Lade die Design-Welten …</div>}
-          {!laden && !gefiltert.length && (
-            <div className="dw-leer">
-              Kein Design passt zu dieser Auswahl. {filterAktiv ? 'Nimm einen Filter weg.' : 'Das Archiv trägt hier noch nichts.'}
-            </div>
-          )}
-          {!laden && !!oben.length && (
-            <>
-              {!filterAktiv && !!passende.length && <div className="dw-lbl">Passt zu deiner Suche</div>}
-              <div className="dw-grid">{oben.map(kachel)}</div>
-            </>
-          )}
-          {!laden && !!unten.length && (
-            <>
-              {!alleZeigen && (
-                <button className="dw-mehr" onClick={() => setAlleZeigen(true)}>
-                  Alle {unten.length} weiteren Designs zeigen →
-                </button>
-              )}
-              {alleZeigen && (
+        <div className="dr-body">
+          <div className="dr-feld-rahmen">
+            <span className="dr-achse dr-oben">warm · sinnlich</span>
+            <span className="dr-achse dr-unten">klinisch · kühl</span>
+            <span className="dr-achse dr-links">ruhig</span>
+            <span className="dr-achse dr-rechts">laut</span>
+            <div ref={feldRef} className={`dr-feld${ziehen ? ' zieht' : ''}${anzeige ? '' : ' leer'}`}
+              tabIndex={0} role="slider" aria-label="Position im Design-Raum"
+              aria-valuetext={anzeige ? lesart : 'kein Punkt gesetzt'}
+              onKeyDown={taste}
+              onPointerDown={e => {
+                const p = ausZeiger(e); if (!p) return;
+                (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                setZiehen(true); setPunkt(p);
+              }}
+              onPointerMove={e => { if (!ziehen) return; const p = ausZeiger(e); if (p) setPunkt(p); }}
+              onPointerUp={e => { if (!ziehen) return; setZiehen(false); const p = ausZeiger(e); if (p) setze(p); }}
+              onPointerCancel={() => setZiehen(false)}>
+              <i className="dr-mitte-h" /><i className="dr-mitte-v" />
+              {anzeige ? (
                 <>
-                  <div className="dw-lbl">Alle weiteren</div>
-                  <div className="dw-grid">{unten.map(kachel)}</div>
+                  <i className="dr-faden-h" style={{ top: `${100 - anzeige.y * 10}%` }} />
+                  <i className="dr-faden-v" style={{ left: `${anzeige.x * 10}%` }} />
+                  <div className="dr-punkt" style={{ left: `${anzeige.x * 10}%`, top: `${100 - anzeige.y * 10}%` }}>
+                    <span className="dr-halo" />
+                    <span className="dr-kern" />
+                    <span className={`dr-lesart${anzeige.x > 7 ? ' links' : ''}${anzeige.y < 1.5 ? ' hoch' : ''}`}>{lesart}</span>
+                  </div>
                 </>
+              ) : (
+                <div className="dr-hinweis">Tipp oder zieh irgendwohin</div>
               )}
-            </>
-          )}
+            </div>
+          </div>
+
+          <div className="dr-welten" aria-live="polite">
+            {laden && <div className="dr-skel">{[0, 1, 2].map(i => <div key={i} />)}</div>}
+            {!laden && !imRaum.length && <div className="dw-leer">Die Design-Welten sind gerade nicht erreichbar.</div>}
+            {!laden && !!imRaum.length && !gesetzt && (
+              <div className="dr-start">
+                <b>Wo steht deine Marke?</b>
+                <span>Links ruhig, rechts laut. Oben warm und sinnlich, unten klinisch und kühl. Setz deinen Punkt — die passenden Welten erscheinen hier.</span>
+              </div>
+            )}
+            {!laden && !!naechste && (
+              <div key={lauf} className="dr-liste">
+                <div className="dr-kopfzeile">
+                  <span>{luecke ? 'Nächstliegende Richtung' : `Deine Richtung · ${(naechste.c.register || '').replace(/-/g, ' ')}`}</span>
+                  {luecke && <em>An deinem Punkt gibt es noch keine Referenz.</em>}
+                  {ergebnis.wirkstoffLeer && <em>Für diesen Wirkstoff gibt es hier noch nichts — alle Welten gezeigt.</em>}
+                </div>
+                {ergebnis.liste.map(({ c }, i) => (
+                  <button key={c.id} className={`dr-k${i === 0 ? ' erste' : ''}`} style={{ animationDelay: `${i * 45}ms` }}
+                    onClick={() => onWahl(c)} title={c.wirkung || c.name}>
+                    <div className="dr-k-bild">
+                      {c.bild ? <img src={c.bild} alt={c.name} /> : <span className="dw-k-ph">◻</span>}
+                      <span className="dw-k-farben">
+                        {c.bodyHex && <i style={{ background: c.bodyHex }} />}
+                        {c.capHex && <i style={{ background: c.capHex }} />}
+                      </span>
+                    </div>
+                    <div className="dr-k-text">
+                      <span className="dr-k-nm">{c.name}</span>
+                      <span className="dr-k-warum">{warum(c)}</span>
+                      {i === 0 && c.wirkung && <span className="dr-k-wirkung">{c.wirkung}</span>}
+                      {i === 0 && <span className="dr-k-cta">In diesem Design rendern →</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
