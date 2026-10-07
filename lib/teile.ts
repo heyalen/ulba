@@ -43,6 +43,8 @@ const L = {
   website: 'fldDfEAJQjKB3ei0G',
   beschreibung: 'fldKTjCZjihhtgrXk',
   status: 'flddhjCq9c3NDC0cZ',
+  logo: 'fldSHKbcxAAsvGMxO',
+  standort: 'fldEspF57M7TMgapI',
 };
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ulba.ai';
@@ -62,6 +64,7 @@ export interface Teil {
 }
 export interface Lieferant {
   id: string; slug: string; name: string; land: string; website: string; beschreibung: string;
+  standort: string; hatLogo: boolean;
 }
 
 /* ── Hilfen ──────────────────────────────────────────────────────────── */
@@ -120,6 +123,7 @@ async function ladeLieferanten(): Promise<Map<string, Lieferant>> {
       map.set(r.id, {
         id: r.id, slug: slugify(name), name,
         land: sel(f[L.land]), website: String(f[L.website] || ''),
+        standort: String(f[L.standort] || ''), hatLogo: !!img(f[L.logo]),
         beschreibung: String(f[L.beschreibung] || ''),
       });
     }

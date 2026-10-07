@@ -1247,7 +1247,7 @@ function DesignWand({ suche, register, onWahl, onClose }: {
    sich mehrere Teile im selben Design vergleichen. ── */
 function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample, onTeil }: {
   product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
-  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard: () => void; onClose: () => void;
+  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard?: () => void; onClose: () => void;
   sucheQuery?: string; lookCode: DesignCodeKarte | null; onLook: (c: DesignCodeKarte | null) => void;
   onSample: (ctx: SampleContext) => void;
   onTeil?: (r: Result) => void;
@@ -1409,7 +1409,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           capLabel: caps[capIdx]?.name || '',
           konzept: render?.concept || null,
         })}>Muster anfragen →</button>
-        <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>
+        {onBoard && <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>}
       </div>
 
       {lieferantOffen && product.supplier && (
@@ -1696,10 +1696,9 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  // SEO — Einstieg über /?teil=<recordId>[&cap=<capId>] (von den indexierbaren Seiten):
-  // Teil laden, eine Suche nach ähnlichen Teilen starten (Typ + Material + Form)
-  // und das Teil direkt im DetailPanel öffnen — optional mit gewähltem Verschluss.
-  const einstiegRef = useRef<{ t: Result; cap: string | null } | null>(null);
+  // Einstieg über /?teil=<recordId>[&cap=<capId>] (von den Katalog-Seiten):
+  // Teil direkt im DetailPanel öffnen — auf der Startseite, OHNE neues Projekt.
+  // Ein Projekt entsteht erst, wenn der Nutzer selbst sucht.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const id = q.get('teil');
@@ -1710,22 +1709,11 @@ export default function Home() {
       .then(d => {
         const t = Array.isArray(d?.frisch) ? heile(d.frisch as Partial<Result>[])[0] as Result | undefined : undefined;
         if (!t) return;
-        einstiegRef.current = { t, cap: capId && /^rec[A-Za-z0-9]{14}$/.test(capId) ? capId : null };
-        const suche = [t.type, ...(t.material || []).slice(0, 1), ...(t.form || []).slice(0, 1)].filter(Boolean).join(' ') || t.name;
-        starteSuche(suche);
+        const idx = capId ? getCaps(t).findIndex(c => c.id === capId) : -1;
+        setView('start'); setSelected(t); setSelectedCap(idx > 0 ? idx : 0);
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Sobald das Einstiegs-Projekt aktiv ist: Teil öffnen (starteSuche setzt selected zurück).
-  useEffect(() => {
-    const e = einstiegRef.current;
-    if (!e || view !== 'chat' || !activeId) return;
-    einstiegRef.current = null;
-    setSelected(e.t);
-    const idx = e.cap ? getCaps(e.t).findIndex(c => c.id === e.cap) : -1;
-    setSelectedCap(idx > 0 ? idx : 0);
-  }, [view, activeId]);
 
   // Geöffnetes Teil in der URL spiegeln → Link teilbar (LinkedIn, Mail, Musteranfrage).
   useEffect(() => {
@@ -1954,8 +1942,10 @@ export default function Home() {
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
 
-        <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
+        <div className={`content${view === 'chat' || (view === 'start' && selected) ? ' content-chat' : ''}`}>
           {view === 'start' && (
+            <div className={`chat${selected ? ' split' : ''}`}>
+            <main className="cs-main">
             <div className="start">
               <div className="st-mitte">
                 <h1>Was möchtest du <em>launchen</em>?</h1>
@@ -1990,6 +1980,17 @@ export default function Home() {
                 </div>
                 <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
               </div>
+            </div>
+            </main>
+            {selected && (
+              <DetailPanel product={selected}
+                cap={selectedCap} onCap={setSelectedCap}
+                isFav={isFav(selected.id)} inBoard={false}
+                onFav={() => quickFav(selected)}
+                lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
+                onTeil={r => { setSelected(r); setSelectedCap(0); }}
+                onClose={() => setSelected(null)} />
+            )}
             </div>
           )}
 

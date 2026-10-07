@@ -1,8 +1,8 @@
 /* ulba · app/packmittel/[typ]/[filter]/page.tsx — Kombi-Seite, z. B. /packmittel/flasche/glas oder /packmittel/flasche/30ml. */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { alleKategorien, kategorie } from '../../../../lib/teile';
-import { KategorieInhalt, kategorieMeta } from '../../../../lib/kategorie-seite';
+import { alleKategorien, kategorie } from '@/lib/teile';
+import { KategorieInhalt, kategorieMeta } from '@/app/(katalog)/kategorie';
 
 export const revalidate = 3600;
 
