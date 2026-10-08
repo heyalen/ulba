@@ -1,38 +1,32 @@
-/* ulba · app/(katalog)/ui.tsx — gemeinsame Bausteine der Katalog-Seiten
+/* ulba · app/_katalog/ui.tsx — gemeinsame Bausteine der Katalog-Seiten
    (Server Components). Optik = App: Wortmarke, Karten .ek, Pillen. */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Teil } from '@/lib/teile';
+import { typKurz } from '@/lib/typen';
 
 export const bildVon = (id: string) => `/api/bild?r=${id}`;
 
 export function specText(t: Pick<Teil, 'type' | 'sizes' | 'material'>): string {
-  return [t.type, t.sizes[0], t.material.join('/')].filter(Boolean).join(' · ');
+  return [typKurz(t.type), t.sizes[0], t.material.join('/')].filter(Boolean).join(' · ');
 }
 
+/* Rahmen einer Katalog-Seite INNERHALB der App: Navigation und Logo
+   kommen aus der App-Shell (app/_ulba/app.tsx), hier nur Spur + Inhalt. */
 export function Rahmen({ spur, children }: { spur: { label: string; href?: string }[]; children: ReactNode }) {
   return (
-    <>
-      <header className="ub-top">
-        <div className="ub-top-in">
-          <Link href="/" aria-label="ulba Startseite">
-            <svg className="ub-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba">
-              <text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="#1D1D1B">ulba</text>
-            </svg>
-          </Link>
-          <nav className="ub-spur" aria-label="Brotkrumen">
-            {spur.map((s, i) => (
-              <span key={i}>
-                {i > 0 && <i>›&nbsp;</i>}
-                {s.href ? <Link href={s.href}>{s.label}</Link> : s.label}
-              </span>
-            ))}
-          </nav>
-          <Link href="/" className="ub-suche">Suchen ↗</Link>
-        </div>
-      </header>
+    <div className="ub ub-im-app">
+      <nav className="ub-spur" aria-label="Brotkrumen">
+        <span><Link href="/">ulba</Link></span>
+        {spur.map((s, i) => (
+          <span key={i}>
+            <i>›&nbsp;</i>
+            {s.href ? <Link href={s.href}>{s.label}</Link> : s.label}
+          </span>
+        ))}
+      </nav>
       <main className="ub-seite">{children}</main>
-    </>
+    </div>
   );
 }
 

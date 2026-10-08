@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { alleKategorien, kategorie } from '@/lib/teile';
-import { KategorieInhalt, kategorieMeta } from '@/app/(katalog)/kategorie';
+import { KategorieInhalt, kategorieMeta } from '@/app/_katalog/kategorie';
 
 export const revalidate = 3600;
 

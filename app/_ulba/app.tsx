@@ -1,9 +1,16 @@
 'use client';
-/* ulba · page.tsx — Thread-Verlauf: jeder Suchlauf ist ein Block.
+/* ulba · app/_ulba/app.tsx — die App (Shell + Thread + Teil-Seite).
+   Lebt im Layout app/(app)/layout.tsx und bleibt über alle Seiten am Leben;
+   / und /teil/<slug> liefern nur ihren Inhalt hinein.
+   Thread-Verlauf: jeder Suchlauf ist ein Block.
    Spricht nur mit dem Renderer (/api/search, /api/render).
    Favoriten/Projekte über localStorage. Historie: git log. */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Suspense, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { teilSlug, slugify } from '@/lib/slug';
+import { TYP_KURZ } from '@/lib/typen';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
@@ -16,14 +23,7 @@ const EXAMPLES = [
   { label: 'Premium Ritual', q: 'Premium anti-aging ceremonial glass luxe' },
 ];
 
-const TYPE_LABELS: Record<string, string> = {
-  Jar_ScrewCap: 'Tiegel · Schraub', Bottle_ScrewCap: 'Flasche · Schraub',
-  Bottle_DispenserPump: 'Flasche · Pumpe', Airless_Bottle: 'Airless',
-  Airless_Jar: 'Airless Tiegel', Bottle_FlipTop: 'Flasche · Flip',
-  Bottle_Dropper: 'Flasche · Pipette', Bottle_Spray: 'Flasche · Spray',
-  Tube_FlipTop: 'Tube · Flip', Tube_ScrewCap: 'Tube · Schraub',
-  Bottle_TriggerPump: 'Flasche · Trigger',
-};
+const TYPE_LABELS = TYP_KURZ;
 
 const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
   materials: 'Material', types: 'Typ', closures: 'Verschluss', sizes: 'Größe',
@@ -93,7 +93,7 @@ interface Bildlesart {
   finish: string | null; volumen: string | null; prosa: string; geraten: string[];
 }
 
-interface Result {
+export interface Result {
   id: string; name: string; score: number; reasoning: string;
   abweichung?: string[]; // v47 — wo dieses Teil vom Referenzbild abweicht
   formNaehe?: number | null;  // v55 — Silhouetten-Naehe
@@ -302,7 +302,7 @@ const STYLES = `
 }
 .ulba{background:var(--flaeche);color:var(--tinte);height:100dvh;font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:347px 1fr;overflow:hidden}
 .ulba *{box-sizing:border-box}
-.ulba button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:where(.ulba) button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ulba input,.ulba textarea{font:inherit}
 .ulba :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
 .serif{font-family:var(--serif);font-weight:800;letter-spacing:-.01em} .kursiv{font-family:var(--serif);font-style:normal}
@@ -362,7 +362,7 @@ const STYLES = `
 .tr-pill:hover{background:var(--linie2);color:var(--tinte)}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
-.chat.split{grid-template-columns:minmax(420px,1fr) 720px}
+.chat.split{grid-template-columns:minmax(380px,1fr) minmax(460px,720px)}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
 .thread{flex:1;overflow-y:auto;min-height:0;padding:26px clamp(16px,4vw,54px) 20px}
 .thread-inner{max-width:900px;margin:0 auto;width:100%}
@@ -870,48 +870,6 @@ const STYLES = `
 .pn-waechter .pn-w-warn{font-size:12.5px;line-height:1.5;color:#9a6b1f}
 .pn-waechter .pn-w-prod{font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--hell)}
 
-.lp-box{position:relative;background:var(--panel);border-radius:20px;width:100%;max-width:1040px;max-height:92vh;overflow:hidden;box-shadow:0 24px 70px rgba(20,24,26,.28);display:flex}
-.lp-scroll{flex:1;overflow-y:auto;min-height:0}
-.lp-zu{position:absolute;top:14px;right:14px;z-index:3;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.12);font-size:20px;line-height:1;color:var(--grau)}
-.lp-zu:hover{color:var(--rouge)}
-.lp-titel{height:150px;background:linear-gradient(135deg,#F3F1EE,#ECEDEF);overflow:hidden;position:relative}
-.lp-titel-img{width:100%;height:100%;object-fit:cover;display:block}
-.lp-titel-reihe{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:flex-end;gap:18px;padding:0 70px 0 40%;opacity:.38;filter:grayscale(1)}
-.lp-titel-reihe img{height:118px;width:auto;object-fit:contain;mix-blend-mode:multiply}
-.lp-kopf{display:flex;align-items:flex-end;gap:18px;padding:0 30px;margin-top:-44px;position:relative}
-.lp-logo{width:96px;height:96px;flex:none;border-radius:18px;background:#fff;border:4px solid #fff;box-shadow:0 2px 10px rgba(20,24,26,.1);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.lp-logo img{max-width:82%;max-height:82%;object-fit:contain}
-.lp-logo span{font-family:var(--serif);font-weight:800;font-size:30px;color:var(--rouge)}
-.lp-id{flex:1;min-width:0;padding-bottom:2px}
-.lp-id h3{font-size:26px;margin:0;line-height:1.15;display:flex;align-items:center;gap:8px}
-.lp-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--tinte);color:#fff;font-size:11px;font-family:var(--sans)}
-.lp-meta{display:block;font-size:14px;color:var(--grau);margin-top:4px}
-.lp-quelle{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--hell);margin-top:3px}
-.lp-web{flex:none;border:1px solid var(--tinte);border-radius:999px;padding:8px 16px;font-size:13px;color:var(--tinte);text-decoration:none;margin-bottom:4px}
-.lp-web:hover{background:var(--tinte);color:#fff}
-.lp-info{margin:22px 30px 0;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start}
-.lp-ueber{font-size:14px;line-height:1.65;color:var(--grau);margin:0;max-width:62ch}
-.lp-fakten{display:grid;grid-template-columns:repeat(2,minmax(130px,auto));gap:8px}
-.lp-fakten div{background:var(--nische);border-radius:11px;padding:10px 13px}
-.lp-fakten span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell)}
-.lp-fakten b{display:block;font-size:13.5px;font-weight:600;margin-top:2px}
-.lp-reiter{position:sticky;top:0;z-index:2;background:var(--panel);display:flex;gap:4px;padding:0 30px;margin-top:24px;border-bottom:1px solid var(--linie);overflow-x:auto}
-.lp-reiter button{padding:13px 12px 11px;font-size:14px;color:var(--grau);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.lp-reiter button:hover{color:var(--tinte)}
-.lp-reiter button.an{color:var(--tinte);border-bottom-color:var(--tinte);font-weight:600}
-.lp-reiter i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--hell);margin-left:6px}
-.lp-sortiment{padding:20px 30px 30px}
-.lp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
-.lp-grid .ek-klick:disabled{cursor:default}
-.lp-skel{height:212px;border-radius:12px;background:linear-gradient(90deg,var(--nische) 25%,#EFEFF1 50%,var(--nische) 75%);background-size:200% 100%;animation:lpskel 1.2s ease-in-out infinite}
-@keyframes lpskel{to{background-position:-200% 0}}
-.lp-leer{padding:34px 0;color:var(--grau);font-size:14px}
-@media (max-width:720px){
-.lp-titel{height:104px}.lp-titel-reihe{padding-left:30%}.lp-titel-reihe img{height:84px}
-.lp-kopf{flex-wrap:wrap;padding:0 18px;margin-top:-36px;gap:12px}.lp-logo{width:76px;height:76px;border-radius:15px}
-.lp-id{flex-basis:100%}.lp-id h3{font-size:22px}.lp-web{margin-bottom:0}
-.lp-info{grid-template-columns:1fr;margin:18px 18px 0}.lp-reiter{padding:0 18px}.lp-sortiment{padding:16px 18px 24px}
-.lp-grid{grid-template-columns:repeat(2,1fr);gap:10px}}
 .dw-ov{position:fixed;inset:0;background:rgba(20,24,26,.42);z-index:60;display:flex;align-items:center;justify-content:center;padding:clamp(12px,3vw,36px)}
 .dw-box{background:var(--panel);border-radius:20px;width:100%;max-width:1180px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(20,24,26,.28)}
 .dw-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px 26px 14px;flex:none}
@@ -1010,6 +968,36 @@ const STYLES = `
 @keyframes drPuls{0%,100%{opacity:.55}50%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.dr-halo,.dr-hinweis,.dr-skel div{animation:none}.dr-k{animation-duration:.01s}.dr-punkt,.dr-faden-h,.dr-faden-v{transition:none}}
 @media(max-width:820px){.dr-box{height:96vh}.dr-body{grid-template-columns:1fr;overflow-y:auto}.dr-feld-rahmen{display:block;border-right:0;border-bottom:1px solid var(--linie);padding:30px 34px 34px}.dr-feld{width:100%;max-width:420px;margin:0 auto}.dr-ws-lbl{flex:none}.dr-welten{overflow:visible}.dr-leiste{padding:0 16px 12px}.dr-ws{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}.dr-ws .dw-pill{flex:none}}
+/* v62 — Teil-Seite (/teil/<slug>): dieselben pn-Bausteine als Produktseite. */
+.pn-teilen{font-size:12px;color:var(--grau);border:1px solid var(--linie);border-radius:999px;padding:6px 12px;background:var(--panel);white-space:nowrap;transition:border-color .15s,color .15s}
+.pn-teilen:hover{border-color:var(--tinte);color:var(--tinte)}
+.pn-teilen.an{border-color:var(--tinte);color:var(--tinte)}
+.pn-akt{align-items:center}
+.pn-seite{display:inline-block;margin-left:12px;font-size:12.5px;color:var(--grau);text-decoration:underline;text-underline-offset:3px}
+.pn-seite:hover{color:var(--tinte)}
+.tp-seite{padding-bottom:80px}
+.tp{max-width:1180px;margin:0 auto;padding:18px 24px 0}
+.tp-zurueck{font-size:13.5px;color:var(--grau);padding:4px 0;margin-bottom:14px;transition:color .15s}
+.tp-zurueck:hover{color:var(--tinte)}
+.tp-raster{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:48px;align-items:start}
+.tp-links{position:sticky;top:18px}
+.tp .pn-bild{margin:0;height:min(64vh,620px);min-height:420px}
+.tp .pn-caps-top{padding:16px 0 0}
+.tp .pn-kopf{padding:4px 0 0;align-items:flex-start}
+.tp .pn-kopf h1{font-family:var(--serif);font-size:clamp(28px,3.2vw,40px);font-weight:800;letter-spacing:-.025em;line-height:1.08;margin:0 0 8px}
+.tp .pn-spec{font-size:13px}
+.tp-lief{display:block;margin-top:14px;font-size:14px;color:var(--grau)}
+.tp-lief b{color:var(--tinte);font-weight:600}
+.tp-lief:hover b{text-decoration:underline;text-underline-offset:3px}
+.tp .pn-look{padding:28px 0 0}
+.tp .pn-waechter{margin:14px 0 0}
+.tp .pn-aktion{position:static;padding:24px 0 0;background:none;flex-wrap:wrap}
+.tp .pn-aktion .cta{flex:1 1 220px}
+.tp-mehr{max-width:1180px;margin:0 auto;padding:0 24px}
+.tp-mehr.ub-im-app{padding:0 24px}
+.tp-datenblatt{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:48px;margin-top:64px;padding-top:32px;border-top:1px solid var(--linie)}
+.tp-datenblatt .ub-lief{margin-top:0}
+@media(max-width:900px){.tp-raster,.tp-datenblatt{grid-template-columns:1fr;gap:24px}.tp-links{position:static}.tp .pn-bild{height:min(52vh,460px);min-height:300px}.tp{padding:12px 16px 0}.tp-mehr,.tp-mehr.ub-im-app{padding:0 16px}}
 
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
@@ -1065,110 +1053,6 @@ type FacettenDim = keyof CodeFacetten;
 const FACETTEN_LABEL: Record<FacettenDim, string> = {
   register: 'Welt', segment: 'Preisniveau', form: 'Form', material: 'Material', wirkstoff: 'Wirkstoff',
 };
-
-/* ── Lieferanten-Profil (v59) ──────────────────────────────────────────
-   Aufbau wie ein Unternehmensprofil: Titelbild · Logo · Name · Standort ·
-   Kennzahlen · Über uns, darunter das Sortiment mit Typ-Reitern. Karten
-   sind die Such-Karten (.ek) und öffnen das Teil im Detail-Panel. Daten:
-   /api/search ({ lieferant }) aus der Airtable-Tabelle "Lieferant". */
-interface LieferantDaten {
-  profil: { name?: string; land?: string; standort?: string; website?: string; beschreibung?: string; status?: string;
-    logo?: string | null; titelbild?: string | null; moq?: number | null; lieferzeit_wochen?: number | null; zertifikat?: string; eu?: boolean };
-  anzahl: number;
-  teile: Result[];
-}
-function LieferantProfil({ name, onClose, onTeil }: { name: string; onClose: () => void; onTeil?: (r: Result) => void }) {
-  const [daten, setDaten] = useState<LieferantDaten | null>(null);
-  const [laden, setLaden] = useState(true);
-  const [reiter, setReiter] = useState('alle');
-  useEffect(() => {
-    let tot = false;
-    setLaden(true); setReiter('alle');
-    fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lieferant: name }) })
-      .then(r => r.json())
-      .then(d => { if (!tot && Array.isArray(d?.teile)) setDaten(heile(d)); })
-      .catch(() => {})
-      .finally(() => { if (!tot) setLaden(false); });
-    return () => { tot = true; };
-  }, [name]);
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
-  const p = daten?.profil || {};
-  const anzeigeName = p.name || name;
-  const teile = daten?.teile || [];
-  const typen = Array.from(new Set(teile.map(t => t.type || 'Weitere')));
-  const sichtbar = reiter === 'alle' ? teile : teile.filter(t => (t.type || 'Weitere') === reiter);
-  const ort = [p.standort, p.land].filter(Boolean).join(', ');
-  const fakten = [
-    p.moq ? { k: 'Mindestmenge', v: `ab ${p.moq.toLocaleString('de-CH')} Stk.` } : null,
-    p.lieferzeit_wochen ? { k: 'Lieferzeit', v: `ca. ${p.lieferzeit_wochen} Wochen` } : null,
-    p.zertifikat ? { k: 'Zertifikat', v: p.zertifikat } : null,
-    p.eu ? { k: 'Konformität', v: 'EU-konform' } : null,
-  ].filter((f): f is { k: string; v: string } => f !== null);
-  const initialen = anzeigeName.replace(/[^A-Za-zÄÖÜäöü0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '·';
-  const bestaetigt = p.status === 'bestätigt';
-  const titelBilder = teile.filter(t => t.imageUrl).slice(0, 7);
-  return (
-    <div className="dw-ov" role="dialog" aria-label={`Lieferant ${anzeigeName}`} onClick={onClose}>
-      <div className="lp-box" onClick={e => e.stopPropagation()}>
-        <button className="lp-zu" onClick={onClose} aria-label="schließen">×</button>
-        <div className="lp-scroll">
-          <div className="lp-titel">
-            {p.titelbild
-              ? <img src={p.titelbild} alt="" className="lp-titel-img" />
-              : <div className="lp-titel-reihe" aria-hidden>{titelBilder.map(t => <img key={t.id} src={t.imageUrl as string} alt="" />)}</div>}
-          </div>
-          <div className="lp-kopf">
-            <div className="lp-logo">{p.logo ? <img src={p.logo} alt={`${anzeigeName} Logo`} /> : <span>{initialen}</span>}</div>
-            <div className="lp-id">
-              <h3 className="serif">{anzeigeName}{bestaetigt && <span className="lp-check" title="Vom Lieferanten bestätigt">✓</span>}</h3>
-              <span className="lp-meta">
-                {[ort, daten ? `${daten.anzahl} ${daten.anzahl === 1 ? 'Teil' : 'Teile'} auf ulba` : ''].filter(Boolean).join(' · ') || 'Lieferant'}
-              </span>
-              <span className="lp-quelle">{bestaetigt ? 'Profil vom Lieferanten bestätigt' : 'Aus dem öffentlichen Katalog des Lieferanten'}</span>
-            </div>
-            {p.website && <a className="lp-web" href={p.website} target="_blank" rel="noreferrer">Website ↗</a>}
-          </div>
-          {(fakten.length > 0 || p.beschreibung) && (
-            <div className="lp-info">
-              {p.beschreibung && <p className="lp-ueber">{p.beschreibung}</p>}
-              {fakten.length > 0 && <div className="lp-fakten">{fakten.map(f => <div key={f.k}><span>{f.k}</span><b>{f.v}</b></div>)}</div>}
-            </div>
-          )}
-          <div className="lp-reiter">
-            {[{ id: 'alle', n: 'Alle', z: teile.length }, ...typen.map(t => ({ id: t, n: TYPE_LABELS[t] || t, z: teile.filter(x => (x.type || 'Weitere') === t).length }))].map(r => (
-              <button key={r.id} className={reiter === r.id ? 'an' : ''} onClick={() => setReiter(r.id)}>{r.n}<i>{r.z}</i></button>
-            ))}
-          </div>
-          <div className="lp-sortiment">
-            {laden && <div className="lp-grid">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="lp-skel" />)}</div>}
-            {!laden && !daten && <div className="lp-leer">Profil gerade nicht erreichbar. Bitte gleich nochmal öffnen.</div>}
-            {!laden && daten && teile.length === 0 && <div className="lp-leer">Für diesen Lieferanten sind gerade keine Teile veröffentlicht.</div>}
-            {!laden && sichtbar.length > 0 && (
-              <div className="lp-grid">
-                {sichtbar.map(r => (
-                  <div key={r.id} className="ek">
-                    <button className="ek-klick" onClick={() => { onTeil?.(r); onClose(); }} disabled={!onTeil}>
-                      <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} loading="lazy" /> : <span className="ek-ph">◇</span>}</div>
-                      <div className="ek-info">
-                        <span className="ek-nm">{r.name}</span>
-                        <span className="ek-spec">{[r.availableSizes?.[0], r.material?.[0], r.closure].filter(Boolean).join(' · ')}</span>
-                      </div>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── v61 — Der Design-Raum.
    Statt Filterwand ein leeres Feld mit zwei Achsen: ruhig ↔ laut (Temp_Laut)
@@ -1410,18 +1294,18 @@ function DesignWand({ suche, register, onWahl, onClose }: {
    Der Render passiert hier, nicht mehr im Chat: ein Design, ein Bild, eine
    Wächterzeile. Der gewählte Look gilt für die Sitzung (lookCode), so lassen
    sich mehrere Teile im selben Design vergleichen. ── */
-function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample, onTeil }: {
+function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample, onTeil, seite, zurueckLabel, onSeite }: {
   product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
   isFav: boolean; inBoard: boolean; onFav: () => void; onBoard?: () => void; onClose: () => void;
   sucheQuery?: string; lookCode: DesignCodeKarte | null; onLook: (c: DesignCodeKarte | null) => void;
   onSample: (ctx: SampleContext) => void;
   onTeil?: (r: Result) => void;
+  seite?: boolean; zurueckLabel?: string; onSeite?: () => void;
 }) {
   const { caps, dropperDepri } = capsFuer(product, capWall);
   const istPipette = istPipetteCap;
   const capIdx = Math.min(cap, Math.max(0, caps.length - 1));
   const [wandOffen, setWandOffen] = useState(false);
-  const [lieferantOffen, setLieferantOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
@@ -1461,125 +1345,155 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   const zeigtRender = !!render && rstatus !== 'loading';
 
-  return (
-    <aside className="panel">
-      <div className="pn-kopf">
-        <div><h3 className="serif">{product.name}</h3><span className="pn-spec">{product.id} · {specText(product)}</span></div>
-        <div className="pn-akt">
-          <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label="Favorit">{isFav ? '♥' : '♡'}</button>
-          <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>
-        </div>
-      </div>
+  const [kopiert, setKopiert] = useState(false);
+  const teilen = async () => {
+    const url = `${window.location.origin}/teil/${teilSlug(product.name, product.id)}`;
+    try {
+      if (navigator.share && window.matchMedia('(pointer:coarse)').matches) { await navigator.share({ title: product.name, url }); return; }
+      await navigator.clipboard.writeText(url);
+      setKopiert(true); setTimeout(() => setKopiert(false), 1800);
+    } catch { /* Abbruch im Teilen-Dialog ist kein Fehler */ }
+  };
 
+  const kopf = (
+    <div className="pn-kopf">
+      <div>
+        {seite ? <h1 className="serif">{product.name}</h1> : <h3 className="serif">{product.name}</h3>}
+        <span className="pn-spec">{specText(product)}</span>
+        {seite && product.supplier && (
+          <Link className="tp-lief" href={`/lieferant/${slugify(product.supplier)}`}>von <b>{product.supplier}</b> · Profil →</Link>
+        )}
+        {!seite && onSeite && (
+          <a className="pn-seite" href={`/teil/${teilSlug(product.name, product.id)}`}
+            onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onSeite(); } }}>Ganze Seite →</a>
+        )}
+      </div>
+      <div className="pn-akt">
+        <button className={`pn-teilen${kopiert ? ' an' : ''}`} onClick={teilen} aria-label="Link kopieren" title="Link zu diesem Teil kopieren">{kopiert ? 'Link kopiert ✓' : 'Teilen'}</button>
+        <button className={`favherz${isFav ? ' an' : ''}`} style={{ position: 'static' }} onClick={onFav} aria-label={isFav ? 'Aus Favoriten entfernen' : 'Merken'}>{isFav ? '♥' : '♡'}</button>
+        {!seite && <button className="pn-zu" onClick={onClose} aria-label="schließen">×</button>}
+      </div>
+    </div>
+  );
+
+  const capWahl = caps.length > 0 && (
+    <div className="pn-caps-top">
+      <div className="lbl">Verschluss wählen · {caps.length}</div>
+      <div className="thumbs">
+        {caps.map((c, i) => {
+          const depri = dropperDepri && istPipette(c);
+          return (
+            <button key={i} type="button"
+              className={`capthumb${capIdx === i ? ' an' : ''}`}
+              style={depri ? { opacity: 0.5 } : undefined}
+              title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : (c.name || undefined)}
+              aria-label={c.name || `Verschluss ${i + 1}`} aria-pressed={capIdx === i}
+              onClick={() => onCap(i)}>
+              <img src={c.imageUrl} alt="" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            </button>
+          );
+        })}
+      </div>
+      {dropperDepri && (
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
+          Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
+        </div>
+      )}
+    </div>
+  );
+
+  /* Gestapelte Bühne: gewählter Cap oben, Rohteil unten — blanko, kein Look. */
+  const buehne = (
+    <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {caps.length > 0 && (
-        <div className="pn-caps-top">
-          <div className="lbl">Verschluss wählen · {caps.length}</div>
-          <div className="thumbs">
-            {caps.map((c, i) => {
-              const depri = dropperDepri && istPipette(c);
-              return (
-                <div key={i}
-                  className={`capthumb${capIdx === i ? ' an' : ''}`}
-                  style={depri ? { opacity: 0.5 } : undefined}
-                  title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes/opakes Glas wählen — offene Pipette lässt Licht & Luft an das Serum.' : undefined}
-                  onClick={() => onCap(i)}>
-                  <img src={c.imageUrl} alt={c.name || `Verschluss ${i + 1}`} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-                </div>
-              );
-            })}
-          </div>
-          {dropperDepri && (
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--hell)', marginTop: 6, letterSpacing: '.02em' }}>
-              Pipette bei lichtempfindlicher Formel nur mit getöntem Glas empfohlen.
-            </div>
-          )}
+        <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
+          {caps[capIdx]?.imageUrl
+            ? <img src={caps[capIdx].imageUrl} alt={caps[capIdx]?.name || `Verschluss ${capIdx + 1}`} style={{ width: 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
         </div>
       )}
-
-      {/* Gestapelte Bühne: gewählter Cap oben, Rohteil unten — blanko, kein Look. */}
-      <div className="pn-stack" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {caps.length > 0 && (
-          <div className="pn-stack-cap" style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', minHeight: 70, marginBottom: -6 }}>
-            {caps[capIdx]?.imageUrl
-              ? <img src={caps[capIdx].imageUrl} alt={caps[capIdx]?.name || `Verschluss ${capIdx + 1}`} style={{ width: 76, maxHeight: 150, objectFit: 'contain', objectPosition: 'bottom', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
-              : <span className="ph" style={{ color: '#d8d8d5' }}>◇</span>}
+      <div className="pn-bild" style={{ width: '100%', position: 'relative' }}>
+        {zeigtRender
+          ? <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
+          : product.imageUrl
+            ? <img src={product.imageUrl} alt={product.name} />
+            : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◻</span>}
+        {rstatus === 'loading' && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: 'rgba(255,255,255,.87)', zIndex: 3, fontFamily: 'var(--mono)', fontSize: 11.5, letterSpacing: '.05em', color: 'var(--grau)' }}>
+            <span className="pn-lade-sp" />
+            <span>RENDERT IN {(lookCode?.name || 'DIESEM DESIGN').toUpperCase()} …</span>
           </div>
         )}
-        <div className="pn-bild" style={{ width: '100%', position: 'relative' }}>
-          {zeigtRender
-            ? <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
-            : product.imageUrl
-              ? <img src={product.imageUrl} alt={product.name} />
-              : <span style={{ fontSize: 72, color: '#e2e2e0' }}>◻</span>}
-          {rstatus === 'loading' && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: 'rgba(255,255,255,.87)', zIndex: 3, fontFamily: 'var(--mono)', fontSize: 11.5, letterSpacing: '.05em', color: 'var(--grau)' }}>
-              <span className="pn-lade-sp" />
-              <span>RENDERT IN {(lookCode?.name || 'DIESEM DESIGN').toUpperCase()} …</span>
-            </div>
-          )}
-        </div>
       </div>
+    </div>
+  );
 
-      {/* Ein Knopf, kein Weg: das Teil im kuratierten Design. */}
-      <div className="pn-look">
-        <button className="pn-look-btn" onClick={() => setWandOffen(true)}>
-          {zeigtRender ? 'Anderes Design' : lookCode ? `In ${lookCode.name} zeigen` : 'In einem Design zeigen'}
-        </button>
-        {zeigtRender && lookCode && (
-          <span className="pn-look-jetzt">
-            {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
-            {lookCode.capHex && <i style={{ background: lookCode.capHex }} />}
-            {lookCode.name}
-          </span>
-        )}
-        {rstatus === 'error' && <span className="pn-look-fehler">{rerror || 'Render fehlgeschlagen.'}</span>}
-      </div>
-
-      {/* Die Wächterzeile: was das reale Teil nicht kann, steht hier — nicht im Bild. */}
-      {zeigtRender && render?.concept && (
-        <div className="pn-waechter">
-          {render.concept.konzept_name && <b>{render.concept.konzept_name}</b>}
-          {render.concept.story && <span>{render.concept.story}</span>}
-          {!!render.concept.farbsystem?.warnungen?.length && (
-            <span className="pn-w-warn">{render.concept.farbsystem.warnungen.join(' · ')}</span>
-          )}
-          {!!render.concept.do_not?.length && (
-            <span className="pn-w-prod">Nicht: {render.concept.do_not.slice(0, 3).join(' · ')}</span>
-          )}
-          {produzierbarText(render.concept.produzierbar) && (
-            <span className="pn-w-prod">{produzierbarText(render.concept.produzierbar)}</span>
-          )}
-        </div>
+  /* Ein Knopf, kein Weg: das Teil im kuratierten Design. */
+  const look = (
+    <div className="pn-look">
+      <button className="pn-look-btn" onClick={() => setWandOffen(true)}>
+        {zeigtRender ? 'Anderes Design' : lookCode ? `In ${lookCode.name} zeigen` : 'In einem Design zeigen'}
+      </button>
+      {zeigtRender && lookCode && (
+        <span className="pn-look-jetzt">
+          {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
+          {lookCode.capHex && <i style={{ background: lookCode.capHex }} />}
+          {lookCode.name}
+        </span>
       )}
+      {rstatus === 'error' && <span className="pn-look-fehler">{rerror || 'Render fehlgeschlagen.'}</span>}
+    </div>
+  );
 
-      <div className="pn-body">
-        <div className="specs">
-          {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
-          {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v"><button onClick={() => setLieferantOffen(true)} style={{ all: 'unset', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>{product.supplier} →</button></div></div>}
-          {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
-          {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
-          {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
-          {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
-        </div>
-        {product.capabilities?.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
-        )}
-      </div>
-
-      <div className="pn-aktion">
-        <button className="cta" onClick={() => onSample({
-          product,
-          renderUrl: render?.url || '',
-          wishValues: render?.concept ? produzierbarText(render.concept.produzierbar) : '',
-          capLabel: caps[capIdx]?.name || '',
-          konzept: render?.concept || null,
-        })}>Muster anfragen →</button>
-        {onBoard && <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>}
-      </div>
-
-      {lieferantOffen && product.supplier && (
-        <LieferantProfil name={product.supplier} onClose={() => setLieferantOffen(false)} onTeil={onTeil} />
+  /* Die Wächterzeile: was das reale Teil nicht kann, steht hier — nicht im Bild. */
+  const waechter = zeigtRender && render?.concept && (
+    <div className="pn-waechter">
+      {render.concept.konzept_name && <b>{render.concept.konzept_name}</b>}
+      {render.concept.story && <span>{render.concept.story}</span>}
+      {!!render.concept.farbsystem?.warnungen?.length && (
+        <span className="pn-w-warn">{render.concept.farbsystem.warnungen.join(' · ')}</span>
       )}
+      {!!render.concept.do_not?.length && (
+        <span className="pn-w-prod">Nicht: {render.concept.do_not.slice(0, 3).join(' · ')}</span>
+      )}
+      {produzierbarText(render.concept.produzierbar) && (
+        <span className="pn-w-prod">{produzierbarText(render.concept.produzierbar)}</span>
+      )}
+    </div>
+  );
+
+  const fakten = (
+    <div className="pn-body">
+      <div className="specs">
+        {product.type && <div className="spec"><div className="k">Typ</div><div className="v">{TYPE_LABELS[product.type] || product.type}</div></div>}
+        {product.supplier && <div className="spec"><div className="k">Lieferant</div><div className="v"><Link href={`/lieferant/${slugify(product.supplier)}`} style={{ textDecoration: 'underline', textUnderlineOffset: 3 }}>{product.supplier} →</Link></div></div>}
+        {product.material?.length ? <div className="spec"><div className="k">Material</div><div className="v">{product.material.join(', ')}</div></div> : null}
+        {product.availableSizes?.length ? <div className="spec"><div className="k">Volumen</div><div className="v">{product.availableSizes.join(', ')}</div></div> : null}
+        {product.closure && <div className="spec"><div className="k">Verschluss</div><div className="v">{product.closure}</div></div>}
+        {product.capCount > 0 && <div className="spec"><div className="k">Kompatible Verschlüsse</div><div className="v">{product.capCount}</div></div>}
+      </div>
+      {product.capabilities?.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>{product.capabilities.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+      )}
+    </div>
+  );
+
+  const aktion = (
+    <div className="pn-aktion">
+      <button className="cta" onClick={() => onSample({
+        product,
+        renderUrl: render?.url || '',
+        wishValues: render?.concept ? produzierbarText(render.concept.produzierbar) : '',
+        capLabel: caps[capIdx]?.name || '',
+        konzept: render?.concept || null,
+      })}>Muster anfragen →</button>
+      {onBoard && <button className={`cta-sek${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? '✓ im Paket' : '+ Paket'}</button>}
+      {seite && <button className={`cta-sek${isFav ? ' an' : ''}`} onClick={onFav}>{isFav ? '♥ Gemerkt' : '♡ Merken'}</button>}
+    </div>
+  );
+
+  const ebenen = (
+    <>
       {wandOffen && (
         <DesignWand
           suche={sucheQuery}
@@ -1587,6 +1501,34 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           onClose={() => setWandOffen(false)}
         />
       )}
+    </>
+  );
+
+  /* Volle Teil-Seite (/teil/<slug>): dieselben Bausteine, als Produktseite
+     gesetzt — Bühne links (bleibt beim Scrollen stehen), Handeln rechts. */
+  if (seite) {
+    return (
+      <article className="tp">
+        <button className="tp-zurueck" onClick={onClose}>← {zurueckLabel || 'Zurück'}</button>
+        <div className="tp-raster">
+          <div className="tp-links">{buehne}{capWahl}</div>
+          <div className="tp-rechts">{kopf}{look}{waechter}{aktion}</div>
+        </div>
+        {ebenen}
+      </article>
+    );
+  }
+
+  return (
+    <aside className="panel">
+      {kopf}
+      {capWahl}
+      {buehne}
+      {look}
+      {waechter}
+      {fakten}
+      {aktion}
+      {ebenen}
     </aside>
   );
 }
@@ -1802,9 +1744,70 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
   );
 }
 
-export default function Home() {
+/* ── v62 — Eine Adresse pro Ding ──────────────────────────────────────
+   Die App lebt im Layout von app/(app) und bleibt über alle Seiten am
+   Leben. Was offen ist, steht IMMER in der URL — sie ist die einzige Quelle:
+     /                     Start
+     /?s=<projekt>         eine Suche (Chat)
+     /?v=favoriten|linien|anfragen
+     /teil/<slug>          das Teil als volle Seite (Server-Seite, SEO)
+     /teil/<slug>?s=<id>   das Teil als Panel neben SEINER Suche
+   Zurück/Vor, Reload und geteilte Links zeigen damit genau das, was man sah.
+   Suchen liegen im Browser: ?s= öffnet nur, was dieser Browser kennt —
+   fremde Links fallen auf die volle Teil-Seite zurück. */
+type Ansicht = 'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen' | 'seite';
+
+interface UlbaKontextWert {
+  isFav: (id: string) => boolean;
+  quickFav: (r: Result) => void;
+  lookCode: DesignCodeKarte | null;
+  setLookCode: (c: DesignCodeKarte | null) => void;
+  setSampleCtx: (c: SampleContext) => void;
+  oeffneVoll: (r: Result) => void;
+  registriere: (slug: string, teil: Result) => void;
+  zurueck: () => void;
+  zurueckLabel: string;
+}
+const UlbaKontext = createContext<UlbaKontextWert | null>(null);
+/* Meldet jede URL-Änderung (auch nur ?s=…). Eigene Suspense-Insel, damit
+   useSearchParams nicht die ganze Seite aus dem Server-HTML drängt (SEO). */
+function UrlWaechter({ onWechsel }: { onWechsel: () => void }) {
+  const sp = useSearchParams();
+  const pf = usePathname();
+  useEffect(() => { onWechsel(); }, [sp, pf, onWechsel]);
+  return null;
+}
+const seitenTitel = (pfad: string) => pfad.startsWith('/lieferant/') ? 'Lieferant' : 'Packmittel';
+
+/* Die volle Teil-Seite. Der Server rendert sie (SEO), die App liefert über
+   den Kontext Merken, Muster, Design-Raum und Zurück. */
+export function TeilSeite({ teil, slug, children }: { teil: Result; slug: string; children?: ReactNode }) {
+  const k = useContext(UlbaKontext);
+  const [cap, setCap] = useState(0);
+  useEffect(() => {
+    setCap(0);
+    k?.registriere(slug, teil);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+  return (
+    <div className="tp-seite">
+      <DetailPanel seite product={teil} cap={cap} onCap={setCap}
+        isFav={k ? k.isFav(teil.id) : false} inBoard={false}
+        onFav={() => k?.quickFav(teil)}
+        onClose={() => k?.zurueck()} zurueckLabel={k?.zurueckLabel}
+        lookCode={k?.lookCode || null} onLook={c => k?.setLookCode(c)}
+        onSample={c => k?.setSampleCtx(c)}
+        onTeil={r => k?.oeffneVoll(r)} />
+      {children}
+    </div>
+  );
+}
+
+export function UlbaShell({ children }: { children?: ReactNode }) {
+  const pfad = usePathname() || '/';
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [view, setView] = useState<'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen'>('start');
+  const [view, setView] = useState<Ansicht>(pfad !== '/' ? 'seite' : 'start');
   const [input, setInput] = useState('');
   const [refineInput, setRefineInput] = useState('');
   // Ein Feld, eine Aufgabe: die untere Leiste verfeinert die Suche in Worten.
@@ -1861,32 +1864,110 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  // Einstieg über /?teil=<recordId>[&cap=<capId>] (von den Katalog-Seiten):
-  // Teil direkt im DetailPanel öffnen — auf der Startseite, OHNE neues Projekt.
-  // Ein Projekt entsteht erst, wenn der Nutzer selbst sucht.
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const id = q.get('teil');
-    if (!id || !/^rec[A-Za-z0-9]{14}$/.test(id)) return;
-    const capId = q.get('cap');
-    fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) })
-      .then(r => r.json())
-      .then(d => {
-        const t = Array.isArray(d?.frisch) ? heile(d.frisch as Partial<Result>[])[0] as Result | undefined : undefined;
-        if (!t) return;
-        const idx = capId ? getCaps(t).findIndex(c => c.id === capId) : -1;
-        setView('start'); setSelected(t); setSelectedCap(idx > 0 ? idx : 0);
-      })
-      .catch(() => {});
+  /* ── URL ⇄ Zustand ─────────────────────────────────────────────────
+     Navigiert wird nur über die URL (zuUrl / router.push). Ein Effekt liest
+     die URL und stellt Ansicht, Projekt und Teil daraus her. */
+  const [urlTick, setUrlTick] = useState(0);
+  const [zurueckLabel, setZurueckLabel] = useState('Zur Suche');
+  const teilCache = useRef(new Map<string, Result>());
+  const seiteRef = useRef<{ slug: string; teil: Result } | null>(null);
+  const projekteRef = useRef(projects); projekteRef.current = projects;
+  const panelGepusht = useRef(false);   // Panel per push geöffnet → Schließen = history.back()
+  const tiefe = useRef(0);               // Schritte innerhalb von ulba → Zurück bleibt in der App
+  const ausPop = useRef(false);
+  const ersetzt = useRef(false);
+  const letzteUrl = useRef('');
+  const ortLabel = useRef('Zur Suche');  // wie der aktuelle Ort als Zurück-Ziel heißt
+  const zurueckFuer = useRef(new Map<string, string>());
+
+  const slugVon = (r: Result) => teilSlug(r.name, r.id);
+  const merke = (r: Result) => { teilCache.current.set(slugVon(r), r); };
+  const zuUrl = (url: string, ersetzen = false) => {
+    if (url === window.location.pathname + window.location.search) { setUrlTick(n => n + 1); return; }
+    if (ersetzen) { ersetzt.current = true; window.history.replaceState(null, '', url); }
+    else window.history.pushState(null, '', url);
+    setUrlTick(n => n + 1);
+  };
+  const urlGewechselt = useCallback(() => setUrlTick(n => n + 1), []);
+  const registriere = useCallback((slug: string, teil: Result) => {
+    seiteRef.current = { slug, teil };
+    teilCache.current.set(slug, teil);
+    setUrlTick(n => n + 1);
   }, []);
 
-  // Geöffnetes Teil in der URL spiegeln → Link teilbar (LinkedIn, Mail, Musteranfrage).
+  useEffect(() => {
+    const zurueckGesprungen = () => { ausPop.current = true; tiefe.current = Math.max(0, tiefe.current - 1); setUrlTick(n => n + 1); };
+    window.addEventListener('popstate', zurueckGesprungen);
+    return () => window.removeEventListener('popstate', zurueckGesprungen);
+  }, []);
+
   useEffect(() => {
     if (!mounted) return;
-    const url = new URL(window.location.href);
-    if (selected) url.searchParams.set('teil', selected.id); else url.searchParams.delete('teil');
-    window.history.replaceState(null, '', url.toString());
-  }, [selected, mounted]);
+    const url = window.location.pathname + window.location.search;
+    const neu = url !== letzteUrl.current;   // der Effekt läuft pro Wechsel mehrfach (Pfad, Suche, Registrierung)
+    if (neu) {
+      if (letzteUrl.current && !ausPop.current && !ersetzt.current) tiefe.current += 1;
+      letzteUrl.current = url;
+    }
+    const kamZurueck = ausPop.current;
+    ausPop.current = false; ersetzt.current = false;
+
+    const q = new URLSearchParams(window.location.search);
+    const s = q.get('s');
+    const proj = s ? projekteRef.current.find(p => p.id === s) : undefined;
+    const m = pfad.match(/^\/teil\/([^/?#]+)/);
+
+    if (m) {
+      const slug = decodeURIComponent(m[1]);
+      const t = teilCache.current.get(slug);
+      if (proj && t) {
+        setActiveId(proj.id); setView('chat'); setSelected(t);
+        ortLabel.current = proj.name;
+        return;
+      }
+      panelGepusht.current = false;
+      setActiveId(null); setSelected(null); setView('seite');
+      // Vorwärts: Ursprung merken (überschreibt ältere Besuche desselben Teils). Zurück: gemerkten nehmen.
+      if (neu && !kamZurueck) zurueckFuer.current.set(slug, tiefe.current > 0 ? ortLabel.current : 'Zur Suche');
+      setZurueckLabel(tiefe.current > 0 ? (zurueckFuer.current.get(slug) || 'Zurück') : 'Zur Suche');
+      ortLabel.current = seiteRef.current?.slug === slug ? seiteRef.current.teil.name : 'Zurück';
+      // Kommt kein passender Seiteninhalt an (z. B. alte Panel-Adresse, Suche gelöscht) → frisch holen.
+      setTimeout(() => {
+        if (seiteRef.current?.slug !== slug && window.location.pathname === pfad) { ersetzt.current = true; router.replace(pfad); }
+      }, 400);
+      return;
+    }
+
+    panelGepusht.current = false;
+    setSelected(null);
+    if (pfad !== '/') {   // Lieferant, Kategorie … — der Inhalt kommt vom Server
+      setActiveId(null); setView('seite');
+      const titel = document.querySelector('.ub-h1')?.firstChild?.textContent?.trim();
+      ortLabel.current = titel || 'Zurück';
+      return;
+    }
+    if (proj) { setActiveId(proj.id); setView('chat'); ortLabel.current = proj.name; return; }
+    const v = q.get('v');
+    if (v === 'favoriten' || v === 'linien' || v === 'anfragen') {
+      setView(v); ortLabel.current = v === 'favoriten' ? 'Favoriten' : v === 'linien' ? 'Meine Linien' : 'Musteranfragen';
+      return;
+    }
+    setActiveId(null); setView('start'); ortLabel.current = 'Start';
+    // Alte Links /?teil=<recId> (Katalog vor v62) → auf die Teil-Seite umleiten.
+    const alt = q.get('teil');
+    if (alt && REC_ID.test(alt)) {
+      fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [alt] }) })
+        .then(r => r.json())
+        .then(d => {
+          const t = Array.isArray(d?.frisch) ? heile(d.frisch as Partial<Result>[])[0] as Result | undefined : undefined;
+          if (t) { ersetzt.current = true; router.replace(`/teil/${teilSlug(t.name, t.id)}`); }
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pfad, urlTick, mounted]);
+
+  useEffect(() => { setSelectedCap(0); }, [selected?.id]);
 
   const handleSent = (r: SentRequest) => {
     setSentRequests(prev => { const next = [r, ...prev.filter(x => x.id !== r.id)]; saveRequests(next); return next; });
@@ -1916,6 +1997,20 @@ export default function Home() {
   const blocks = active ? active.blocks : [];
   const board = active ? active.board : [];
   const rootQuery = active ? active.rootQuery : '';
+
+  // Ein Teil öffnet sich entweder neben SEINER Suche (Panel) oder als eigene Seite.
+  const oeffneVoll = (r: Result) => { merke(r); router.push(`/teil/${slugVon(r)}`); };
+  const oeffneImChat = (r: Result, pid: string) => {
+    merke(r);
+    const ersetzen = view === 'chat' && activeId === pid && !!selected;
+    zuUrl(`/teil/${slugVon(r)}?s=${pid}`, ersetzen);
+    if (!ersetzen) panelGepusht.current = true;
+  };
+  const schliessePanel = () => {
+    if (panelGepusht.current) { panelGepusht.current = false; window.history.back(); return; }
+    zuUrl(active ? `/?s=${active.id}` : '/', true);
+  };
+  const zurueck = () => { if (tiefe.current > 0) router.back(); else router.push('/'); };
 
   useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks, activeId]);
 
@@ -1988,7 +2083,7 @@ export default function Home() {
     const id = neueProjektId();
     const neu: Project = { id, name: q.slice(0, 48), createdAt: Date.now(), rootQuery: q, blocks: [], board: [], blockSeq: 0 };
     setProjects(prev => [neu, ...prev]);
-    setActiveId(id); setSelected(null); setInput(''); setView('chat');
+    setInput(''); zuUrl(`/?s=${id}`);
     runSearch(id, q, emptyFilters(), q);
   };
 
@@ -2002,7 +2097,7 @@ export default function Home() {
     bildSpeicher.set(id, data);
     const neu: Project = { id, name: 'Referenzbild', createdAt: Date.now(), rootQuery: '', blocks: [], board: [], blockSeq: 0 };
     setProjects(prev => [neu, ...prev]);
-    setActiveId(id); setSelected(null); setInput(''); setView('chat');
+    setInput(''); zuUrl(`/?s=${id}`);
     runSearch(id, '', emptyFilters(), 'Referenzbild', undefined, { data, vorschau });
   };
 
@@ -2051,12 +2146,12 @@ export default function Home() {
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
   };
 
-  const neuesProjekt = () => { setActiveId(null); setSelected(null); setInput(''); setView('start'); };
-  const oeffneProjekt = (id: string) => { setActiveId(id); setSelected(null); setView('chat'); };
+  const neuesProjekt = () => { setInput(''); zuUrl('/'); };
+  const oeffneProjekt = (id: string) => zuUrl(`/?s=${id}`);
   const loescheProjekt = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setProjects(prev => prev.filter(p => p.id !== id));
-    if (activeId === id) { setActiveId(null); setView('start'); setSelected(null); }
+    if (activeId === id) zuUrl('/', true);
   };
 
   const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
@@ -2073,7 +2168,7 @@ export default function Home() {
       <button className="nav-neu" onClick={neuesProjekt}>+ Neues Projekt</button>
       <div>
         {([['favoriten', '♡', 'Favoriten', favCount], ['linien', '▤', 'Meine Linien', boardTotal], ['anfragen', '⇄', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
-          <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => setView(v as any)}>
+          <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => zuUrl(`/?v=${v}`)}>
             <span className="ni-ic">{ic}</span><span className="ni-t">{t}</span>{badge ? <span className="ni-b">{badge}</span> : null}
           </button>
         ))}
@@ -2094,22 +2189,41 @@ export default function Home() {
     </aside>
   );
 
+  const kontext: UlbaKontextWert = {
+    isFav, quickFav, lookCode, setLookCode, setSampleCtx: c => setSampleCtx(c),
+    oeffneVoll, registriere, zurueck, zurueckLabel,
+  };
+
   if (!mounted) {
-    return <div className="ulba"><style>{STYLES}</style>{nav}<div className="main" /></div>;
+    const istSeite = pfad !== '/';
+    return (
+      <UlbaKontext.Provider value={kontext}>
+        <Suspense fallback={null}><UrlWaechter onWechsel={urlGewechselt} /></Suspense>
+        <div className="ulba"><style dangerouslySetInnerHTML={{ __html: STYLES }} />{nav}
+          <div className="main">
+            <header className="topbar"><span className="spur">{istSeite ? seitenTitel(pfad) : 'Generatives Sourcing'}</span></header>
+            <div className="content">{istSeite ? children : null}</div>
+          </div>
+        </div>
+      </UlbaKontext.Provider>
+    );
   }
 
   return (
+    <UlbaKontext.Provider value={kontext}>
+    <Suspense fallback={null}><UrlWaechter onWechsel={urlGewechselt} /></Suspense>
     <div className="ulba">
-      <style>{STYLES}</style>
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       {nav}
       <div className="main">
         <header className="topbar">
-          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
+          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
         </header>
 
-        <div className={`content${view === 'chat' || (view === 'start' && selected) ? ' content-chat' : ''}`}>
+        <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
+          {view === 'seite' ? children : null}
           {view === 'start' && (
-            <div className={`chat${selected ? ' split' : ''}`}>
+            <div className="chat">
             <main className="cs-main">
             <div className="start">
               <div className="st-mitte">
@@ -2147,15 +2261,6 @@ export default function Home() {
               </div>
             </div>
             </main>
-            {selected && (
-              <DetailPanel product={selected}
-                cap={selectedCap} onCap={setSelectedCap}
-                isFav={isFav(selected.id)} inBoard={false}
-                onFav={() => quickFav(selected)}
-                lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
-                onTeil={r => { setSelected(r); setSelectedCap(0); }}
-                onClose={() => setSelected(null)} />
-            )}
             </div>
           )}
 
@@ -2226,13 +2331,13 @@ export default function Home() {
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <>
                                     <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                      {(nahN > 0 && !b.alleZeigen ? zeige.slice(0, nahN) : zeige).map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                      {(nahN > 0 && !b.alleZeigen ? zeige.slice(0, nahN) : zeige).map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { if (active) oeffneImChat(r, active.id); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                     </div>
                                     {nahN > 0 && aehnlichN > 0 && !b.alleZeigen && (
                                       <>
                                         <div className="eb-aehnlich"><span className="ebf-lbl">Ähnlich in der Form</span><span className="lz-note">kein Volltreffer — verwandte Silhouette</span></div>
                                         <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                          {zeige.slice(nahN, nahN + aehnlichN).map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => { setSelected(r); setSelectedCap(0); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                          {zeige.slice(nahN, nahN + aehnlichN).map(r => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} onOpen={() => { if (active) oeffneImChat(r, active.id); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                         </div>
                                       </>
                                     )}
@@ -2274,8 +2379,8 @@ export default function Home() {
                   onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
                   sucheQuery={blocks.find(b => b.results.some(r => r.id === selected.id))?.query}
                   lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
-                  onTeil={r => { setSelected(r); setSelectedCap(0); }}
-                  onClose={() => setSelected(null)} />
+                  onTeil={oeffneVoll} onSeite={() => oeffneVoll(selected)}
+                  onClose={schliessePanel} />
               )}
             </div>
           )}
@@ -2298,7 +2403,7 @@ export default function Home() {
                     <div className="eb-grid" style={{ marginTop: 16 }}>
                       {p.board.map(r => (
                         <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
-                          onOpen={() => { setActiveId(p.id); setView('chat'); setSelected(r); }}
+                          onOpen={() => oeffneImChat(r, p.id)}
                           onFav={e => { e.stopPropagation(); quickFav(r); }} />
                       ))}
                     </div>
@@ -2320,7 +2425,7 @@ export default function Home() {
                     <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
                     <div className="eb-grid">
                       {items.map(f => (
-                        <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => { setSelected(f.product); setView(active ? 'chat' : 'favoriten'); }} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
+                        <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => oeffneVoll(f.product)} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
                       ))}
                     </div>
                   </div>
@@ -2351,5 +2456,6 @@ export default function Home() {
       </div>
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
     </div>
+    </UlbaKontext.Provider>
   );
 }

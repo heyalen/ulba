@@ -45,6 +45,11 @@ const L = {
   status: 'flddhjCq9c3NDC0cZ',
   logo: 'fldSHKbcxAAsvGMxO',
   standort: 'fldEspF57M7TMgapI',
+  titelbild: 'fldQwnRGToqPPkeci',
+  moq: 'fldCgaxQ5U1VKcPBY',
+  lieferzeit: 'fldkxlvTUYx6I4gDg',
+  zertifikat: 'fldUr7qqcOGqQ3qPU',
+  eu: 'fld9E9qzdoKR2HtlQ',
 };
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ulba.ai';
@@ -65,6 +70,9 @@ export interface Teil {
 export interface Lieferant {
   id: string; slug: string; name: string; land: string; website: string; beschreibung: string;
   standort: string; hatLogo: boolean;
+  /* Profil (v62, aus dem früheren App-Overlay übernommen) */
+  bestaetigt: boolean; hatTitelbild: boolean;
+  moq: number | null; lieferzeitWochen: number | null; zertifikat: string; eu: boolean;
 }
 
 /* ── Hilfen ──────────────────────────────────────────────────────────── */
@@ -74,19 +82,9 @@ const multi = (v: any): string[] =>
   Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : x?.name || '').trim()).filter(Boolean) : [];
 const img = (v: any): string | null => (Array.isArray(v) && v[0]?.url ? v[0].url : null);
 
-export function slugify(text: string): string {
-  return (text || '')
-    .toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '') // é → e, à → a
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-/* Slug: lesbarer Name + Record-ID-Suffix → eindeutig und stabil bei Umbenennung. */
-export function teilSlug(name: string, recId: string): string {
-  return `${slugify(name) || 'teil'}-${recId.slice(3, 9).toLowerCase()}`;
-}
+export { slugify, teilSlug } from './slug';
+import { slugify, teilSlug } from './slug';
+import { typPlural } from './typen';
 
 /* ── Airtable ────────────────────────────────────────────────────────── */
 
@@ -125,6 +123,10 @@ async function ladeLieferanten(): Promise<Map<string, Lieferant>> {
         land: sel(f[L.land]), website: String(f[L.website] || ''),
         standort: String(f[L.standort] || ''), hatLogo: !!img(f[L.logo]),
         beschreibung: String(f[L.beschreibung] || ''),
+        bestaetigt: sel(f[L.status]) === 'bestätigt', hatTitelbild: !!img(f[L.titelbild]),
+        moq: typeof f[L.moq] === 'number' ? f[L.moq] : null,
+        lieferzeitWochen: typeof f[L.lieferzeit] === 'number' ? f[L.lieferzeit] : null,
+        zertifikat: String(f[L.zertifikat] || ''), eu: f[L.eu] === true,
       });
     }
   } catch { /* Seiten laufen auch ohne Lieferantendaten */ }
@@ -234,8 +236,9 @@ export async function kategorie(typSlug: string, filterSlug?: string): Promise<K
 }
 
 export function kategorieTitel(k: Kategorie): string {
-  if (!k.filter) return `${k.typ} für Kosmetik`;
-  return k.filter.art === 'material' ? `${k.typ} aus ${k.filter.wert}` : `${k.typ} ${k.filter.wert.replace(/ml$/i, ' ml')}`;
+  const typ = typPlural(k.typ);
+  if (!k.filter) return `${typ} für Kosmetik`;
+  return k.filter.art === 'material' ? `${typ} aus ${k.filter.wert}` : `${typ} ${k.filter.wert.replace(/ml$/i, ' ml')}`;
 }
 export function kategoriePfad(k: Kategorie): string {
   return `/packmittel/${k.typSlug}${k.filter ? `/${k.filter.slug}` : ''}`;
