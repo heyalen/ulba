@@ -42,7 +42,7 @@ function alsResult(t: Teil): Result {
     description: t.beschreibung, imageUrl: t.bild ? `/api/bild?r=${t.id}` : null,
     capabilities: t.faehigkeiten, availableSizes: t.sizes, availableMaterials: t.materialsAvailable,
     capCount: t.caps.length,
-    caps: t.caps.filter((c) => c.bild).map((c) => ({ id: c.id, name: c.name || c.art, imageUrl: `/api/bild?r=${c.id}` })),
+    caps: t.caps.filter((c) => c.bild).map((c) => ({ id: c.id, name: c.art || c.name, imageUrl: `/api/bild?r=${c.id}` })),
     supplier: t.supplier,
   };
 }
