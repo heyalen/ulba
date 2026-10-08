@@ -107,19 +107,6 @@ export interface Result {
   projekt?: string;
 }
 
-// ►►► design_looks aus /api/search: Look-Rezept + reales Gate-Base.
-//     brand/produkt sind aspirationale Referenzen → NIE im UI anzeigen.
-interface DesignLook {
-  code_id: string; code_name: string;
-  register: string; temp_laut: number | null; temp_ton: number | null;
-  body_behandlung: string; farbort: string; body_hex: string; body_hex_2: string;
-  farbverlauf: string; akzent_hex: string;
-  finish_body: string; cap_finish: string; cap_hex: string; typo_haltung: string;
-  anforderungen: string[]; segment: string[];
-  axis_score: number; axis_why: string;
-  matched_base: { id: string; name: string; type: string; material: string[]; closure: string; image_url: string | null; supplier: string };
-}
-
 // ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
 type ParsedFilters = { sizes: string[]; materials: string[]; types: string[]; closures: string[] };
 
@@ -139,7 +126,6 @@ interface Block {
   filters: ParsedFilters;
   removed?: ParsedFilters; // per Chip-X entfernte Werte — bleiben über Verfeinerungen entfernt (Backend subtrahiert sie nach dem Union-Merge)
   results: Result[];
-  looks: DesignLook[]; // Design-Looks (Rezept × Gate-Base) — Payoff-Reihe über dem Grid
   categoryMatch: string;
   hinweis: string; // v30 — Kompetenz-Satz vor den Kacheln (Formel-Flags)
   alleZeigen: boolean;
@@ -289,7 +275,6 @@ function getCaps(p: Result): CapRef[] {
 
 /* ── Design-System: „Porzellan & Pigment" — reines Weiß ── */
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap');
 :root{
   --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F2;
   --tinte:#1C1C1A;--grau:#5D5D58;--hell:#9C9C96;
@@ -1725,9 +1710,6 @@ function ScanBar() {
   );
 }
 
-export type LookMitStatus = DesignLook & { _umgeleitet?: boolean };
-
-
 /* Ein Handyfoto sind schnell 6 MB — Vercel nimmt 4,5. Und mehr als 1200 px
    liest das Vision-Modell ohnehin nicht besser. Also erst schrumpfen. */
 /* Kleine Vorschau fuer den Verlauf (persistiert). Das Vollbild geht nur ans Backend. */
@@ -2120,7 +2102,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       id = p.blockSeq + 1;
-      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], looks: [], categoryMatch: '', hinweis: '', alleZeigen: false, status: 'loading', bild: bild?.vorschau }] };
+      return { ...p, blockSeq: id, blocks: [...p.blocks, { id, intro, query, filters, removed: rem, results: [], categoryMatch: '', hinweis: '', alleZeigen: false, status: 'loading', bild: bild?.vorschau }] };
     }));
     try {
       const body: any = { query };
@@ -2143,7 +2125,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
         ...p, name: p.name === 'Referenzbild' ? (projektName(data.bildlesart) || p.name) : p.name,
-        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), looks: heile(data.design_looks || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
+        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
