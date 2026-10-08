@@ -5,9 +5,9 @@
    Weiss, Karten .ek, Fakten-Kacheln wie im Lieferantenprofil (.lp-fakten).
    Alles unter .ub gescoped, damit nichts in die App leckt. */
 .ub{
-  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F7F7F8;
-  --tinte:#1D1D1B;--grau:#5B5B58;--hell:#9A9A96;
-  --rouge:#4C1420;--linie:#ECECEE;--r:14px;
+  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F1;
+  --tinte:#1C1C1A;--grau:#5D5D58;--hell:#9C9C96;
+  --rouge:#4C1420;--linie:#EAEAE6;--r:14px;--buehne:#F5F4F1;
   --sans:'Archivo',system-ui,sans-serif;
   min-height:100vh;background:var(--porzellan);color:var(--tinte);
   font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;
@@ -21,7 +21,7 @@
 .ub-top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--linie)}
 .ub-top-in{max-width:1180px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:18px}
 .ub-logo{height:24px;width:auto;flex:none}
-.ub-spur{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
+.ub-spur{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;letter-spacing:.06em;color:var(--hell)}
 .ub-spur a:hover{color:var(--tinte)}
 .ub-spur i{font-style:normal;opacity:.6}
 .ub-suche{flex:none;border:1px solid var(--linie);border-radius:11px;padding:9px 14px;font-size:14px;background:var(--panel)}
@@ -30,7 +30,7 @@
 .ub-seite{max-width:1180px;margin:0 auto;padding:32px 24px 96px}
 .ub-h1{font-size:clamp(28px,3.4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0}
 .ub-unter{color:var(--grau);margin:8px 0 0}
-.ub-lbl{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--hell);margin:0 0 12px}
+.ub-lbl{display:block;font-size:10.5px;letter-spacing:.07em;color:var(--hell);margin:0 0 12px}
 .ub-sektion{margin-top:56px}
 
 /* Teil — zweispaltig wie DetailPanel */
@@ -38,7 +38,7 @@
 .ub-buehne{border:1px solid var(--linie);border-radius:var(--r);background:linear-gradient(#FFFFFF 62%,#FAFAFB 100%);height:min(62vh,600px);min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:28px 24px 36px;position:relative;overflow:hidden}
 .ub-buehne-cap{max-height:28%;max-width:36%;object-fit:contain;margin-bottom:14px}
 .ub-buehne-base{max-height:62%;max-width:70%;object-fit:contain}
-.ub-buehne-hinweis{position:absolute;top:14px;left:16px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--hell)}
+.ub-buehne-hinweis{position:absolute;top:14px;left:16px;font-size:11px;letter-spacing:.06em;color:var(--hell)}
 .ub-caps{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin-top:14px}
 .ub-cap{flex:0 0 66px;height:66px;border:1px solid var(--linie);border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:6px;transition:border-color .15s}
 .ub-cap:hover{border-color:var(--hell)}
@@ -55,7 +55,7 @@
 .ub-lief em{margin-left:auto;font-style:normal;font-size:13px;color:var(--grau)}
 .ub-fakten{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}
 .ub-fakten div{background:var(--nische);border-radius:11px;padding:10px 13px;min-width:0}
-.ub-fakten span{display:block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--hell)}
+.ub-fakten span{display:block;font-size:10px;letter-spacing:.05em;color:var(--hell)}
 .ub-fakten b{display:block;font-size:13.5px;font-weight:600;margin-top:2px;overflow-wrap:anywhere}
 .ub-text{font-size:14.5px;line-height:1.65;color:var(--grau);margin:18px 0 0;max-width:62ch}
 .ub-hinweis{margin-top:16px;background:var(--nische);border-radius:12px;padding:12px 15px;font-size:13.5px;color:var(--grau)}
@@ -117,3 +117,12 @@
 .ub-lp-info{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,360px);gap:32px;align-items:start;padding:0 28px}
 .ub-lp-info .ub-text{margin-top:22px}
 @media (max-width:860px){.ub-lp-info{grid-template-columns:1fr;gap:4px;padding:0 16px}}
+
+/* v63 — gleiche Buehne und Kartenruhe wie die App */
+.ub-ek{border-radius:16px;box-shadow:none}
+.ub-ek:hover{border-color:#D9D9D3;transform:none;box-shadow:0 4px 18px rgba(26,26,24,.06)}
+.ub-ek-bild{background:var(--buehne)}
+.ub-ek-bild img{mix-blend-mode:multiply}
+.ub-lbl{font-size:12px;letter-spacing:.01em}
+.ub-lp-reihe img{mix-blend-mode:multiply}
+.ub-spur{font-size:12px;letter-spacing:.01em}
