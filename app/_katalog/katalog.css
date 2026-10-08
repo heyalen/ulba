@@ -5,9 +5,9 @@
    Weiss, Karten .ek, Fakten-Kacheln wie im Lieferantenprofil (.lp-fakten).
    Alles unter .ub gescoped, damit nichts in die App leckt. */
 .ub{
-  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F1;
+  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F2;
   --tinte:#1C1C1A;--grau:#5D5D58;--hell:#9C9C96;
-  --rouge:#4C1420;--linie:#EAEAE6;--r:14px;--buehne:#F5F4F1;
+  --rouge:#4C1420;--linie:#EAEAE7;--r:14px;--buehne:#F5F5F3;
   --sans:'Archivo',system-ui,sans-serif;
   min-height:100vh;background:var(--porzellan);color:var(--tinte);
   font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;

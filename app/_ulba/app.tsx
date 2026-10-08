@@ -291,11 +291,11 @@ function getCaps(p: Result): CapRef[] {
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap');
 :root{
-  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F1;
+  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F2;
   --tinte:#1C1C1A;--grau:#5D5D58;--hell:#9C9C96;
-  --rouge:#4C1420;--linie:#EAEAE6;--linie2:#F2F2EF;--r:14px;--buehne:#F5F4F1;
+  --rouge:#4C1420;--linie:#EAEAE7;--linie2:#F2F2F0;--r:14px;--buehne:#F5F5F3;
   /* Chat-Ebene: eigene Blase fuer den Nutzer, ruhige Flaeche darunter. */
-  --blase:#ECEBE7;--blase-txt:#1C1C1A;--flaeche:#FAFAF8;
+  --blase:#ECECEA;--blase-txt:#1C1C1A;--flaeche:#FAFAFA;
   --serif:'Archivo',system-ui,sans-serif;
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
@@ -1024,6 +1024,32 @@ const STYLES = `
   .tp .pn-buehne{aspect-ratio:4/3.4}
 }
 @media(max-width:820px){.dr-box{height:96vh}.dr-body{grid-template-columns:1fr;overflow-y:auto}.dr-feld-rahmen{display:block;border-right:0;border-bottom:1px solid var(--linie);padding:30px 34px 34px}.dr-feld{width:100%;max-width:420px;margin:0 auto}.dr-ws-lbl{flex:none}.dr-welten{overflow:visible}.dr-leiste{padding:0 16px 12px}.dr-ws{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}.dr-ws .dw-pill{flex:none}}
+/* v63.1 — Der Design-Raum im selben System: Pill-Eingabe, Bühnen-Karten,
+   gedämpfter Temperatur-Verlauf (warm oben, kühl unten) auf Papier-Niveau. */
+.dw-box{border-radius:22px}
+.dw-kopf{padding:24px 28px 14px}
+.dw-kopf h3{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.dw-sub{margin-top:4px}
+.dr-leiste{padding:0 28px 18px;gap:16px}
+.dr-eingabe input{border-radius:999px;padding:10px 40px 10px 17px}
+.dr-eingabe button{border-radius:50%}
+.dr-ws .dw-pill{border-radius:999px}
+.dr-ws-lbl{font-size:12px;letter-spacing:.01em}
+.dr-feld{border-radius:20px;background:linear-gradient(180deg,#F6F2EC 0%,#F4F4F2 52%,#EDEFF1 100%);box-shadow:inset 0 0 0 1px rgba(28,28,26,.05)}
+.dr-achse{font-size:11px;letter-spacing:.08em}
+.dr-lesart{box-shadow:0 2px 10px rgba(26,26,24,.1)}
+.dr-welten{padding:24px 26px 28px}
+.dr-kopfzeile span{font-size:12px;letter-spacing:.01em}
+.dr-kopfzeile em{font-size:12.5px}
+.dr-k{border-radius:16px;border-color:var(--linie)}
+.dr-k:hover{border-color:#D9D9D3;transform:none;box-shadow:0 4px 18px rgba(26,26,24,.06)}
+.dr-k-bild{background:var(--buehne);border-radius:10px}
+.dr-k.erste .dr-k-bild{border-radius:12px}
+.dr-k-nm{letter-spacing:-.01em}
+.dr-k-warum{font-size:12px}
+.dr-k-cta{font-weight:600}
+.dr-start b{font-weight:600;letter-spacing:-.01em}
+.dr-skel div{border-radius:16px}
 
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
@@ -1302,7 +1328,7 @@ function DesignWand({ suche, register, onWahl, onClose }: {
                       <span className="dr-k-nm">{c.name}</span>
                       <span className="dr-k-warum">{warum(c)}</span>
                       {i === 0 && c.wirkung && <span className="dr-k-wirkung">{c.wirkung}</span>}
-                      {i === 0 && <span className="dr-k-cta">In diesem Design rendern →</span>}
+                      {i === 0 && <span className="dr-k-cta">In diesem Design rendern</span>}
                     </div>
                   </button>
                 ))}
