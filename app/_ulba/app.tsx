@@ -102,7 +102,7 @@ export interface Result {
   formNaehe?: number | null;  // v55 — Silhouetten-Naehe
   type: string; material: string[]; form: string[]; closure: string;
   description?: string; imageUrl: string | null;
-  capabilities: string[]; availableSizes: string[]; availableMaterials: string[];
+  capabilities: string[]; availableSizes: string[]; availableMaterials: string[]; neck?: string[];
   capCount: number;
   caps?: CapRef[]; // {id, name, imageUrl}
   capImages?: string[]; // Fallback (nur URLs) — falls Backend noch alt ist
@@ -1501,6 +1501,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
     ['Typ', TYPE_LABELS[product.type] || product.type],
     ['Material', product.material?.join(', ')],
     ['Volumen', product.availableSizes?.join(', ')],
+    ['Halsmaß', product.neck?.join(', ')],
     ['Verschluss', product.closure],
     ['Veredelung', product.capabilities?.join(', ')],
     ...merkmalZeilen(product.merkmale),
