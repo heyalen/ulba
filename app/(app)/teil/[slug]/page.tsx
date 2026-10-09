@@ -12,6 +12,7 @@ import { teilBySlug, alleTeile, aehnlicheTeile, alleKategorien, alleLieferanten,
 import { Raster, Pillen, specText } from '@/app/_katalog/ui';
 import { TeilSeite, type Result } from '@/app/_ulba/app';
 import { typKurz, typPlural } from '@/lib/typen';
+import { merkmalZeilen } from '@/lib/merkmale';
 
 export const revalidate = 3600;
 
@@ -44,6 +45,7 @@ function alsResult(t: Teil): Result {
     capCount: t.caps.length,
     caps: t.caps.filter((c) => c.bild).map((c) => ({ id: c.id, name: c.art || c.name, imageUrl: `/api/bild?r=${c.id}` })),
     supplier: t.supplier,
+    merkmale: t.merkmale,
   };
 }
 
@@ -60,12 +62,14 @@ export default async function TeilRoute({ params }: { params: { slug: string } }
     category: t.type ? typPlural(t.type) : undefined, material: t.material.join(', ') || undefined,
     brand: t.supplier ? { '@type': 'Brand', name: t.supplier } : undefined,
     url: `${SITE_URL}/teil/${t.slug}`,
+    additionalProperty: merkmalZeilen(t.merkmale).map(([name, value]) => ({ '@type': 'PropertyValue', name, value })),
   };
 
   const fakten: [string, string][] = ([
     ['Typ', typKurz(t.type)], ['Material', t.material.join(', ')], ['Form', t.form.join(', ')],
     ['Verschlussart', t.closure], ['Halsmaß', t.hals.join(', ')], ['Größen', t.sizes.join(', ')],
     ['Materialvarianten', t.materialsAvailable.join(', ')], ['Veredelung', t.faehigkeiten.join(', ')],
+    ...merkmalZeilen(t.merkmale),
   ] as [string, string][]).filter(([, v]) => v);
 
   return (
