@@ -2134,7 +2134,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
         ...p, name: p.name === 'Referenzbild' ? (projektName(data.bildlesart) || p.name) : p.name,
-        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], status: 'done' } : b),
+        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], merkmalWahl: Array.isArray(data.merkmal_wahl) ? data.merkmal_wahl : [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2348,7 +2348,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                       // v66 — Eingrenz-Chips nach Merkmalen: nur in der Textsuche (im
                       // Bildmodus ordnet die Form, eine Teilmenge wuerde nah/aehnlich brechen).
                       const wahl = b.nah ? [] : (b.merkmalWahl || []);
-                      const merkmalChips = !b.nah && b.status === 'done' && b.results.length >= 4 ? merkmalFacetten(b.results.map(r => r.merkmale), wahl) : [];
+                      const merkmalChips = !b.nah && b.status === 'done' && (b.results.length >= 4 || wahl.length > 0) ? merkmalFacetten(b.results.map(r => r.merkmale), wahl) : [];
                       const liste = wahl.length ? b.results.filter(r => passtZuWahl(r.merkmale, wahl)) : b.results;
                       // v50 — im Bildmodus schneidet das Backend ab: nur was
                       // wirklich nah ist, wird als Antwort gezeigt. Der Rest
