@@ -11,7 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
-import { merkmalZeilen, merkmalFacetten, passtZuWahl, type Merkmal } from '@/lib/merkmale';
+import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
@@ -131,7 +131,7 @@ interface Block {
   categoryMatch: string;
   hinweis: string; // v30 — Kompetenz-Satz vor den Kacheln (Formel-Flags)
   alleZeigen: boolean;
-  merkmalWahl?: string[]; // v66 — Eingrenz-Chips (client-seitig, kein neuer Suchlauf)
+  merkmalWahl?: { key: string; label: string }[]; // v67 — vom Server erkannte Merkmale, als aktive Pillen (client-seitig gefiltert)
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
   bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
@@ -452,11 +452,6 @@ const STYLES = `
 .favherz:hover,.favherz.an{color:var(--rouge)}
 .eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
 .eb-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
-.eb-merkmale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin:0 0 16px}
-.mg{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.mg-l{font-size:12px;color:var(--hell);margin-right:2px}
-.eb-merkmale .lt-chip i{font-style:normal;opacity:.45;margin-left:5px;font-size:11.5px}
-.mg-reset{font-size:12.5px;color:var(--grau);text-decoration:underline;text-underline-offset:3px}
 .eb-facetten{display:flex;flex-direction:column;gap:10px;margin-top:22px;padding-top:20px;border-top:1px solid var(--linie2)}
 .facet{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .fc-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--grau);width:92px;flex:none}
@@ -2134,7 +2129,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
         ...p, name: p.name === 'Referenzbild' ? (projektName(data.bildlesart) || p.name) : p.name,
-        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], merkmalWahl: Array.isArray(data.merkmal_wahl) ? data.merkmal_wahl : [], status: 'done' } : b),
+        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], merkmalWahl: Array.isArray(data.merkmal_wahl) ? data.merkmal_wahl.filter((x: any) => x && typeof x.key === 'string') : [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2207,13 +2202,9 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     runSearch(active.id, rootQuery, filters, `ohne ${wert}`, removed);
   };
 
-  const toggleMerkmal = (blockId: number, key: string) => {
+  const entferneMerkmal = (blockId: number, key: string) => {
     if (!active) return;
-    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => {
-      if (b.id !== blockId) return b;
-      const w = b.merkmalWahl || [];
-      return { ...b, merkmalWahl: w.includes(key) ? w.filter(k => k !== key) : [...w, key] };
-    }) }));
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, merkmalWahl: (b.merkmalWahl || []).filter(m => m.key !== key) } : b) }));
   };
   const setBlockAlle = (blockId: number, alle: boolean) => {
     if (!active) return;
@@ -2347,8 +2338,8 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                       const isLast = b.id === lastId;
                       // v66 — Eingrenz-Chips nach Merkmalen: nur in der Textsuche (im
                       // Bildmodus ordnet die Form, eine Teilmenge wuerde nah/aehnlich brechen).
-                      const wahl = b.nah ? [] : (b.merkmalWahl || []);
-                      const merkmalChips = !b.nah && b.status === 'done' && (b.results.length >= 4 || wahl.length > 0) ? merkmalFacetten(b.results.map(r => r.merkmale), wahl) : [];
+                      const merkmalPillen = b.nah ? [] : (b.merkmalWahl || []);
+                      const wahl = merkmalPillen.map(m => m.key);
                       const liste = wahl.length ? b.results.filter(r => passtZuWahl(r.merkmale, wahl)) : b.results;
                       // v50 — im Bildmodus schneidet das Backend ab: nur was
                       // wirklich nah ist, wird als Antwort gezeigt. Der Rest
@@ -2374,11 +2365,14 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                             {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
                             {b.status === 'done' && (
                               <div className={`eb${isLast ? '' : ' eb-alt'}`}>
-                                {chips.length > 0 && !b.lesart && (
+                                {(chips.length > 0 || merkmalPillen.length > 0) && !b.lesart && (
                                   <div className="eb-filter">
                                     <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
                                     {chips.map((c, i) => (
                                       <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
+                                    ))}
+                                    {merkmalPillen.map(m => (
+                                      <span key={m.key} className="ebf-pill">{m.label}{isLast && <span className="ebf-x" onClick={() => entferneMerkmal(b.id, m.key)}>×</span>}</span>
                                     ))}
                                   </div>
                                 )}
@@ -2405,20 +2399,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                                       : `von ulba kuratiert · gelesen als ${pal}`}
                                   </span>
                                 </div>
-                                {merkmalChips.length > 0 && (
-                                  <div className="eb-merkmale" role="group" aria-label="Nach Merkmalen eingrenzen">
-                                    {merkmalChips.map(g => (
-                                      <div key={g.id} className="mg">
-                                        <span className="mg-l">{g.label}</span>
-                                        {g.werte.map(w => (
-                                          <button key={w.key} type="button" className={`lt-chip${w.an ? ' an' : ''}`} aria-pressed={w.an}
-                                            onClick={() => toggleMerkmal(b.id, w.key)}>{w.label}<i>{w.n}</i></button>
-                                        ))}
-                                      </div>
-                                    ))}
-                                    {wahl.length > 0 && <button type="button" className="mg-reset" onClick={() => wahl.forEach(k => toggleMerkmal(b.id, k))}>Zurücksetzen</button>}
-                                  </div>
-                                )}
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <>
