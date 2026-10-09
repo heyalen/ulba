@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
+import { merkmalZeilen, merkmalFacetten, passtZuWahl, type Merkmal } from '@/lib/merkmale';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
@@ -105,6 +106,7 @@ export interface Result {
   capImages?: string[]; // Fallback (nur URLs) — falls Backend noch alt ist
   supplier?: string;
   projekt?: string;
+  merkmale?: Merkmal[]; // v66 — am Foto belegt (Körper + alle Caps), aus /api/search bzw. Server
 }
 
 // ►►► ANNAHME: /api/search liefert parsedFilters mit genau diesen vier Keys.
@@ -129,6 +131,7 @@ interface Block {
   categoryMatch: string;
   hinweis: string; // v30 — Kompetenz-Satz vor den Kacheln (Formel-Flags)
   alleZeigen: boolean;
+  merkmalWahl?: string[]; // v66 — Eingrenz-Chips (client-seitig, kein neuer Suchlauf)
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
   bild?: string;          // v47 — Referenzfoto dieser Runde (Vorschau im Thread)
@@ -449,6 +452,11 @@ const STYLES = `
 .favherz:hover,.favherz.an{color:var(--rouge)}
 .eb-mehr{display:block;margin:16px auto;border:1px solid var(--linie);border-radius:999px;padding:11px 26px;font-size:13.5px;color:var(--grau);background:var(--panel)}
 .eb-mehr:hover{border-color:var(--tinte);color:var(--tinte)}
+.eb-merkmale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin:0 0 16px}
+.mg{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.mg-l{font-size:12px;color:var(--hell);margin-right:2px}
+.eb-merkmale .lt-chip i{font-style:normal;opacity:.45;margin-left:5px;font-size:11.5px}
+.mg-reset{font-size:12.5px;color:var(--grau);text-decoration:underline;text-underline-offset:3px}
 .eb-facetten{display:flex;flex-direction:column;gap:10px;margin-top:22px;padding-top:20px;border-top:1px solid var(--linie2)}
 .facet{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .fc-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--grau);width:92px;flex:none}
@@ -1496,6 +1504,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
     ['Volumen', product.availableSizes?.join(', ')],
     ['Verschluss', product.closure],
     ['Veredelung', product.capabilities?.join(', ')],
+    ...merkmalZeilen(product.merkmale),
   ] as [string, string | undefined][]).filter((z): z is [string, string] => !!z[1]);
   const fakten = zeilen.length > 0 && (
     <dl className="pn-fakten">
@@ -2198,6 +2207,14 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     runSearch(active.id, rootQuery, filters, `ohne ${wert}`, removed);
   };
 
+  const toggleMerkmal = (blockId: number, key: string) => {
+    if (!active) return;
+    patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => {
+      if (b.id !== blockId) return b;
+      const w = b.merkmalWahl || [];
+      return { ...b, merkmalWahl: w.includes(key) ? w.filter(k => k !== key) : [...w, key] };
+    }) }));
+  };
   const setBlockAlle = (blockId: number, alle: boolean) => {
     if (!active) return;
     patchProject(active.id, p => ({ ...p, blocks: p.blocks.map(b => b.id === blockId ? { ...b, alleZeigen: alle } : b) }));
@@ -2328,7 +2345,11 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                   <div className="thread-inner">
                     {blocks.map(b => {
                       const isLast = b.id === lastId;
-                      const liste = b.results;
+                      // v66 — Eingrenz-Chips nach Merkmalen: nur in der Textsuche (im
+                      // Bildmodus ordnet die Form, eine Teilmenge wuerde nah/aehnlich brechen).
+                      const wahl = b.nah ? [] : (b.merkmalWahl || []);
+                      const merkmalChips = !b.nah && b.status === 'done' && b.results.length >= 4 ? merkmalFacetten(b.results.map(r => r.merkmale), wahl) : [];
+                      const liste = wahl.length ? b.results.filter(r => passtZuWahl(r.merkmale, wahl)) : b.results;
                       // v50 — im Bildmodus schneidet das Backend ab: nur was
                       // wirklich nah ist, wird als Antwort gezeigt. Der Rest
                       // bleibt einen Klick entfernt, wird aber nicht behauptet.
@@ -2384,6 +2405,20 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                                       : `von ulba kuratiert · gelesen als ${pal}`}
                                   </span>
                                 </div>
+                                {merkmalChips.length > 0 && (
+                                  <div className="eb-merkmale" role="group" aria-label="Nach Merkmalen eingrenzen">
+                                    {merkmalChips.map(g => (
+                                      <div key={g.id} className="mg">
+                                        <span className="mg-l">{g.label}</span>
+                                        {g.werte.map(w => (
+                                          <button key={w.key} type="button" className={`lt-chip${w.an ? ' an' : ''}`} aria-pressed={w.an}
+                                            onClick={() => toggleMerkmal(b.id, w.key)}>{w.label}<i>{w.n}</i></button>
+                                        ))}
+                                      </div>
+                                    ))}
+                                    {wahl.length > 0 && <button type="button" className="mg-reset" onClick={() => wahl.forEach(k => toggleMerkmal(b.id, k))}>Zurücksetzen</button>}
+                                  </div>
+                                )}
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <>
