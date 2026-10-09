@@ -30,6 +30,8 @@ const FILTER_LABELS: Record<keyof ParsedFilters, string> = {
   materials: 'Material', types: 'Typ', closures: 'Verschluss', sizes: 'Größe',
 };
 
+const KUNSTSTOFFE = ['PET', 'R-PET', 'HDPE', 'PP', 'PETG', 'HDPE/LDPE'];
+
 const FACETTEN: { dim: keyof ParsedFilters; label: string; opt: string[] }[] = [
   // v60 — Werte sind die REALEN Airtable-Optionen (deutsch), sonst trifft der Filter nichts.
   { dim: 'materials', label: 'Material', opt: ['Glas', 'PET', 'PETG', 'HDPE', 'PP', 'Aluminium'] },
@@ -131,6 +133,7 @@ interface Block {
   categoryMatch: string;
   hinweis: string; // v30 — Kompetenz-Satz vor den Kacheln (Formel-Flags)
   alleZeigen: boolean;
+  merkmalFehlt?: string[]; // v68 — verstanden, aber kein Teil im Katalog hat es
   merkmalWahl?: { key: string; label: string }[]; // v67 — vom Server erkannte Merkmale, als aktive Pillen (client-seitig gefiltert)
   status: 'loading' | 'done' | 'error';
   capWall?: CapWall; // Verschluss-Wand aus /api/search (deprioritize_open_dropper)
@@ -379,6 +382,7 @@ const STYLES = `
 .msg-ulba{margin:8px 0 26px}
 .eb-alt{opacity:.6}
 .eb-intro{font-family:var(--serif);font-style:normal;font-size:19px;line-height:1.4;margin-bottom:14px;max-width:60ch}
+.ebf-fehlt{font-size:12.5px;color:var(--grau);margin-left:4px}
 .eb-filter{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
 .ebf-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--hell);margin-right:4px}
 .ebf-pill{display:inline-flex;align-items:center;gap:7px;background:var(--tinte);color:#fff;padding:6px 8px 6px 13px;border-radius:999px;font-size:13px}
@@ -2129,7 +2133,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
       setProjects(prev => prev.map(p => p.id === projectId ? {
         ...p, name: p.name === 'Referenzbild' ? (projektName(data.bildlesart) || p.name) : p.name,
-        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], merkmalWahl: Array.isArray(data.merkmal_wahl) ? data.merkmal_wahl.filter((x: any) => x && typeof x.key === 'string') : [], status: 'done' } : b),
+        blocks: p.blocks.map(b => b.id === id ? { ...b, results: heile(data.results || []), categoryMatch: data.categoryMatch || '', hinweis: data.hinweis || '', filters: serverFilters, capWall: data.cap_wall || undefined, lesart: data.bildlesart || null, nah: data.nah || 0, aehnlich: data.aehnlich || 0, formMessung: data.form_messung || null, tags: data.bild_tags || [], merkmalWahl: Array.isArray(data.merkmal_wahl) ? data.merkmal_wahl.filter((x: any) => x && typeof x.key === 'string') : [], merkmalFehlt: Array.isArray(data.merkmal_fehlt) ? data.merkmal_fehlt.filter((x: any) => typeof x === 'string') : [], status: 'done' } : b),
       } : p));
     } catch {
       setProjects(prev => prev.map(p => p.id === projectId ? {
@@ -2190,16 +2194,17 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     runSearch(active.id, rootQuery, filters, `${FILTER_LABELS[dim]}: ${wert}`, removed);
   };
 
-  const entferneFilter = (dim: keyof ParsedFilters, wert: string) => {
+  const entferneFilter = (dim: keyof ParsedFilters, wert: string | string[], label?: string) => {
     if (!active) return;
+    const werte = Array.isArray(wert) ? wert : [wert];
     const letzter = blocks[blocks.length - 1];
     const filters = letzter ? cloneFilters(letzter.filters) : emptyFilters();
     const removed = letzter?.removed ? cloneFilters(letzter.removed) : emptyFilters();
-    filters[dim] = filters[dim].filter(v => v !== wert);
+    filters[dim] = filters[dim].filter(v => !werte.includes(v));
     // In die removed-Liste — sonst parst das Backend den Wert aus der rootQuery
     // sofort wieder rein (Union-Merge) und das X wirkt nie.
-    if (!removed[dim].includes(wert)) removed[dim] = [...removed[dim], wert];
-    runSearch(active.id, rootQuery, filters, `ohne ${wert}`, removed);
+    for (const w of werte) if (!removed[dim].includes(w)) removed[dim] = [...removed[dim], w];
+    runSearch(active.id, rootQuery, filters, `ohne ${label || werte[0]}`, removed);
   };
 
   const entferneMerkmal = (blockId: number, key: string) => {
@@ -2350,9 +2355,17 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                       const zeige = b.alleZeigen ? liste : liste.slice(0, grenze);
                       const rest = liste.length - zeige.length;
                       const pal = b.categoryMatch || 'deine Suche';
-                      const chips: { dim: keyof ParsedFilters; wert: string; label: string }[] = [];
-                      (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(dim =>
-                        (b.filters[dim] || []).forEach(wert => chips.push({ dim, wert, label: `${FILTER_LABELS[dim]}: ${wert}` })));
+                      const chips: { dim: keyof ParsedFilters; wert: string | string[]; label: string }[] = [];
+                      (Object.keys(FILTER_LABELS) as (keyof ParsedFilters)[]).forEach(dim => {
+                        let werte = b.filters[dim] || [];
+                        // "Kunststoff" kommt als 6 Materialien zurück — eine Pille statt sechs.
+                        const plastik = werte.filter(w => KUNSTSTOFFE.includes(w));
+                        if (dim === 'materials' && ['PET', 'HDPE', 'PP'].every(w => plastik.includes(w))) {
+                          chips.push({ dim, wert: plastik, label: 'Material: Kunststoff' });
+                          werte = werte.filter(w => !plastik.includes(w));
+                        }
+                        werte.forEach(wert => chips.push({ dim, wert, label: `${FILTER_LABELS[dim]}: ${wert}` }));
+                      });
                       const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
                       return (
                         <div key={b.id}>
@@ -2365,15 +2378,18 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                             {b.status === 'error' && <div className="eb-scan" style={{ color: '#dc2626' }}>Fehler — bitte erneut versuchen.</div>}
                             {b.status === 'done' && (
                               <div className={`eb${isLast ? '' : ' eb-alt'}`}>
-                                {(chips.length > 0 || merkmalPillen.length > 0) && !b.lesart && (
+                                {(chips.length > 0 || merkmalPillen.length > 0 || (b.merkmalFehlt || []).length > 0) && !b.lesart && (
                                   <div className="eb-filter">
                                     <span className="ebf-lbl">{isLast ? 'Aktiv' : 'Stand'}</span>
                                     {chips.map((c, i) => (
-                                      <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert)}>×</span>}</span>
+                                      <span key={i} className="ebf-pill">{c.label}{isLast && <span className="ebf-x" onClick={() => entferneFilter(c.dim, c.wert, c.label.replace(/^[^:]+: /, ''))}>×</span>}</span>
                                     ))}
                                     {merkmalPillen.map(m => (
                                       <span key={m.key} className="ebf-pill">{m.label}{isLast && <span className="ebf-x" onClick={() => entferneMerkmal(b.id, m.key)}>×</span>}</span>
                                     ))}
+                                    {(b.merkmalFehlt || []).length > 0 && (
+                                      <span className="ebf-fehlt">Nicht im Katalog: {(b.merkmalFehlt || []).join(' · ')}</span>
+                                    )}
                                   </div>
                                 )}
                                 {b.lesart && (
