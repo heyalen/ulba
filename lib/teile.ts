@@ -9,6 +9,9 @@ const AIRTABLE_BASE = 'app0QFyInfhvk66MC';
 const SYSTEM_TABLE = 'tblB1kWay9TvX3rGv';
 const CAP_TABLE = 'tblQvnXPhiKGMoqDp';
 const LIEFERANTEN_TABLE = 'tblsy3CHZbAo6GraB';
+const ATTR_TABLE = 'tblsWJ0q2sQ7sXwvk';
+/* Attribut_Bibliothek: Wert, Kategorie, deutscher Untertitel */
+const A = { name: 'fldkhYMbxvAtglzaI', kat: 'fldaRa8uT30LC4h5o', sub: 'fldduSVAFumDEDziS' };
 
 /* System (Teile) */
 const S = {
@@ -28,6 +31,7 @@ const S = {
   beschreibung: 'fld6gQzYaI74nXDTm', // Kurzbeschreibung
   published: 'fldGKpVG4bIAKnrl9', // nur veröffentlichte Teile (wie die Suche)
   syncStatus: 'fldVtDEyUSRo9lsuH',
+  attribute: 'fldZy4cS6MPJJlKYf', // Körper-Merkmale (Link Attribut_Bibliothek)
 };
 /* Caps */
 const C = {
@@ -35,6 +39,7 @@ const C = {
   bildH: 'fldEmoFwLyORDwKPJ',
   bild: 'fldrdBvP5VIQ61ZVB',
   art: 'fldVxgwWH9Bi0OWzn',
+  attr: 'fldxmTtC3JsFylA4f', // Cap_Attribute (Kappen-Merkmale)
 };
 /* Lieferanten */
 const L = {
@@ -57,13 +62,14 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ulba.ai';
 /** Kombi-Seiten und Kategorien entstehen erst ab so vielen Teilen (keine dünnen Seiten). */
 export const MIN_TEILE_PRO_SEITE = 3;
 
-export interface Cap { id: string; name: string; art: string; bild: string | null }
+export interface Cap { id: string; name: string; art: string; bild: string | null; attr: string[] }
 export interface Teil {
   id: string; slug: string; name: string;
   type: string; material: string[]; form: string[]; closure: string; hals: string[];
   beschreibung: string; bild: string | null;
   sizes: string[]; materialsAvailable: string[]; faehigkeiten: string[];
   caps: Cap[];
+  merkmale: Merkmal[]; // am Foto belegt: Körper + alle Caps
   supplier: string; supplierSlug: string;
   nichtMehrImKatalog: boolean;
 }
@@ -85,6 +91,7 @@ const img = (v: any): string | null => (Array.isArray(v) && v[0]?.url ? v[0].url
 export { slugify, teilSlug } from './slug';
 import { slugify, teilSlug } from './slug';
 import { typPlural } from './typen';
+import { merkmalLabel, type Merkmal } from './merkmale';
 
 /* ── Airtable ────────────────────────────────────────────────────────── */
 
@@ -139,9 +146,22 @@ async function ladeCaps(): Promise<Map<string, Cap>> {
     const recs = await airtableAll(CAP_TABLE, Object.values(C));
     for (const r of recs) {
       const f = r.fields || {};
-      map.set(r.id, { id: r.id, name: String(f[C.name] || ''), art: sel(f[C.art]), bild: img(f[C.bildH]) || img(f[C.bild]) });
+      map.set(r.id, { id: r.id, name: String(f[C.name] || ''), art: sel(f[C.art]), bild: img(f[C.bildH]) || img(f[C.bild]), attr: (f[C.attr] || []) as string[] });
     }
   } catch { /* Teil-Seite läuft auch ohne Caps */ }
+  return map;
+}
+
+async function ladeMerkmale(): Promise<Map<string, Merkmal>> {
+  const map = new Map<string, Merkmal>();
+  try {
+    const recs = await airtableAll(ATTR_TABLE, Object.values(A));
+    for (const r of recs) {
+      const f = r.fields || {};
+      const wert = String(f[A.name] || ''); const kat = sel(f[A.kat]);
+      if (wert && kat) map.set(r.id, { kat, wert, label: merkmalLabel(wert, String(f[A.sub] || '')) });
+    }
+  } catch { /* Seiten laufen auch ohne Merkmale */ }
   return map;
 }
 
@@ -152,8 +172,8 @@ export async function alleLieferanten(): Promise<Lieferant[]> {
 }
 
 export async function alleTeile(): Promise<Teil[]> {
-  const [recs, lieferanten, caps] = await Promise.all([
-    airtableAll(SYSTEM_TABLE, Object.values(S)), ladeLieferanten(), ladeCaps(),
+  const [recs, lieferanten, caps, attr] = await Promise.all([
+    airtableAll(SYSTEM_TABLE, Object.values(S)), ladeLieferanten(), ladeCaps(), ladeMerkmale(),
   ]);
   return recs.filter((rec) => rec.fields?.[S.published] === true).map((rec) => {
     const f = rec.fields || {};
@@ -167,6 +187,11 @@ export async function alleTeile(): Promise<Teil[]> {
       sizes: multi(f[S.groessen]), materialsAvailable: multi(f[S.materialien]),
       faehigkeiten: multi(f[S.faehigkeiten]),
       caps: ((f[S.caps] || []) as string[]).map((id) => caps.get(id)).filter((c): c is Cap => !!c),
+      merkmale: (() => {
+        const ids = [...((f[S.attribute] || []) as string[]),
+          ...((f[S.caps] || []) as string[]).flatMap((id) => caps.get(id)?.attr || [])];
+        return Array.from(new Set(ids)).map((id) => attr.get(id)).filter((m): m is Merkmal => !!m);
+      })(),
       supplier: lief?.name || '', supplierSlug: lief?.slug || '',
       nichtMehrImKatalog: sel(f[S.syncStatus]) === 'nicht mehr im Katalog',
     };
