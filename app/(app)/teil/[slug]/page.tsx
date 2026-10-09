@@ -41,7 +41,7 @@ function alsResult(t: Teil): Result {
     id: t.id, name: t.name, score: 0, reasoning: '',
     type: t.type, material: t.material, form: t.form, closure: t.closure,
     description: t.beschreibung, imageUrl: t.bild ? `/api/bild?r=${t.id}` : null,
-    capabilities: t.faehigkeiten, availableSizes: t.sizes, availableMaterials: t.materialsAvailable,
+    capabilities: t.faehigkeiten, availableSizes: t.sizes, availableMaterials: t.materialsAvailable, neck: t.hals,
     capCount: t.caps.length,
     caps: t.caps.filter((c) => c.bild).map((c) => ({ id: c.id, name: c.art || c.name, imageUrl: `/api/bild?r=${c.id}` })),
     supplier: t.supplier,
