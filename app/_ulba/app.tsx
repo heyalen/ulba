@@ -14,6 +14,7 @@ import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
+const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
 
 const EXAMPLES = [
@@ -76,6 +77,13 @@ interface RenderConcept {
     laut: string | null; warnungen: string[];
   };
 }
+/* v69 — Ein archivierter Render aus /api/renders (reload-feste Wahrheit). */
+interface RenderEintrag {
+  id: string; bildUrl: string; capBildUrl: string | null;
+  weltName: string; teilName: string; systemId: string | null; codeId: string | null;
+  konzeptName: string; story: string; warnungen: string[]; engine: string; erstellt: string;
+}
+
 function produzierbarText(p: RenderConcept['produzierbar']): string {
   if (!p) return '';
   const parts: string[] = [];
@@ -981,6 +989,34 @@ const STYLES = `
 .pn-waechter b{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .pn-waechter span{font-size:13px;line-height:1.55;color:var(--grau)}
 .pn-waechter .pn-w-warn{color:#8A6116}
+/* v69 — Render-Galerie (minimal, clean: Bild gross, eine Textzeile) */
+.rg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:18px}
+.rg-karte{display:flex;flex-direction:column;border:1px solid var(--linie);border-radius:14px;background:#fff;overflow:hidden;cursor:pointer;text-align:left;padding:0;transition:border-color .15s,box-shadow .15s}
+.rg-karte:hover{border-color:var(--hell);box-shadow:0 6px 24px rgba(0,0,0,.07)}
+.rg-bild{aspect-ratio:1/1;background:linear-gradient(180deg,#fff,#f4f3ef);display:flex;align-items:center;justify-content:center}
+.rg-bild img{max-width:84%;max-height:84%;object-fit:contain;mix-blend-mode:multiply}
+.rg-text{padding:10px 13px 12px;display:flex;flex-direction:column;gap:2px}
+.rg-t{font-size:14px;font-weight:600;color:var(--tinte)}
+.rg-s{font-size:12px;color:var(--grau)}
+.rg-ov{position:fixed;inset:0;background:rgba(20,19,16,.45);z-index:80;display:flex;align-items:center;justify-content:center;padding:18px}
+.rg-box{position:relative;background:#fff;border-radius:18px;max-width:920px;width:100%;max-height:92vh;overflow:auto;display:grid;grid-template-columns:1.15fr 1fr}
+.rg-zu{position:absolute;top:10px;right:10px;z-index:2}
+.rg-gross{position:relative;background:linear-gradient(180deg,#fff,#f4f3ef);display:flex;align-items:center;justify-content:center;min-height:380px;padding:28px}
+.rg-gross img{max-width:100%;max-height:62vh;object-fit:contain;mix-blend-mode:multiply}
+.rg-gross .rg-cap{position:absolute;right:16px;bottom:16px;max-width:82px;max-height:82px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px}
+.rg-detail{padding:28px 24px;display:flex;flex-direction:column;gap:7px}
+.rg-detail h3{margin:0;font-size:21px}
+.rg-meta{font-size:12.5px;color:var(--grau);margin:0}
+.rg-story{font-size:13.5px;color:var(--tinte);line-height:1.55;margin:4px 0 0}
+.rg-warn{font-size:12.5px;color:#8A6116;margin:2px 0 0}
+.rg-aktionen{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.rg-aktionen .wz{text-decoration:none}
+.pn-renders{margin-top:14px}
+.pn-renders-reihe{display:flex;gap:8px;overflow-x:auto;padding:6px 0 2px}
+.pn-renders-reihe button{flex:0 0 auto;width:62px;height:62px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px;cursor:pointer}
+.pn-renders-reihe button:hover{border-color:var(--hell)}
+.pn-renders-reihe button img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+@media(max-width:760px){.rg-box{grid-template-columns:1fr}.rg-gross{min-height:260px}}
 .pn-waechter .pn-w-prod{font-size:12px;color:var(--hell)}
 .pn-fakten{margin:22px 0 4px}
 .pn-fakten div{display:grid;grid-template-columns:108px 1fr;gap:14px;padding:11px 2px;border-top:1px solid var(--linie);font-size:13.5px}
@@ -1333,6 +1369,93 @@ function DesignWand({ suche, register, onWahl, onClose }: {
   );
 }
 
+/* ── v69 — Die Render-Galerie: jeder Lauf, reload-fest archiviert. Die
+   Lauf-Blöcke im Chat bleiben flüchtig (fal-URLs verfallen); hier ist die
+   Wahrheit — Kartengrid, Detail-Overlay, Erneut-Rendern aus dem Archiv. ── */
+function RenderGalerie() {
+  const [laden, setLaden] = useState(true);
+  const [liste, setListe] = useState<RenderEintrag[]>([]);
+  const [offen, setOffen] = useState<RenderEintrag | null>(null);
+  const [neuLauf, setNeuLauf] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [neuBild, setNeuBild] = useState<string | null>(null);
+  const lade = useCallback(() => {
+    fetch(RENDERS_API)
+      .then(r => r.json())
+      .then(d => setListe(Array.isArray(d?.renders) ? d.renders : []))
+      .catch(() => setListe([]))
+      .finally(() => setLaden(false));
+  }, []);
+  useEffect(() => { lade(); }, [lade]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOffen(null); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, []);
+  const datum = (iso: string) => { const d = new Date(iso); return isNaN(+d) ? '' : d.toLocaleDateString('de-CH'); };
+  const erneut = async (e: RenderEintrag) => {
+    if (!e.systemId || !e.codeId) return;
+    setNeuLauf('loading'); setNeuBild(null);
+    try {
+      const res = await fetch(RENDER_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemId: e.systemId, query: e.weltName || e.konzeptName, tier: 'lite', forceCodeId: e.codeId }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error || !d.renderingUrl) throw new Error(d.error || 'Render fehlgeschlagen');
+      setNeuBild(d.renderingUrl); setNeuLauf('idle');
+      setTimeout(lade, 5000); // Archiv zieht nach, sobald der Upload durch ist
+    } catch { setNeuLauf('error'); }
+  };
+  return (
+    <div className="bereich">
+      <div className="ber-kopf"><h2 className="serif">Renders</h2><p>Jede Welt auf jedem Teil — reload-fest archiviert, neueste zuerst.</p></div>
+      {laden && <div className="leer">Lade …</div>}
+      {!laden && liste.length === 0 && <div className="leer"><div className="gr">Noch keine Renders.</div>Zeig ein Teil in einem Design — der Lauf landet automatisch hier.</div>}
+      {!laden && liste.length > 0 && (
+        <div className="rg-grid">
+          {liste.map(e => (
+            <button key={e.id} className="rg-karte" onClick={() => { setOffen(e); setNeuBild(null); setNeuLauf('idle'); }}>
+              <div className="rg-bild"><img src={e.bildUrl} alt={`${e.teilName} im Design ${e.weltName}`} loading="lazy" /></div>
+              <div className="rg-text">
+                <span className="rg-t">{e.weltName || 'Render'}</span>
+                <span className="rg-s">{[e.teilName, datum(e.erstellt)].filter(Boolean).join(' · ')}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {offen && (
+        <div className="rg-ov" role="dialog" aria-label={offen.weltName || 'Render'} onClick={() => setOffen(null)}>
+          <div className="rg-box" onClick={ev => ev.stopPropagation()}>
+            <button className="pn-zu rg-zu" onClick={() => setOffen(null)} aria-label="schließen">×</button>
+            <div className="rg-gross">
+              <img src={neuBild || offen.bildUrl} alt={offen.weltName} />
+              {offen.capBildUrl && !neuBild && <img className="rg-cap" src={offen.capBildUrl} alt="Verschluss" />}
+              {neuLauf === 'loading' && <div className="pn-lade"><span className="pn-lade-sp" /><span>Rendert erneut …</span></div>}
+            </div>
+            <div className="rg-detail">
+              <h3 className="serif">{offen.konzeptName || offen.weltName || 'Render'}</h3>
+              <p className="rg-meta">{[offen.teilName, datum(offen.erstellt), offen.engine].filter(Boolean).join(' · ')}</p>
+              {offen.story && <p className="rg-story">{offen.story}</p>}
+              {offen.warnungen.length > 0 && <p className="rg-warn">{offen.warnungen.join(' · ')}</p>}
+              {neuLauf === 'error' && <p className="pn-fehler">Erneut rendern hat nicht geklappt — kurz warten und noch einmal.</p>}
+              <div className="rg-aktionen">
+                <a className="wz" href={neuBild || offen.bildUrl} download={`ulba_${(offen.weltName || 'render').replace(/\W+/g, '_')}.jpg`}><Icon n="bild" /><span>Download</span></a>
+                {offen.systemId && offen.codeId && (
+                  <button className="wz" onClick={() => erneut(offen)} disabled={neuLauf === 'loading'}><Icon n="raum" /><span>Erneut rendern</span></button>
+                )}
+                {offen.systemId && offen.teilName && (
+                  <Link className="wz" href={`/teil/${teilSlug(offen.teilName, offen.systemId)}`}><Icon n="gross" /><span>Zum Teil</span></Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Detail-Panel rechts: Inspektor UND Bühne. Teil ansehen, Verschluss wählen,
    Specs — und mit einem Klick das Teil in einem kuratierten Design sehen.
    Der Render passiert hier, nicht mehr im Chat: ein Design, ein Bild, eine
@@ -1356,6 +1479,17 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
+
+  // v69 — archivierte Renders dieses Teils (aus /api/renders, reload-fest).
+  const [teilRenders, setTeilRenders] = useState<RenderEintrag[]>([]);
+  useEffect(() => {
+    let tot = false;
+    fetch(`${RENDERS_API}?systemId=${product.id}`)
+      .then(r => r.json())
+      .then(d => { if (!tot) setTeilRenders(Array.isArray(d?.renders) ? d.renders.slice(0, 8) : []); })
+      .catch(() => { if (!tot) setTeilRenders([]); });
+    return () => { tot = true; };
+  }, [product.id]);
 
   const rendern = async (code: DesignCodeKarte) => {
     setWandOffen(false);
@@ -1480,6 +1614,22 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
     </div>
   );
 
+  // v69 — Reihe der archivierten Renders dieses Teils: Klick legt das Bild
+  // in die Bühne (stabile /api/bild-Adresse, kein neuer fal-Lauf).
+  const rendersReihe = teilRenders.length > 0 && (
+    <div className="pn-renders">
+      <div className="pn-caps-kopf"><span>Renders dieses Teils</span><span className="leise">{teilRenders.length}</span></div>
+      <div className="pn-renders-reihe">
+        {teilRenders.map(e => (
+          <button key={e.id} type="button" title={e.weltName}
+            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            <img src={e.bildUrl} alt={e.weltName} loading="lazy" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   /* Die Wächterzeile: was das reale Teil nicht kann, steht hier — nicht im Bild. */
   const waechter = zeigtRender && render?.concept && (
     <div className="pn-waechter">
@@ -1543,6 +1693,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
             {capWahl}
             {aktion}
             {look}
+            {rendersReihe}
             {waechter}
           </div>
         </div>
@@ -1567,6 +1718,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         {buehne}
         {capWahl}
         {look}
+        {rendersReihe}
         {waechter}
         {fakten}
       </div>
@@ -1821,7 +1973,7 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
    Zurück/Vor, Reload und geteilte Links zeigen damit genau das, was man sah.
    Suchen liegen im Browser: ?s= öffnet nur, was dieser Browser kennt —
    fremde Links fallen auf die volle Teil-Seite zurück. */
-type Ansicht = 'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen' | 'seite';
+type Ansicht = 'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen' | 'renders' | 'seite';
 
 interface UlbaKontextWert {
   isFav: (id: string) => boolean;
@@ -2014,8 +2166,8 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     }
     if (proj) { setActiveId(proj.id); setView('chat'); ortLabel.current = proj.name; return; }
     const v = q.get('v');
-    if (v === 'favoriten' || v === 'linien' || v === 'anfragen') {
-      setView(v); ortLabel.current = v === 'favoriten' ? 'Favoriten' : v === 'linien' ? 'Meine Linien' : 'Musteranfragen';
+    if (v === 'favoriten' || v === 'linien' || v === 'anfragen' || v === 'renders') {
+      setView(v); ortLabel.current = v === 'favoriten' ? 'Favoriten' : v === 'linien' ? 'Meine Linien' : v === 'renders' ? 'Renders' : 'Musteranfragen';
       return;
     }
     setActiveId(null); setView('start'); ortLabel.current = 'Start';
@@ -2238,7 +2390,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       </button>
       <button className="nav-neu" onClick={neuesProjekt}><Icon n="plus" />Neues Projekt</button>
       <div>
-        {([['favoriten', 'herz', 'Favoriten', favCount], ['linien', 'linien', 'Meine Linien', boardTotal], ['anfragen', 'anfragen', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
+        {([['favoriten', 'herz', 'Favoriten', favCount], ['linien', 'linien', 'Meine Linien', boardTotal], ['renders', 'bild', 'Renders', 0], ['anfragen', 'anfragen', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
           <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => zuUrl(`/?v=${v}`)}>
             <span className="ni-ic"><Icon n={ic} /></span><span className="ni-t">{t}</span>{badge ? <span className="ni-b">{badge}</span> : null}
           </button>
@@ -2288,7 +2440,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       {nav}
       <div className="main">
         <header className="topbar">
-          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : 'Musteranfragen'}</span>
+          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : view === 'renders' ? 'Renders' : 'Musteranfragen'}</span>
         </header>
 
         <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
@@ -2521,6 +2673,8 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                 ))}
             </div>
           )}
+
+          {view === 'renders' && <RenderGalerie />}
 
           {view === 'anfragen' && (
             <div className="bereich">
