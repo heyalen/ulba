@@ -83,7 +83,50 @@ interface RenderConcept {
 interface RenderEintrag {
   id: string; bildUrl: string; capBildUrl: string | null;
   weltName: string; teilName: string; systemId: string | null; codeId: string | null;
-  konzeptName: string; story: string; warnungen: string[]; umsetzung?: string[]; engine: string; erstellt: string;
+  konzeptName: string; story: string; warnungen: string[]; umsetzung?: string[];
+  capScale?: number | null; engine: string; erstellt: string;
+}
+
+/* v56 — Fallback-Heuristik, wenn kein gemessener capScale vorliegt. */
+function capScaleHeuristik(closure?: string | null): number {
+  const t = (closure || '').toLowerCase();
+  if (/pump|spray|pipette|airless|dropper/.test(t)) return 0.28;
+  if (/screw|schraub|snap/.test(t)) return 0.34;
+  return 0.3;
+}
+
+/* v56 — massstabsgetreuer Stapel: Cap-Breite = tatsächlich gerenderte
+   Body-Breite × scale (Messung via ResizeObserver am Body-Bild, nicht
+   Container-Breite). Ohne Messwert greifen die CSS-Fallback-Prozente. */
+function StapelBild({ bodyUrl, capUrl, scale, alt, klasse }: {
+  bodyUrl: string; capUrl: string; scale: number; alt: string; klasse: string;
+}) {
+  const [bodyW, setBodyW] = useState(0);
+  const bodyRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setBodyW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bodyUrl]);
+  return (
+    <div className={klasse}>
+      <img
+        className={`${klasse}-cap`}
+        src={capUrl}
+        alt="Verschluss"
+        style={bodyW > 0 ? { width: Math.round(bodyW * scale), maxWidth: 'none', maxHeight: 'none' } : undefined}
+      />
+      <img
+        ref={bodyRef}
+        className={`${klasse}-body`}
+        src={bodyUrl}
+        alt={alt}
+        onLoad={e => setBodyW(e.currentTarget.clientWidth)}
+      />
+    </div>
+  );
 }
 
 function produzierbarText(p: RenderConcept['produzierbar']): string {
@@ -1017,7 +1060,7 @@ const STYLES = `
 .rg-gross img{max-width:100%;max-height:62vh;object-fit:contain;mix-blend-mode:multiply}
 .rg-stapel{display:flex;flex-direction:column;align-items:center;justify-content:center}
 .rg-gross .rg-stapel-cap{max-height:13vh;max-width:42%;margin-bottom:-2%}
-.rg-gross .rg-stapel img:last-child{max-height:46vh}
+.rg-gross .rg-stapel-body{max-height:46vh}
 .rg-detail{padding:28px 24px;display:flex;flex-direction:column;gap:7px}
 .rg-detail h3{margin:0;font-size:21px}
 .rg-meta{font-size:12.5px;color:var(--grau);margin:0}
@@ -1444,11 +1487,14 @@ function RenderGalerie() {
             <button className="pn-zu rg-zu" onClick={() => setOffen(null)} aria-label="schließen">×</button>
             <div className="rg-gross">
               {offen.capBildUrl && !neuBild
-                /* v53: gleicher Stapel wie in der Bühne — Cap über Body. */
-                ? <div className="rg-stapel">
-                    <img className="rg-stapel-cap" src={offen.capBildUrl} alt="Verschluss" />
-                    <img src={offen.bildUrl} alt={offen.weltName} />
-                  </div>
+                /* v53: gleicher Stapel wie in der Bühne; v56 massstabsgetreu. */
+                ? <StapelBild
+                    klasse="rg-stapel"
+                    bodyUrl={offen.bildUrl}
+                    capUrl={offen.capBildUrl}
+                    scale={offen.capScale ?? 0.3}
+                    alt={offen.weltName}
+                  />
                 : <img src={neuBild || offen.bildUrl} alt={offen.weltName} />}
               {neuLauf === 'loading' && <div className="pn-lade"><span className="pn-lade-sp" /><span>Rendert erneut …</span></div>}
             </div>
@@ -1499,7 +1545,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [wandOffen, setWandOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
-  const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
+  const [render, setRender] = useState<{ url: string; capUrl: string | null; capScale: number | null; concept: RenderConcept | null; codeId: string } | null>(null);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1538,7 +1584,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const cid = typeof data.cacheId === 'string' && REC_ID.test(data.cacheId) ? data.cacheId : null;
       const rUrl: string = cid && AT_URL.test(data.renderingUrl) ? stabil(cid) : data.renderingUrl;
       const cUrl: string | null = data.capRenderingUrl ? (cid && AT_URL.test(data.capRenderingUrl) ? stabil(cid, 'cap') : data.capRenderingUrl) : null;
-      setRender({ url: rUrl, capUrl: cUrl, concept: data.concept || null, codeId: code.id });
+      setRender({ url: rUrl, capUrl: cUrl, capScale: typeof data.capScale === 'number' ? data.capScale : null, concept: data.concept || null, codeId: code.id });
       setRstatus('idle');
       try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
@@ -1592,13 +1638,16 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       {zeigtRender
         ? (render!.capUrl
           /* v53: Split-Fall (C/D) — der getrennt gerenderte Verschluss wird
-             per CSS ÜBER dem Body gestapelt und liest als EIN Produkt (beide
-             auf Studioweiss, multiply löst sie in die Bühne auf). Fall A/B
-             liefern ein Gesamtbild — dann kein Stapel. */
-          ? <div className="pn-stapel">
-              <img className="pn-stapel-cap" src={render!.capUrl} alt="Verschluss" />
-              <img className="pn-stapel-body" src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
-            </div>
+             per CSS ÜBER dem Body gestapelt und liest als EIN Produkt. v56:
+             massstabsgetreu via gemessenem capScale (Fallback: Heuristik
+             nach Verschlusstyp). Fall A/B liefern ein Gesamtbild. */
+          ? <StapelBild
+              klasse="pn-stapel"
+              bodyUrl={render!.url}
+              capUrl={render!.capUrl}
+              scale={render!.capScale ?? capScaleHeuristik(product.closure)}
+              alt={`${product.name} im Design ${lookCode?.name || ''}`}
+            />
           : <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />)
         : product.imageUrl
           ? <img src={product.imageUrl} alt={product.name} />
@@ -1657,7 +1706,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
-            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, capScale: e.capScale ?? null, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
             <img src={e.bildUrl} alt={e.weltName} loading="lazy" />
           </button>
         ))}
