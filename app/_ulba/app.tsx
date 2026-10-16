@@ -973,6 +973,7 @@ const STYLES = `
 .pn-buehne.mit-render > img{mix-blend-mode:normal;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover}
 .pn-leer{width:54px;height:86px;border:1.5px solid #DDDDD7;border-radius:10px 10px 13px 13px}
 .pn-look-marke{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.92);border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:500;box-shadow:0 1px 6px rgba(26,26,24,.1)}
+.pn-buehne > img.pn-cap-render,.pn-buehne.mit-render > img.pn-cap-render{position:absolute;right:12px;bottom:12px;width:auto;height:auto;max-width:88px;max-height:88px;object-fit:contain;mix-blend-mode:normal;background:#fff;border:1px solid var(--linie);border-radius:12px;padding:5px;box-shadow:0 1px 6px rgba(26,26,24,.1)}
 .pn-look-marke i{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
 .pn-lade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(250,250,248,.9);font-size:13px;color:var(--grau);z-index:2}
 .pn-caps{margin-top:20px}
@@ -1583,6 +1584,11 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         : product.imageUrl
           ? <img src={product.imageUrl} alt={product.name} />
           : <span className="pn-leer" aria-hidden />}
+      {/* v52: Split-Fallback — der getrennt gerenderte Verschluss gehört
+          sichtbar zum Ergebnis (das Body-Bild zeigt bewusst keinen Cap). */}
+      {zeigtRender && render!.capUrl && (
+        <img className="pn-cap-render" src={render!.capUrl} alt="Passender Verschluss" />
+      )}
       {zeigtRender && lookCode && (
         <span className="pn-look-marke">
           {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
