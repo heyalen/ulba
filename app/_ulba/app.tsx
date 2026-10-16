@@ -973,7 +973,10 @@ const STYLES = `
 .pn-buehne.mit-render > img{mix-blend-mode:normal;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover}
 .pn-leer{width:54px;height:86px;border:1.5px solid #DDDDD7;border-radius:10px 10px 13px 13px}
 .pn-look-marke{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.92);border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:500;box-shadow:0 1px 6px rgba(26,26,24,.1)}
-.pn-buehne > img.pn-cap-render,.pn-buehne.mit-render > img.pn-cap-render{position:absolute;right:12px;bottom:12px;width:auto;height:auto;max-width:88px;max-height:88px;object-fit:contain;mix-blend-mode:normal;background:#fff;border:1px solid var(--linie);border-radius:12px;padding:5px;box-shadow:0 1px 6px rgba(26,26,24,.1)}
+.pn-stapel{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5% 0}
+.pn-stapel img{object-fit:contain;mix-blend-mode:multiply}
+.pn-stapel-cap{max-height:23%;max-width:44%;margin-bottom:-2%}
+.pn-stapel-body{max-height:73%;max-width:84%}
 .pn-look-marke i{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
 .pn-lade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(250,250,248,.9);font-size:13px;color:var(--grau);z-index:2}
 .pn-caps{margin-top:20px}
@@ -1010,7 +1013,9 @@ const STYLES = `
 .rg-zu{position:absolute;top:10px;right:10px;z-index:2}
 .rg-gross{position:relative;background:linear-gradient(180deg,#fff,#f4f3ef);display:flex;align-items:center;justify-content:center;min-height:380px;padding:28px}
 .rg-gross img{max-width:100%;max-height:62vh;object-fit:contain;mix-blend-mode:multiply}
-.rg-gross .rg-cap{position:absolute;right:16px;bottom:16px;max-width:82px;max-height:82px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px}
+.rg-stapel{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rg-gross .rg-stapel-cap{max-height:13vh;max-width:42%;margin-bottom:-2%}
+.rg-gross .rg-stapel img:last-child{max-height:46vh}
 .rg-detail{padding:28px 24px;display:flex;flex-direction:column;gap:7px}
 .rg-detail h3{margin:0;font-size:21px}
 .rg-meta{font-size:12.5px;color:var(--grau);margin:0}
@@ -1436,8 +1441,13 @@ function RenderGalerie() {
           <div className="rg-box" onClick={ev => ev.stopPropagation()}>
             <button className="pn-zu rg-zu" onClick={() => setOffen(null)} aria-label="schließen">×</button>
             <div className="rg-gross">
-              <img src={neuBild || offen.bildUrl} alt={offen.weltName} />
-              {offen.capBildUrl && !neuBild && <img className="rg-cap" src={offen.capBildUrl} alt="Verschluss" />}
+              {offen.capBildUrl && !neuBild
+                /* v53: gleicher Stapel wie in der Bühne — Cap über Body. */
+                ? <div className="rg-stapel">
+                    <img className="rg-stapel-cap" src={offen.capBildUrl} alt="Verschluss" />
+                    <img src={offen.bildUrl} alt={offen.weltName} />
+                  </div>
+                : <img src={neuBild || offen.bildUrl} alt={offen.weltName} />}
               {neuLauf === 'loading' && <div className="pn-lade"><span className="pn-lade-sp" /><span>Rendert erneut …</span></div>}
             </div>
             <div className="rg-detail">
@@ -1580,15 +1590,19 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const buehne = (
     <div className={`pn-buehne${zeigtRender ? ' mit-render' : ''}`}>
       {zeigtRender
-        ? <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
+        ? (render!.capUrl
+          /* v53: Split-Fall (C/D) — der getrennt gerenderte Verschluss wird
+             per CSS ÜBER dem Body gestapelt und liest als EIN Produkt (beide
+             auf Studioweiss, multiply löst sie in die Bühne auf). Fall A/B
+             liefern ein Gesamtbild — dann kein Stapel. */
+          ? <div className="pn-stapel">
+              <img className="pn-stapel-cap" src={render!.capUrl} alt="Verschluss" />
+              <img className="pn-stapel-body" src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />
+            </div>
+          : <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />)
         : product.imageUrl
           ? <img src={product.imageUrl} alt={product.name} />
           : <span className="pn-leer" aria-hidden />}
-      {/* v52: Split-Fallback — der getrennt gerenderte Verschluss gehört
-          sichtbar zum Ergebnis (das Body-Bild zeigt bewusst keinen Cap). */}
-      {zeigtRender && render!.capUrl && (
-        <img className="pn-cap-render" src={render!.capUrl} alt="Passender Verschluss" />
-      )}
       {zeigtRender && lookCode && (
         <span className="pn-look-marke">
           {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
