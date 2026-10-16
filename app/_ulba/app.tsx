@@ -995,8 +995,10 @@ const STYLES = `
 .pn-waechter b{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .pn-waechter span{font-size:13px;line-height:1.55;color:var(--grau)}
 .pn-waechter .pn-w-warn{color:#8A6116}
-.pn-umsetzung{margin:2px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px;list-style:disc}
-.pn-umsetzung li{font-size:12.5px;line-height:1.5;color:var(--grau)}
+.pn-hinweise{margin-top:8px;display:flex;flex-direction:column;gap:3px;padding:0 4px}
+.pn-hinweise .pn-h-warn{font-size:12.5px;line-height:1.5;color:#8A6116}
+.pn-hinweise .pn-h-warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#8A6116;margin-right:7px;vertical-align:1px}
+.pn-hinweise .pn-h-schritt{font-size:12.5px;line-height:1.5;color:var(--grau)}
 .rg-umsetzung{margin:10px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px;list-style:disc}
 .rg-umsetzung li{font-size:12.5px;line-height:1.5;color:var(--grau)}
 /* v69 — Render-Galerie (minimal, clean: Bild gross, eine Textzeile) */
@@ -1665,19 +1667,21 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
     </div>
   );
 
+  /* Hinweise DIREKT unterm Ergebnis: Warnungen (amber) + Umsetzungs-Schritte
+     (grau), klein und dezent — hier muss z.B. der Verschluss-Hinweis stehen. */
+  const hinweise = zeigtRender && render?.concept
+    && !!(render.concept.farbsystem?.warnungen?.length || render.concept.umsetzung?.length) && (
+    <div className="pn-hinweise">
+      {(render.concept.farbsystem?.warnungen || []).map((w, i) => <span key={`w${i}`} className="pn-h-warn">{w}</span>)}
+      {(render.concept.umsetzung || []).slice(0, 6).map((u, i) => <span key={`u${i}`} className="pn-h-schritt">{u}</span>)}
+    </div>
+  );
+
   /* Die Wächterzeile: was das reale Teil nicht kann, steht hier — nicht im Bild. */
   const waechter = zeigtRender && render?.concept && (
     <div className="pn-waechter">
       {render.concept.konzept_name && <b>{render.concept.konzept_name}</b>}
       {render.concept.story && <span>{render.concept.story}</span>}
-      {!!render.concept.umsetzung?.length && (
-        <ul className="pn-umsetzung">
-          {render.concept.umsetzung.slice(0, 6).map((u, i) => <li key={i}>{u}</li>)}
-        </ul>
-      )}
-      {!!render.concept.farbsystem?.warnungen?.length && (
-        <span className="pn-w-warn">{render.concept.farbsystem.warnungen.join(' · ')}</span>
-      )}
       {!!render.concept.do_not?.length && (
         <span className="pn-w-prod">Nicht: {render.concept.do_not.slice(0, 3).join(', ')}</span>
       )}
@@ -1726,7 +1730,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <article className="tp">
         <button className="tp-zurueck" onClick={onClose}><Icon n="zurueck" />{zurueckLabel || 'Zurück'}</button>
         <div className="tp-raster">
-          <div className="tp-links">{buehne}</div>
+          <div className="tp-links">{buehne}{hinweise}</div>
           <div className="tp-rechts">
             {werkzeuge}
             {kopf}
@@ -1756,6 +1760,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-inhalt">
         {kopf}
         {buehne}
+        {hinweise}
         {capWahl}
         {look}
         {rendersReihe}
