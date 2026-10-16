@@ -87,6 +87,32 @@ interface RenderEintrag {
   capScale?: number | null; engine: string; erstellt: string;
 }
 
+/* v58 — ehrliche Stufen-Anzeige während des Renders: Balken läuft
+   asymptotisch über ~20s gegen 97%, die Stufen benennen was passiert;
+   die Response blendet alles aus (Unmount). Kein Backend-Streaming. */
+function RenderFortschritt({ split, name }: { split: boolean; name: string }) {
+  const [p, setP] = useState(2);
+  useEffect(() => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const s = (Date.now() - t0) / 1000;
+      setP(Math.min(97, 2 + 95 * (1 - Math.exp(-s / 9))));
+    }, 200);
+    return () => clearInterval(iv);
+  }, []);
+  const stufe = p < 10 ? 'Plan wird erstellt'
+    : p < 60 ? 'Körper wird gerendert'
+    : split && p < 85 ? 'Verschluss wird gerendert'
+    : 'Wird gespeichert';
+  return (
+    <div className="pn-lade pn-fortschritt">
+      <span className="pn-lade-sp" />
+      <span>{stufe} — {name}</span>
+      <div className="pn-balken"><i style={{ width: `${Math.round(p)}%` }} /></div>
+    </div>
+  );
+}
+
 /* v56 — Fallback-Heuristik, wenn kein gemessener capScale vorliegt. */
 function capScaleHeuristik(closure?: string | null): number {
   const t = (closure || '').toLowerCase();
@@ -1016,6 +1042,9 @@ const STYLES = `
 .pn-buehne.mit-render > img{mix-blend-mode:normal;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover}
 .pn-leer{width:54px;height:86px;border:1.5px solid #DDDDD7;border-radius:10px 10px 13px 13px}
 .pn-look-marke{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.92);border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:500;box-shadow:0 1px 6px rgba(26,26,24,.1)}
+.pn-fortschritt{flex-direction:column;gap:10px}
+.pn-balken{width:min(240px,60%);height:3px;background:var(--linie);border-radius:99px;overflow:hidden}
+.pn-balken i{display:block;height:100%;background:var(--rouge);border-radius:99px;transition:width .25s linear}
 .pn-stapel{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5% 0}
 .pn-stapel img{object-fit:contain;mix-blend-mode:multiply}
 .pn-stapel-cap{max-height:23%;max-width:44%;margin-bottom:-2%}
@@ -1660,7 +1689,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         </span>
       )}
       {rstatus === 'loading' && (
-        <div className="pn-lade"><span className="pn-lade-sp" /><span>Rendert in {lookCode?.name || 'diesem Design'} …</span></div>
+        <RenderFortschritt split={caps.length > 0} name={lookCode?.name || 'diesem Design'} />
       )}
     </div>
   );
