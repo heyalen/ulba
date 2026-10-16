@@ -76,12 +76,14 @@ interface RenderConcept {
     rollen: Array<{ rolle: string; hex: string; ort: string; cue?: string }>;
     laut: string | null; warnungen: string[];
   };
+  // v51 — deutsche Umsetzungs-Schritte des Komponenten-Bauplans.
+  umsetzung?: string[];
 }
 /* v69 — Ein archivierter Render aus /api/renders (reload-feste Wahrheit). */
 interface RenderEintrag {
   id: string; bildUrl: string; capBildUrl: string | null;
   weltName: string; teilName: string; systemId: string | null; codeId: string | null;
-  konzeptName: string; story: string; warnungen: string[]; engine: string; erstellt: string;
+  konzeptName: string; story: string; warnungen: string[]; umsetzung?: string[]; engine: string; erstellt: string;
 }
 
 function produzierbarText(p: RenderConcept['produzierbar']): string {
@@ -989,6 +991,10 @@ const STYLES = `
 .pn-waechter b{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .pn-waechter span{font-size:13px;line-height:1.55;color:var(--grau)}
 .pn-waechter .pn-w-warn{color:#8A6116}
+.pn-umsetzung{margin:2px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px;list-style:disc}
+.pn-umsetzung li{font-size:12.5px;line-height:1.5;color:var(--grau)}
+.rg-umsetzung{margin:10px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px;list-style:disc}
+.rg-umsetzung li{font-size:12.5px;line-height:1.5;color:var(--grau)}
 /* v69 — Render-Galerie (minimal, clean: Bild gross, eine Textzeile) */
 .rg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:18px}
 .rg-karte{display:flex;flex-direction:column;border:1px solid var(--linie);border-radius:14px;background:#fff;overflow:hidden;cursor:pointer;text-align:left;padding:0;transition:border-color .15s,box-shadow .15s}
@@ -1437,6 +1443,11 @@ function RenderGalerie() {
               <h3 className="serif">{offen.konzeptName || offen.weltName || 'Render'}</h3>
               <p className="rg-meta">{[offen.teilName, datum(offen.erstellt), offen.engine].filter(Boolean).join(' · ')}</p>
               {offen.story && <p className="rg-story">{offen.story}</p>}
+              {!!offen.umsetzung?.length && (
+                <ul className="rg-umsetzung">
+                  {offen.umsetzung.slice(0, 6).map((u, i) => <li key={i}>{u}</li>)}
+                </ul>
+              )}
               {offen.warnungen.length > 0 && <p className="rg-warn">{offen.warnungen.join(' · ')}</p>}
               {neuLauf === 'error' && <p className="pn-fehler">Erneut rendern hat nicht geklappt — kurz warten und noch einmal.</p>}
               <div className="rg-aktionen">
@@ -1476,9 +1487,12 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
+  // v51: true nur nach aktivem Cap-Klick — dann bleibt der Verschluss im
+  // Render wie fotografiert (sonst darf das Backend Kunststoff-Caps einfärben).
+  const [capVomNutzer, setCapVomNutzer] = useState(false);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
-  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
+  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); setCapVomNutzer(false); }, [product.id]);
 
   // v69 — archivierte Renders dieses Teils (aus /api/renders, reload-fest).
   const [teilRenders, setTeilRenders] = useState<RenderEintrag[]>([]);
@@ -1505,6 +1519,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       };
       const capId = caps[capIdx]?.id || null;
       if (capId) body.selectedCapId = capId;
+      if (capVomNutzer) body.capExplizit = true; // v51: Nutzer hat aktiv gewählt
       const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Render fehlgeschlagen');
@@ -1595,7 +1610,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
               className={`pn-cap${capIdx === i ? ' an' : ''}${depri ? ' depri' : ''}`}
               title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes oder opakes Glas wählen.' : (c.name || undefined)}
               aria-label={c.name || `Verschluss ${i + 1}`}
-              onClick={() => onCap(i)}>
+              onClick={() => { setCapVomNutzer(true); onCap(i); }}>
               <img src={c.imageUrl} alt="" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
             </button>
           );
@@ -1635,6 +1650,11 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
     <div className="pn-waechter">
       {render.concept.konzept_name && <b>{render.concept.konzept_name}</b>}
       {render.concept.story && <span>{render.concept.story}</span>}
+      {!!render.concept.umsetzung?.length && (
+        <ul className="pn-umsetzung">
+          {render.concept.umsetzung.slice(0, 6).map((u, i) => <li key={i}>{u}</li>)}
+        </ul>
+      )}
       {!!render.concept.farbsystem?.warnungen?.length && (
         <span className="pn-w-warn">{render.concept.farbsystem.warnungen.join(' · ')}</span>
       )}
