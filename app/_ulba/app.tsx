@@ -1068,11 +1068,10 @@ const STYLES = `
 .pn-waechter b{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .pn-waechter span{font-size:13px;line-height:1.55;color:var(--grau)}
 .pn-waechter .pn-w-warn{color:#8A6116}
-.pn-einzel{display:flex;gap:10px;margin-top:8px;padding:0 2px}
-.pn-einzel button{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px 8px;cursor:pointer}
-.pn-einzel button img{width:38px;height:38px;object-fit:contain;mix-blend-mode:multiply}
-.pn-einzel button span{font-size:10.5px;color:var(--grau)}
-.pn-einzel button.aktiv{border-color:var(--tinte)}
+.mini-stapel{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.mini-stapel img{object-fit:contain;mix-blend-mode:multiply}
+.mini-stapel-cap{max-height:24%;max-width:60%;margin-bottom:-2%}
+.mini-stapel-body{max-height:78%;max-width:92%}
 .pn-hinweise{margin-top:8px;display:flex;flex-direction:column;gap:3px;padding:0 4px}
 .pn-hinweise .pn-h-warn{font-size:12.5px;line-height:1.5;color:#8A6116}
 .pn-hinweise .pn-h-warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#8A6116;margin-right:7px;vertical-align:1px}
@@ -1470,9 +1469,6 @@ function RenderGalerie() {
   const [offen, setOffen] = useState<RenderEintrag | null>(null);
   const [neuLauf, setNeuLauf] = useState<'idle' | 'loading' | 'error'>('idle');
   const [neuBild, setNeuBild] = useState<string | null>(null);
-  // v60: Overlay-Ansicht — Hauptbild oder eines der Einzelrenders gross.
-  const [ovAnsicht, setOvAnsicht] = useState<'haupt' | 'body' | 'cap'>('haupt');
-  useEffect(() => { setOvAnsicht('haupt'); }, [offen?.id]);
   const lade = useCallback(() => {
     fetch(RENDERS_API)
       .then(r => r.json())
@@ -1510,7 +1506,11 @@ function RenderGalerie() {
         <div className="rg-grid">
           {liste.map(e => (
             <button key={e.id} className="rg-karte" onClick={() => { setOffen(e); setNeuBild(null); setNeuLauf('idle'); }}>
-              <div className="rg-bild"><img src={e.bildUrl} alt={`${e.teilName} im Design ${e.weltName}`} loading="lazy" /></div>
+              <div className="rg-bild">
+                {e.capBildUrl && !e.montiert
+                  ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={`${e.teilName} im Design ${e.weltName}`} />
+                  : <img src={e.bildUrl} alt={`${e.teilName} im Design ${e.weltName}`} loading="lazy" />}
+              </div>
               <div className="rg-text">
                 <span className="rg-t">{e.weltName || 'Render'}</span>
                 <span className="rg-s">{[e.teilName, datum(e.erstellt)].filter(Boolean).join(' · ')}</span>
@@ -1524,11 +1524,7 @@ function RenderGalerie() {
           <div className="rg-box" onClick={ev => ev.stopPropagation()}>
             <button className="pn-zu rg-zu" onClick={() => setOffen(null)} aria-label="schließen">×</button>
             <div className="rg-gross">
-              {ovAnsicht === 'body' && (offen.bodyBildUrl || offen.bildUrl) && !neuBild
-                ? <img src={offen.bodyBildUrl || offen.bildUrl} alt="Körper-Render" onClick={() => setOvAnsicht('haupt')} />
-                : ovAnsicht === 'cap' && offen.capBildUrl && !neuBild
-                ? <img src={offen.capBildUrl} alt="Verschluss-Render" onClick={() => setOvAnsicht('haupt')} />
-                : offen.capBildUrl && !offen.montiert && !neuBild
+              {offen.capBildUrl && !offen.montiert && !neuBild
                 /* v53: gleicher Stapel wie in der Bühne; v56 massstabsgetreu. */
                 ? <StapelBild
                     klasse="rg-stapel"
@@ -1543,17 +1539,6 @@ function RenderGalerie() {
             <div className="rg-detail">
               <h3 className="serif">{offen.konzeptName || offen.weltName || 'Render'}</h3>
               <p className="rg-meta">{[offen.teilName, datum(offen.erstellt), offen.engine].filter(Boolean).join(' · ')}</p>
-              {offen.capBildUrl && (
-                /* v60: beide Einzelrenders immer erreichbar. */
-                <div className="pn-einzel">
-                  <button type="button" className={ovAnsicht === 'body' ? 'aktiv' : ''} onClick={() => setOvAnsicht(a => a === 'body' ? 'haupt' : 'body')}>
-                    <img src={offen.bodyBildUrl || offen.bildUrl} alt="" aria-hidden /><span>Körper</span>
-                  </button>
-                  <button type="button" className={ovAnsicht === 'cap' ? 'aktiv' : ''} onClick={() => setOvAnsicht(a => a === 'cap' ? 'haupt' : 'cap')}>
-                    <img src={offen.capBildUrl} alt="" aria-hidden /><span>Verschluss</span>
-                  </button>
-                </div>
-              )}
               {offen.story && <p className="rg-story">{offen.story}</p>}
               {!!offen.umsetzung?.length && (
                 <ul className="rg-umsetzung">
@@ -1598,12 +1583,11 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [wandOffen, setWandOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
-  const [render, setRender] = useState<{ url: string; bodyUrl: string | null; capUrl: string | null; capScale: number | null; montiert: boolean; concept: RenderConcept | null; codeId: string } | null>(null);
-  // v60: Bühnen-Ansicht — Hauptbild (Komposit/Stapel) oder ein Einzelrender.
-  const [ansicht, setAnsicht] = useState<'haupt' | 'body' | 'cap'>('haupt');
+  // v61 (Alens UX-Entscheid): Ein Render = EIN Bild, in einem Feld, überall.
+  const [render, setRender] = useState<{ url: string; capUrl: string | null; capScale: number | null; montiert: boolean; concept: RenderConcept | null; codeId: string } | null>(null);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
-  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); setAnsicht('haupt'); }, [product.id]);
+  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
 
   // v69 — archivierte Renders dieses Teils (aus /api/renders, reload-fest).
   const [teilRenders, setTeilRenders] = useState<RenderEintrag[]>([]);
@@ -1641,14 +1625,12 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const cUrl: string | null = data.capRenderingUrl ? (cid && AT_URL.test(data.capRenderingUrl) ? stabil(cid, 'cap') : data.capRenderingUrl) : null;
       setRender({
         url: rUrl,
-        bodyUrl: (typeof data.bodyRenderingUrl === 'string' && data.bodyRenderingUrl) ? data.bodyRenderingUrl : (cUrl ? rUrl : null),
         capUrl: cUrl,
         capScale: typeof data.capScale === 'number' ? data.capScale : null,
         montiert: data.montiert === true,
         concept: data.concept || null,
         codeId: code.id,
       });
-      setAnsicht('haupt');
       setRstatus('idle');
       try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
@@ -1700,13 +1682,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const buehne = (
     <div className={`pn-buehne${zeigtRender ? ' mit-render' : ''}`}>
       {zeigtRender
-        /* v60: Ansicht-Toggle — Hauptbild (Komposit bzw. Stapel) oder eines
-           der beiden Einzelrenders gross; Klick aufs Einzelbild führt zurück. */
-        ? (ansicht === 'body' && render!.bodyUrl
-          ? <img className="pn-montiert" src={render!.bodyUrl} alt="Körper-Render" onClick={() => setAnsicht('haupt')} />
-          : ansicht === 'cap' && render!.capUrl
-          ? <img className="pn-montiert" src={render!.capUrl} alt="Verschluss-Render" onClick={() => setAnsicht('haupt')} />
-          : render!.capUrl && !render!.montiert
+        ? (render!.capUrl && !render!.montiert
           /* v53: Split-Fallback — Cap per CSS über dem Body gestapelt, v56
              massstabsgetreu via capScale (sonst Heuristik nach Typ). */
           ? <StapelBild
@@ -1776,27 +1752,15 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
-            onClick={() => { setRender({ url: e.bildUrl, bodyUrl: e.bodyBildUrl ?? (e.capBildUrl ? e.bildUrl : null), capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, concept: null, codeId: e.codeId || '' }); setAnsicht('haupt'); setRstatus('idle'); setRerror(''); }}>
-            <img src={e.bildUrl} alt={e.weltName} loading="lazy" />
+            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            {/* v61: auch das Thumbnail zeigt das KOMPLETTE Produkt — bei
+                Fallback-Records als Mini-Stapel im selben Feld. */}
+            {e.capBildUrl && !e.montiert
+              ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={e.weltName} />
+              : <img src={e.bildUrl} alt={e.weltName} loading="lazy" />}
           </button>
         ))}
       </div>
-    </div>
-  );
-
-  /* v60: Körper · Verschluss — beide Einzelrenders immer sichtbar als
-     Mini-Thumbnails unter der Bühne; Klick zeigt das Einzelbild gross,
-     nochmal klicken (oder aufs Bild) zurück zum Hauptbild. */
-  const einzel = zeigtRender && render?.capUrl && (
-    <div className="pn-einzel">
-      {render.bodyUrl && (
-        <button type="button" className={ansicht === 'body' ? 'aktiv' : ''} onClick={() => setAnsicht(a => a === 'body' ? 'haupt' : 'body')}>
-          <img src={render.bodyUrl} alt="" aria-hidden /><span>Körper</span>
-        </button>
-      )}
-      <button type="button" className={ansicht === 'cap' ? 'aktiv' : ''} onClick={() => setAnsicht(a => a === 'cap' ? 'haupt' : 'cap')}>
-        <img src={render.capUrl} alt="" aria-hidden /><span>Verschluss</span>
-      </button>
     </div>
   );
 
@@ -1863,7 +1827,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <article className="tp">
         <button className="tp-zurueck" onClick={onClose}><Icon n="zurueck" />{zurueckLabel || 'Zurück'}</button>
         <div className="tp-raster">
-          <div className="tp-links">{buehne}{einzel}{hinweise}</div>
+          <div className="tp-links">{buehne}{hinweise}</div>
           <div className="tp-rechts">
             {werkzeuge}
             {kopf}
@@ -1893,7 +1857,6 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-inhalt">
         {kopf}
         {buehne}
-        {einzel}
         {hinweise}
         {capWahl}
         {look}
