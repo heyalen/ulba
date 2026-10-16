@@ -84,7 +84,7 @@ interface RenderEintrag {
   id: string; bildUrl: string; capBildUrl: string | null;
   weltName: string; teilName: string; systemId: string | null; codeId: string | null;
   konzeptName: string; story: string; warnungen: string[]; umsetzung?: string[];
-  capScale?: number | null; engine: string; erstellt: string;
+  capScale?: number | null; montiert?: boolean; engine: string; erstellt: string;
 }
 
 /* v58 — ehrliche Stufen-Anzeige während des Renders: Balken läuft
@@ -1040,6 +1040,7 @@ const STYLES = `
 .pn-buehne{position:relative;border-radius:18px;background:var(--buehne);aspect-ratio:1/1.08;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .pn-buehne > img{max-width:70%;max-height:82%;object-fit:contain;mix-blend-mode:multiply}
 .pn-buehne.mit-render > img{mix-blend-mode:normal;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover}
+.pn-buehne.mit-render > img.pn-montiert{width:auto;height:auto;max-width:86%;max-height:94%;object-fit:contain;mix-blend-mode:multiply}
 .pn-leer{width:54px;height:86px;border:1.5px solid #DDDDD7;border-radius:10px 10px 13px 13px}
 .pn-look-marke{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.92);border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:500;box-shadow:0 1px 6px rgba(26,26,24,.1)}
 .pn-fortschritt{flex-direction:column;gap:10px}
@@ -1574,7 +1575,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [wandOffen, setWandOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
-  const [render, setRender] = useState<{ url: string; capUrl: string | null; capScale: number | null; concept: RenderConcept | null; codeId: string } | null>(null);
+  const [render, setRender] = useState<{ url: string; capUrl: string | null; capScale: number | null; montiert: boolean; concept: RenderConcept | null; codeId: string } | null>(null);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1613,7 +1614,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const cid = typeof data.cacheId === 'string' && REC_ID.test(data.cacheId) ? data.cacheId : null;
       const rUrl: string = cid && AT_URL.test(data.renderingUrl) ? stabil(cid) : data.renderingUrl;
       const cUrl: string | null = data.capRenderingUrl ? (cid && AT_URL.test(data.capRenderingUrl) ? stabil(cid, 'cap') : data.capRenderingUrl) : null;
-      setRender({ url: rUrl, capUrl: cUrl, capScale: typeof data.capScale === 'number' ? data.capScale : null, concept: data.concept || null, codeId: code.id });
+      setRender({ url: rUrl, capUrl: cUrl, capScale: typeof data.capScale === 'number' ? data.capScale : null, montiert: data.montiert === true, concept: data.concept || null, codeId: code.id });
       setRstatus('idle');
       try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
@@ -1677,7 +1678,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
               scale={render!.capScale ?? capScaleHeuristik(product.closure)}
               alt={`${product.name} im Design ${lookCode?.name || ''}`}
             />
-          : <img src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />)
+          /* v59: Komposits sind sehr hohe Formate (≈1:2.8) — cover zeigte nur
+             die Flaschenwand. contain + multiply wie der Stapel/die Fotos. */
+          : <img className={render!.montiert ? 'pn-montiert' : undefined} src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />)
         : product.imageUrl
           ? <img src={product.imageUrl} alt={product.name} />
           : <span className="pn-leer" aria-hidden />}
@@ -1735,7 +1738,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
-            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, capScale: e.capScale ?? null, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
             <img src={e.bildUrl} alt={e.weltName} loading="lazy" />
           </button>
         ))}
