@@ -1500,12 +1500,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   const [render, setRender] = useState<{ url: string; capUrl: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
-  // v51: true nur nach aktivem Cap-Klick — dann bleibt der Verschluss im
-  // Render wie fotografiert (sonst darf das Backend Kunststoff-Caps einfärben).
-  const [capVomNutzer, setCapVomNutzer] = useState(false);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
-  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); setCapVomNutzer(false); }, [product.id]);
+  useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
 
   // v69 — archivierte Renders dieses Teils (aus /api/renders, reload-fest).
   const [teilRenders, setTeilRenders] = useState<RenderEintrag[]>([]);
@@ -1530,9 +1527,10 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         forceCodeId: code.id,
         sucheQuery: sucheQuery || null,
       };
+      // v55 (Alens Regel): Die Cap-Wahl bestimmt nur Mechanik/Geometrie —
+      // die Farbe kommt immer von der Welt. Kein capExplizit-Flag mehr.
       const capId = caps[capIdx]?.id || null;
       if (capId) body.selectedCapId = capId;
-      if (capVomNutzer) body.capExplizit = true; // v51: Nutzer hat aktiv gewählt
       const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Render fehlgeschlagen');
@@ -1632,7 +1630,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
               className={`pn-cap${capIdx === i ? ' an' : ''}${depri ? ' depri' : ''}`}
               title={depri ? 'Bei lichtempfindlicher Formel (z. B. Vitamin C) getöntes oder opakes Glas wählen.' : (c.name || undefined)}
               aria-label={c.name || `Verschluss ${i + 1}`}
-              onClick={() => { setCapVomNutzer(true); onCap(i); }}>
+              onClick={() => onCap(i)}>
               <img src={c.imageUrl} alt="" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
             </button>
           );
