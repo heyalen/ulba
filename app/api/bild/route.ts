@@ -30,6 +30,7 @@ function anhang(feld: unknown): string | null {
 const FELDER: Record<string, string[]> = {
   bild: ['Bild_Harmonisiert', 'Bild_System', 'Bild', 'Cap_Bild_Harmonisiert', 'Cap_Bild', 'Logo'],
   cap: ['Cap_Bild', 'Cap_Bild_Harmonisiert'],
+  body: ['Body_Bild'], // v60: Body-Einzelrender neben dem Komposit
   titel: ['Titelbild'],
 };
 async function frischeUrl(r: string, k: string): Promise<string | null> {
