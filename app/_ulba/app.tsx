@@ -6,7 +6,7 @@
    Spricht nur mit dem Renderer (/api/search, /api/render).
    Favoriten/Projekte über localStorage. Historie: git log. */
 
-import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Suspense, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
@@ -15,6 +15,7 @@ import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
+const KALIBRIER_API = 'https://ulba-vision-renderer.vercel.app/api/kalibrierung';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
 
 const EXAMPLES = [
@@ -84,7 +85,75 @@ interface RenderEintrag {
   id: string; bildUrl: string; capBildUrl: string | null; bodyBildUrl?: string | null;
   weltName: string; teilName: string; systemId: string | null; codeId: string | null;
   konzeptName: string; story: string; warnungen: string[]; umsetzung?: string[];
-  capScale?: number | null; montiert?: boolean; engine: string; erstellt: string;
+  capScale?: number | null; montiert?: boolean; konfidenz?: string | null; engine: string; erstellt: string;
+}
+
+/* v62 — Kalibrier-Regler: der Verschluss liegt draggable/skalierbar über dem
+   Body-Einzelbild. Speichern schreibt Montage_Skala (Cap-Breite als Anteil
+   der Body-Bildbreite) und Montage_Versatz_Y (Cap-Unterkante in % der
+   Body-Bildhöhe) an den Cap-Record — gilt ab dann für alle Renders. */
+function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern, onZu }: {
+  bodyUrl: string; capUrl: string; start: number | null;
+  laeuft: boolean; fehler: string;
+  onSpeichern: (skala: number, versatzY: number) => void; onZu: () => void;
+}) {
+  const [skala, setSkala] = useState(start && start > 0.05 && start < 1.2 ? start : 0.32);
+  const [posX, setPosX] = useState(0.5);
+  const [bottomY, setBottomY] = useState(0.16);
+  const [capRatio, setCapRatio] = useState(1);
+  const [bodyBox, setBodyBox] = useState<{ w: number; h: number } | null>(null);
+  const drag = useRef<{ modus: 'move' | 'size'; x: number; y: number; skala: number; posX: number; bottomY: number } | null>(null);
+
+  const onDown = (modus: 'move' | 'size') => (ev: ReactPointerEvent) => {
+    ev.preventDefault(); ev.stopPropagation();
+    (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId);
+    drag.current = { modus, x: ev.clientX, y: ev.clientY, skala, posX, bottomY };
+  };
+  const onMove = (ev: ReactPointerEvent) => {
+    const d = drag.current, b = bodyBox;
+    if (!d || !b) return;
+    const dx = (ev.clientX - d.x) / b.w, dy = (ev.clientY - d.y) / b.h;
+    if (d.modus === 'move') {
+      let nx = d.posX + dx;
+      if (Math.abs(nx - 0.5) < 0.02) nx = 0.5; // mittig snappen
+      setPosX(Math.min(0.95, Math.max(0.05, nx)));
+      setBottomY(Math.min(0.9, Math.max(0.04, d.bottomY + dy)));
+    } else {
+      setSkala(Math.min(1.2, Math.max(0.05, d.skala + dx * 2)));
+    }
+  };
+  const capW = bodyBox ? skala * bodyBox.w : 0;
+  const capH = capW * capRatio;
+  return (
+    <div className="rg-ov" role="dialog" aria-label="Montage anpassen" onClick={onZu}>
+      <div className="kal-box" onClick={ev => ev.stopPropagation()} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}>
+        <button className="pn-zu rg-zu" onClick={onZu} aria-label="schließen">×</button>
+        <p className="kal-hilfe">Verschluss ziehen (mittig snappt), Ecke zieht die Grösse. Speichern gilt ab jetzt für alle Renders mit diesem Verschluss.</p>
+        <div className="kal-flaeche">
+          <div className="kal-rahmen">
+            <img className="kal-body" src={bodyUrl} alt="Körper"
+              onLoad={e => setBodyBox({ w: e.currentTarget.clientWidth, h: e.currentTarget.clientHeight })} />
+            {bodyBox && (
+              <div className="kal-cap" style={{ width: capW, height: capH, left: posX * bodyBox.w - capW / 2, top: bottomY * bodyBox.h - capH }}
+                onPointerDown={onDown('move')}>
+                <img src={capUrl} alt="Verschluss" draggable={false}
+                  onLoad={e => setCapRatio(e.currentTarget.naturalHeight / Math.max(1, e.currentTarget.naturalWidth))} />
+                <i className="kal-griff" onPointerDown={onDown('size')} />
+              </div>
+            )}
+          </div>
+        </div>
+        {fehler && <p className="pn-fehler">{fehler}</p>}
+        <div className="kal-aktionen">
+          <button className="knopf zweit" onClick={onZu}>Abbrechen</button>
+          <button className="knopf haupt" disabled={laeuft}
+            onClick={() => onSpeichern(Math.round(skala * 1000) / 1000, Math.round(bottomY * 10000) / 100)}>
+            {laeuft ? 'Speichert …' : 'Speichern'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* v58 — ehrliche Stufen-Anzeige während des Renders: Balken läuft
@@ -1072,6 +1141,18 @@ const STYLES = `
 .mini-stapel img{object-fit:contain;mix-blend-mode:multiply}
 .mini-stapel-cap{max-height:24%;max-width:60%;margin-bottom:-2%}
 .mini-stapel-body{max-height:78%;max-width:92%}
+.pn-anpassen{position:absolute;right:12px;top:12px;border:1px solid var(--linie);border-radius:999px;background:rgba(255,255,255,.92);padding:6px 12px;font-size:12px;color:var(--grau);cursor:pointer}
+.pn-anpassen:hover{border-color:var(--hell);color:var(--tinte)}
+.pn-h-link{background:none;border:none;padding:0;color:#8A6116;text-decoration:underline;cursor:pointer;font:inherit}
+.kal-box{position:relative;background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:20px 22px}
+.kal-hilfe{font-size:12.5px;color:var(--grau);margin:0 0 12px;padding-right:28px}
+.kal-flaeche{display:flex;justify-content:center;background:linear-gradient(180deg,#fff,#f4f3ef);border-radius:12px;padding:14px}
+.kal-rahmen{position:relative;display:inline-block}
+.kal-body{display:block;max-height:52vh;max-width:100%}
+.kal-cap{position:absolute;cursor:grab;touch-action:none;outline:1px dashed rgba(26,26,24,.25);outline-offset:2px}
+.kal-cap img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none}
+.kal-griff{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border-radius:50%;background:var(--tinte);cursor:nwse-resize}
+.kal-aktionen{display:flex;gap:9px;justify-content:flex-end;margin-top:14px}
 .pn-hinweise{margin-top:8px;display:flex;flex-direction:column;gap:3px;padding:0 4px}
 .pn-hinweise .pn-h-warn{font-size:12.5px;line-height:1.5;color:#8A6116}
 .pn-hinweise .pn-h-warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#8A6116;margin-right:7px;vertical-align:1px}
@@ -1082,7 +1163,8 @@ const STYLES = `
 .rg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:18px}
 .rg-karte{display:flex;flex-direction:column;border:1px solid var(--linie);border-radius:14px;background:#fff;overflow:hidden;cursor:pointer;text-align:left;padding:0;transition:border-color .15s,box-shadow .15s}
 .rg-karte:hover{border-color:var(--hell);box-shadow:0 6px 24px rgba(0,0,0,.07)}
-.rg-bild{aspect-ratio:1/1;background:linear-gradient(180deg,#fff,#f4f3ef);display:flex;align-items:center;justify-content:center}
+.rg-bild{position:relative;aspect-ratio:1/1;background:linear-gradient(180deg,#fff,#f4f3ef);display:flex;align-items:center;justify-content:center}
+.rg-punkt{position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:#D99A2B;z-index:1}
 .rg-bild img{max-width:84%;max-height:84%;object-fit:contain;mix-blend-mode:multiply}
 .rg-text{padding:10px 13px 12px;display:flex;flex-direction:column;gap:2px}
 .rg-t{font-size:14px;font-weight:600;color:var(--tinte)}
@@ -1507,6 +1589,7 @@ function RenderGalerie() {
           {liste.map(e => (
             <button key={e.id} className="rg-karte" onClick={() => { setOffen(e); setNeuBild(null); setNeuLauf('idle'); }}>
               <div className="rg-bild">
+                {e.konfidenz === 'pruefen' && <i className="rg-punkt" title="Proportionen prüfen" />}
                 {e.capBildUrl && !e.montiert
                   ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={`${e.teilName} im Design ${e.weltName}`} />
                   : <img src={e.bildUrl} alt={`${e.teilName} im Design ${e.weltName}`} loading="lazy" />}
@@ -1584,7 +1667,11 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   // v61 (Alens UX-Entscheid): Ein Render = EIN Bild, in einem Feld, überall.
-  const [render, setRender] = useState<{ url: string; capUrl: string | null; capScale: number | null; montiert: boolean; concept: RenderConcept | null; codeId: string } | null>(null);
+  const [render, setRender] = useState<{ url: string; bodyUrl: string | null; capUrl: string | null; capScale: number | null; montiert: boolean; cacheId: string | null; konfidenz: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
+  // v62: Kalibrier-Regler (Anpassen).
+  const [kalOffen, setKalOffen] = useState(false);
+  const [kalLaeuft, setKalLaeuft] = useState(false);
+  const [kalFehler, setKalFehler] = useState('');
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1625,9 +1712,12 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const cUrl: string | null = data.capRenderingUrl ? (cid && AT_URL.test(data.capRenderingUrl) ? stabil(cid, 'cap') : data.capRenderingUrl) : null;
       setRender({
         url: rUrl,
+        bodyUrl: (typeof data.bodyRenderingUrl === 'string' && data.bodyRenderingUrl) ? data.bodyRenderingUrl : (cUrl ? rUrl : null),
         capUrl: cUrl,
         capScale: typeof data.capScale === 'number' ? data.capScale : null,
         montiert: data.montiert === true,
+        cacheId: cid,
+        konfidenz: typeof data.konfidenz === 'string' ? data.konfidenz : null,
         concept: data.concept || null,
         codeId: code.id,
       });
@@ -1640,6 +1730,34 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   };
 
   const zeigtRender = !!render && rstatus !== 'loading';
+
+  // v62: Kalibrierung speichern -> Cap-Felder + Re-Komposit serverseitig.
+  const kalSpeichern = async (skala: number, versatzY: number) => {
+    const capId = caps[capIdx]?.id;
+    if (!render?.cacheId || !capId) { setKalFehler('Kein gespeicherter Render — bitte frisch rendern.'); return; }
+    setKalLaeuft(true); setKalFehler('');
+    try {
+      const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, cacheId: render.cacheId, skala, versatzY }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Speichern fehlgeschlagen');
+      setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: 'auto_ok' } : rv);
+      setKalOffen(false);
+    } catch (e) {
+      setKalFehler(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
+    }
+    setKalLaeuft(false);
+  };
+  const kalOverlay = kalOffen && render?.capUrl ? (
+    <KalibrierOverlay
+      bodyUrl={render.bodyUrl || render.url}
+      capUrl={render.capUrl}
+      start={render.capScale}
+      laeuft={kalLaeuft}
+      fehler={kalFehler}
+      onSpeichern={kalSpeichern}
+      onZu={() => { setKalOffen(false); setKalFehler(''); }}
+    />
+  ) : null;
 
   const [kopiert, setKopiert] = useState(false);
   const teilen = async () => {
@@ -1705,6 +1823,10 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           {lookCode.name}
         </span>
       )}
+      {zeigtRender && render?.capUrl && render?.cacheId && (
+        /* v62: dezenter Einstieg in den Kalibrier-Regler (nur Split-Fälle). */
+        <button type="button" className="pn-anpassen" onClick={() => setKalOffen(true)}>Anpassen</button>
+      )}
       {rstatus === 'loading' && (
         <RenderFortschritt split={caps.length > 0} name={lookCode?.name || 'diesem Design'} />
       )}
@@ -1752,7 +1874,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
-            onClick={() => { setRender({ url: e.bildUrl, capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            onClick={() => { setRender({ url: e.bildUrl, bodyUrl: e.bodyBildUrl ?? (e.capBildUrl ? e.bildUrl : null), capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, cacheId: e.id, konfidenz: e.konfidenz ?? null, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
             {/* v61: auch das Thumbnail zeigt das KOMPLETTE Produkt — bei
                 Fallback-Records als Mini-Stapel im selben Feld. */}
             {e.capBildUrl && !e.montiert
@@ -1766,11 +1888,15 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   /* Hinweise DIREKT unterm Ergebnis: Warnungen (amber) + Umsetzungs-Schritte
      (grau), klein und dezent — hier muss z.B. der Verschluss-Hinweis stehen. */
-  const hinweise = zeigtRender && render?.concept
-    && !!(render.concept.farbsystem?.warnungen?.length || render.concept.umsetzung?.length) && (
+  const hinweise = zeigtRender && render
+    && !!(render.konfidenz === 'pruefen' || render.concept?.farbsystem?.warnungen?.length || render.concept?.umsetzung?.length) && (
     <div className="pn-hinweise">
-      {(render.concept.farbsystem?.warnungen || []).map((w, i) => <span key={`w${i}`} className="pn-h-warn">{w}</span>)}
-      {(render.concept.umsetzung || []).slice(0, 6).map((u, i) => <span key={`u${i}`} className="pn-h-schritt">{u}</span>)}
+      {render.konfidenz === 'pruefen' && (
+        /* v62: Konfidenz-Ampel der Auto-Montage. */
+        <span className="pn-h-warn">Proportionen prüfen — <button type="button" className="pn-h-link" onClick={() => setKalOffen(true)}>Anpassen</button></span>
+      )}
+      {(render.concept?.farbsystem?.warnungen || []).map((w, i) => <span key={`w${i}`} className="pn-h-warn">{w}</span>)}
+      {(render.concept?.umsetzung || []).slice(0, 6).map((u, i) => <span key={`u${i}`} className="pn-h-schritt">{u}</span>)}
     </div>
   );
 
@@ -1828,6 +1954,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         <button className="tp-zurueck" onClick={onClose}><Icon n="zurueck" />{zurueckLabel || 'Zurück'}</button>
         <div className="tp-raster">
           <div className="tp-links">{buehne}{hinweise}</div>
+          {kalOverlay}
           <div className="tp-rechts">
             {werkzeuge}
             {kopf}
@@ -1865,6 +1992,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         {fakten}
       </div>
       {aktion}
+      {kalOverlay}
       {ebenen}
     </aside>
   );
