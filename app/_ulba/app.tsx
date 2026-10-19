@@ -102,6 +102,19 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
   const [bottomY, setBottomY] = useState(0.16);
   const [capRatio, setCapRatio] = useState(1);
   const [bodyBox, setBodyBox] = useState<{ w: number; h: number } | null>(null);
+  const bodyImgRef = useRef<HTMLImageElement | null>(null);
+  // v73: bodyBox bleibt bei Zoom/Resize aktuell — Drag-Deltas und die
+  // gespeicherten %-Werte beziehen sich immer aufs TATSAECHLICH gerenderte
+  // Body-Bild (nie auf den Container).
+  useEffect(() => {
+    const el = bodyImgRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth > 0) setBodyBox({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bodyUrl]);
   const drag = useRef<{ modus: 'move' | 'size'; x: number; y: number; skala: number; posX: number; bottomY: number } | null>(null);
 
   const onDown = (modus: 'move' | 'size') => (ev: ReactPointerEvent) => {
@@ -136,7 +149,7 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
         <p className="kal-hilfe">Verschluss ziehen (mittig snappt), Ecke zieht die Grösse. Speichern gilt ab jetzt für alle Renders mit diesem Verschluss.</p>
         <div className="kal-flaeche">
           <div className="kal-rahmen" style={bodyBox ? { paddingTop: kopf } : undefined}>
-            <img className="kal-body" src={bodyUrl} alt="Körper"
+            <img ref={bodyImgRef} className="kal-body" src={bodyUrl} alt="Körper"
               onLoad={e => setBodyBox({ w: e.currentTarget.clientWidth, h: e.currentTarget.clientHeight })} />
             {bodyBox && (
               <div className="kal-cap" style={{ width: capW, height: capH, left: posX * bodyBox.w - capW / 2, top: kopf + bottomY * bodyBox.h - capH }}
