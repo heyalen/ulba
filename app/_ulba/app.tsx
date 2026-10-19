@@ -1191,9 +1191,9 @@ const STYLES = `
 .rg-aktionen .wz{text-decoration:none}
 .pn-renders{margin-top:14px}
 .pn-renders-reihe{display:flex;gap:8px;overflow-x:auto;padding:6px 0 2px}
-.pn-renders-reihe button{flex:0 0 auto;width:62px;height:62px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px;cursor:pointer}
+.pn-renders-reihe button{flex:0 0 auto;width:64px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px 3px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}\n.pn-r-bild{width:52px;height:52px;display:block}\n.pn-r-bild img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}\n.pn-r-name{max-width:58px;font-size:10px;line-height:1.2;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pn-renders-reihe button:hover{border-color:var(--hell)}
-.pn-renders-reihe button img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+
 @media(max-width:760px){.rg-box{grid-template-columns:1fr}.rg-gross{min-height:260px}}
 .pn-waechter .pn-w-prod{font-size:12px;color:var(--hell)}
 .pn-fakten{margin:22px 0 4px}
@@ -1672,7 +1672,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
   // v61 (Alens UX-Entscheid): Ein Render = EIN Bild, in einem Feld, überall.
-  const [render, setRender] = useState<{ url: string; bodyUrl: string | null; capUrl: string | null; capScale: number | null; montiert: boolean; cacheId: string | null; konfidenz: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
+  const [render, setRender] = useState<{ url: string; bodyUrl: string | null; capUrl: string | null; capScale: number | null; montiert: boolean; cacheId: string | null; konfidenz: string | null; weltName: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
   // v62: Kalibrier-Regler (Anpassen).
   const [kalOffen, setKalOffen] = useState(false);
   const [kalLaeuft, setKalLaeuft] = useState(false);
@@ -1723,6 +1723,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         montiert: data.montiert === true,
         cacheId: cid,
         konfidenz: typeof data.konfidenz === 'string' ? data.konfidenz : null,
+        weltName: data.concept?.konzept_name || code.name || null,
         concept: data.concept || null,
         codeId: code.id,
       });
@@ -1821,11 +1822,13 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         : product.imageUrl
           ? <img src={product.imageUrl} alt={product.name} />
           : <span className="pn-leer" aria-hidden />}
-      {zeigtRender && lookCode && (
+      {zeigtRender && (render?.weltName || lookCode?.name) && (
+        /* v71.1: der Chip traegt IMMER die Welt des ANGEZEIGTEN Renders —
+           Farbpunkte nur, wenn die aktuelle Auswahl dieselbe Welt ist. */
         <span className="pn-look-marke">
-          {lookCode.bodyHex && <i style={{ background: lookCode.bodyHex }} />}
-          {lookCode.capHex && <i style={{ background: lookCode.capHex }} />}
-          {lookCode.name}
+          {lookCode && lookCode.id === render?.codeId && lookCode.bodyHex ? <i style={{ background: lookCode.bodyHex }} /> : null}
+          {lookCode && lookCode.id === render?.codeId && lookCode.capHex ? <i style={{ background: lookCode.capHex }} /> : null}
+          {render?.weltName || lookCode?.name}
         </span>
       )}
       {zeigtRender && render?.capUrl && render?.cacheId && (
@@ -1879,12 +1882,15 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
-            onClick={() => { setRender({ url: e.bildUrl, bodyUrl: e.bodyBildUrl ?? (e.capBildUrl ? e.bildUrl : null), capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, cacheId: e.id, konfidenz: e.konfidenz ?? null, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
+            onClick={() => { setRender({ url: e.bildUrl, bodyUrl: e.bodyBildUrl ?? (e.capBildUrl ? e.bildUrl : null), capUrl: e.capBildUrl, capScale: e.capScale ?? null, montiert: e.montiert === true, cacheId: e.id, konfidenz: e.konfidenz ?? null, weltName: e.weltName || e.konzeptName || null, concept: null, codeId: e.codeId || '' }); setRstatus('idle'); setRerror(''); }}>
             {/* v61: auch das Thumbnail zeigt das KOMPLETTE Produkt — bei
                 Fallback-Records als Mini-Stapel im selben Feld. */}
-            {e.capBildUrl && !e.montiert
-              ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={e.weltName} />
-              : <img src={e.bildUrl} alt={e.weltName} loading="lazy" />}
+            <span className="pn-r-bild">
+              {e.capBildUrl && !e.montiert
+                ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={e.weltName} />
+                : <img src={e.bildUrl} alt={e.weltName} loading="lazy" />}
+            </span>
+            <span className="pn-r-name">{e.weltName || e.konzeptName || '—'}</span>
           </button>
         ))}
       </div>
