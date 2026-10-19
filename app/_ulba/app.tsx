@@ -125,17 +125,21 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
   };
   const capW = bodyBox ? skala * bodyBox.w : 0;
   const capH = capW * capRatio;
+  // v63.1: fester KOPFRAUM über dem Body — der Verschluss ragt beim
+  // Kalibrieren naturgemäss über die Body-Oberkante und darf nie clippen.
+  // Nur Darstellung: Versatz bleibt relativ zum Body-Bild.
+  const kopf = bodyBox ? Math.round(bodyBox.h * 0.38) : 0;
   return (
     <div className="rg-ov" role="dialog" aria-label="Montage anpassen" onClick={onZu}>
       <div className="kal-box" onClick={ev => ev.stopPropagation()} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}>
         <button className="pn-zu rg-zu" onClick={onZu} aria-label="schließen">×</button>
         <p className="kal-hilfe">Verschluss ziehen (mittig snappt), Ecke zieht die Grösse. Speichern gilt ab jetzt für alle Renders mit diesem Verschluss.</p>
         <div className="kal-flaeche">
-          <div className="kal-rahmen">
+          <div className="kal-rahmen" style={bodyBox ? { paddingTop: kopf } : undefined}>
             <img className="kal-body" src={bodyUrl} alt="Körper"
               onLoad={e => setBodyBox({ w: e.currentTarget.clientWidth, h: e.currentTarget.clientHeight })} />
             {bodyBox && (
-              <div className="kal-cap" style={{ width: capW, height: capH, left: posX * bodyBox.w - capW / 2, top: bottomY * bodyBox.h - capH }}
+              <div className="kal-cap" style={{ width: capW, height: capH, left: posX * bodyBox.w - capW / 2, top: kopf + bottomY * bodyBox.h - capH }}
                 onPointerDown={onDown('move')}>
                 <img src={capUrl} alt="Verschluss" draggable={false}
                   onLoad={e => setCapRatio(e.currentTarget.naturalHeight / Math.max(1, e.currentTarget.naturalWidth))} />
@@ -1149,7 +1153,7 @@ const STYLES = `
 .kal-hilfe{font-size:12.5px;color:var(--grau);margin:0 0 12px;padding-right:28px}
 .kal-flaeche{display:flex;justify-content:center;background:linear-gradient(180deg,#fff,#f4f3ef);border-radius:12px;padding:14px}
 .kal-rahmen{position:relative;display:inline-block}
-.kal-body{display:block;max-height:72vh;max-width:100%}
+.kal-body{display:block;max-height:56vh;max-width:100%}
 .kal-cap{position:absolute;cursor:grab;touch-action:none;outline:1px dashed rgba(26,26,24,.25);outline-offset:2px}
 .kal-cap img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none}
 .kal-griff{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border-radius:50%;background:var(--tinte);cursor:nwse-resize}
