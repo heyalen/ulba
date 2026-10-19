@@ -1191,7 +1191,10 @@ const STYLES = `
 .rg-aktionen .wz{text-decoration:none}
 .pn-renders{margin-top:14px}
 .pn-renders-reihe{display:flex;gap:8px;overflow-x:auto;padding:6px 0 2px}
-.pn-renders-reihe button{flex:0 0 auto;width:64px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px 3px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}\n.pn-r-bild{width:52px;height:52px;display:block}\n.pn-r-bild img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}\n.pn-r-name{max-width:58px;font-size:10px;line-height:1.2;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pn-renders-reihe button{flex:0 0 auto;width:64px;border:1px solid var(--linie);border-radius:10px;background:#fff;padding:4px 3px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pn-r-bild{width:52px;height:52px;display:block}
+.pn-r-bild img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+.pn-r-name{max-width:58px;font-size:10px;line-height:1.2;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pn-renders-reihe button:hover{border-color:var(--hell)}
 
 @media(max-width:760px){.rg-box{grid-template-columns:1fr}.rg-gross{min-height:260px}}
