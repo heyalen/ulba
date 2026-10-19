@@ -97,7 +97,7 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
   laeuft: boolean; fehler: string;
   onSpeichern: (skala: number, versatzY: number) => void; onZu: () => void;
 }) {
-  const [skala, setSkala] = useState(start && start > 0.05 && start < 1.2 ? start : 0.32);
+  const [skala, setSkala] = useState(start && start > 0.05 && start < 2 ? start : 0.32);
   const [posX, setPosX] = useState(0.5);
   const [bottomY, setBottomY] = useState(0.16);
   const [capRatio, setCapRatio] = useState(1);
@@ -119,7 +119,8 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
       setPosX(Math.min(0.95, Math.max(0.05, nx)));
       setBottomY(Math.min(0.9, Math.max(0.04, d.bottomY + dy)));
     } else {
-      setSkala(Math.min(1.2, Math.max(0.05, d.skala + dx * 2)));
+      // v63: weiter Spielraum (5%..200% der Body-Breite) — Hand gewinnt roh.
+      setSkala(Math.min(2, Math.max(0.05, d.skala + dx * 2)));
     }
   };
   const capW = bodyBox ? skala * bodyBox.w : 0;
@@ -1144,11 +1145,11 @@ const STYLES = `
 .pn-anpassen{position:absolute;right:12px;top:12px;border:1px solid var(--linie);border-radius:999px;background:rgba(255,255,255,.92);padding:6px 12px;font-size:12px;color:var(--grau);cursor:pointer}
 .pn-anpassen:hover{border-color:var(--hell);color:var(--tinte)}
 .pn-h-link{background:none;border:none;padding:0;color:#8A6116;text-decoration:underline;cursor:pointer;font:inherit}
-.kal-box{position:relative;background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:20px 22px}
+.kal-box{position:relative;background:#fff;border-radius:18px;max-width:900px;width:100%;max-height:94vh;overflow:auto;padding:20px 22px}
 .kal-hilfe{font-size:12.5px;color:var(--grau);margin:0 0 12px;padding-right:28px}
 .kal-flaeche{display:flex;justify-content:center;background:linear-gradient(180deg,#fff,#f4f3ef);border-radius:12px;padding:14px}
 .kal-rahmen{position:relative;display:inline-block}
-.kal-body{display:block;max-height:52vh;max-width:100%}
+.kal-body{display:block;max-height:72vh;max-width:100%}
 .kal-cap{position:absolute;cursor:grab;touch-action:none;outline:1px dashed rgba(26,26,24,.25);outline-offset:2px}
 .kal-cap img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none}
 .kal-griff{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border-radius:50%;background:var(--tinte);cursor:nwse-resize}
