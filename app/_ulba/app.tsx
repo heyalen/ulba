@@ -1151,9 +1151,9 @@ const STYLES = `
 .pn-h-link{background:none;border:none;padding:0;color:#8A6116;text-decoration:underline;cursor:pointer;font:inherit}
 .kal-box{position:relative;background:#fff;border-radius:18px;max-width:900px;width:100%;max-height:94vh;overflow:auto;padding:20px 22px}
 .kal-hilfe{font-size:12.5px;color:var(--grau);margin:0 0 12px;padding-right:28px}
-.kal-flaeche{display:flex;justify-content:center;background:linear-gradient(180deg,#fff,#f4f3ef);border-radius:12px;padding:14px}
+.kal-flaeche{display:flex;justify-content:center;background:#fff;border-radius:12px;padding:14px}
 .kal-rahmen{position:relative;display:inline-block}
-.kal-body{display:block;max-height:56vh;max-width:100%}
+.kal-body{display:block;max-height:44vh;max-width:84%;margin:0 auto}
 .kal-cap{position:absolute;cursor:grab;touch-action:none;outline:1px dashed rgba(26,26,24,.25);outline-offset:2px}
 .kal-cap img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none}
 .kal-griff{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border-radius:50%;background:var(--tinte);cursor:nwse-resize}
