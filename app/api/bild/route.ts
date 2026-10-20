@@ -46,8 +46,12 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const r = sp.get('r') || '';
   const k = (sp.get('k') || 'bild').slice(0, 10);
+  // v74: &v=<AttachmentId> versioniert die Adresse. Neues v = neuer Cache-Key
+  // (Server-Map UND Browser) — nach einer Kalibrierung loest die Route sofort
+  // auf das ersetzte Attachment auf statt bis zu 1 h die alte URL zu liefern.
+  const v = (sp.get('v') || '').slice(0, 24);
   if (!/^rec[A-Za-z0-9]{14}$/.test(r)) return new NextResponse('ungueltig', { status: 400 });
-  const key = `${r}:${k}`;
+  const key = `${r}:${k}:${v}`;
   let hit = cache.get(key);
   if (!hit || hit.bis < Date.now()) {
     const url = await frischeUrl(r, k).catch(() => null);
