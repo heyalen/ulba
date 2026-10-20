@@ -6,7 +6,7 @@
    Spricht nur mit dem Renderer (/api/search, /api/render).
    Favoriten/Projekte über localStorage. Historie: git log. */
 
-import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Suspense, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Suspense, type ReactNode, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
@@ -92,15 +92,49 @@ interface RenderEintrag {
    Body-Einzelbild. Speichern schreibt Montage_Skala (Cap-Breite als Anteil
    der Body-Bildbreite) und Montage_Versatz_Y (Cap-Unterkante in % der
    Body-Bildhöhe) an den Cap-Record — gilt ab dann für alle Renders. */
-function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern, onZu }: {
-  bodyUrl: string; capUrl: string; start: number | null;
+/* v76 — Montage-Geometrie aus GET /api/kalibrierung: cropBox in % des
+   Cap-Bilds (Silhouette inkl. Tauchrohr-Schnitt), Hals/Box des Bodys,
+   gespeicherte und Auto-Werte in Crop-Semantik. Dieselben Funktionen wie
+   die Montage — was das Overlay zeigt, wird so montiert. */
+interface KalGeo {
+  bodyUrl: string; capUrl: string;
+  cap: { w: number; h: number; cropBox: { x: number; y: number; w: number; h: number }; cropRatio: number };
+  body: { w: number; h: number; neckTopPct: number };
+  auto: { skala: number; versatzY: number };
+  gespeichert: { skala: number; versatzY: number | null; basis: 'crop' | 'alt' } | null;
+}
+const geoStart = (g: KalGeo) => ({
+  skala: g.gespeichert?.skala ?? g.auto.skala,
+  bottomY: (g.gespeichert?.versatzY ?? g.auto.versatzY) / 100,
+});
+
+/* v76 — Cap GECROPPT auf seine Silhouette: Wrapper mit overflow hidden,
+   das Bild per Prozent-Inset auf die cropBox gelegt. breite = Crop-Breite
+   in Pixeln; die Hoehe folgt aus cropRatio. */
+function CapAusschnitt({ geo, breite, klasse, style }: { geo: KalGeo; breite: number; klasse?: string; style?: CSSProperties }) {
+  const b = geo.cap.cropBox;
+  const imgW = breite / (b.w / 100);
+  const imgH = imgW * geo.cap.h / Math.max(1, geo.cap.w);
+  return (
+    <div className={klasse} style={{ position: 'relative', overflow: 'hidden', ...style, width: breite, height: breite * geo.cap.cropRatio }}>
+      <img src={geo.capUrl} alt="Verschluss" draggable={false}
+        style={{ position: 'absolute', width: imgW, height: imgH, maxWidth: 'none', maxHeight: 'none', left: -b.x / 100 * imgW, top: -b.y / 100 * imgH, mixBlendMode: 'multiply', pointerEvents: 'none', userSelect: 'none' }} />
+    </div>
+  );
+}
+
+function KalibrierOverlay({ bodyUrl, capUrl, geo, geoFehler, laeuft, fehler, onSpeichern, onZu }: {
+  bodyUrl: string; capUrl: string; geo: KalGeo | null; geoFehler: string;
   laeuft: boolean; fehler: string;
-  onSpeichern: (skala: number, versatzY: number) => void; onZu: () => void;
+  onSpeichern: (skala: number, versatzY: number, cropBasiert: boolean) => void; onZu: () => void;
 }) {
-  const [skala, setSkala] = useState(start && start > 0.05 && start < 2 ? start : 0.32);
+  const [skala, setSkala] = useState(0.32);
   const [posX, setPosX] = useState(0.5);
   const [bottomY, setBottomY] = useState(0.16);
   const [capRatio, setCapRatio] = useState(1);
+  // v76: Initialzustand = gespeicherte Werte, sonst Auto — Round-Trip
+  // geschlossen: "Anpassen" oeffnet exakt beim gespeicherten Stand.
+  useEffect(() => { if (geo) { const st = geoStart(geo); setSkala(st.skala); setBottomY(st.bottomY); } }, [geo]);
   const [bodyBox, setBodyBox] = useState<{ w: number; h: number } | null>(null);
   const bodyImgRef = useRef<HTMLImageElement | null>(null);
   // v73: bodyBox bleibt bei Zoom/Resize aktuell — Drag-Deltas und die
@@ -137,7 +171,8 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
     }
   };
   const capW = bodyBox ? skala * bodyBox.w : 0;
-  const capH = capW * capRatio;
+  const capH = capW * (geo ? geo.cap.cropRatio : capRatio);
+  const bereit = !!geo || !!geoFehler; // ohne Geometrie: alter Pfad (ungecroppt)
   // v63.1: fester KOPFRAUM über dem Body — der Verschluss ragt beim
   // Kalibrieren naturgemäss über die Body-Oberkante und darf nie clippen.
   // Nur Darstellung: Versatz bleibt relativ zum Body-Bild.
@@ -146,16 +181,18 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
     <div className="rg-ov" role="dialog" aria-label="Montage anpassen" onClick={onZu}>
       <div className="kal-box" onClick={ev => ev.stopPropagation()} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}>
         <button className="pn-zu rg-zu" onClick={onZu} aria-label="schließen">×</button>
-        <p className="kal-hilfe">Verschluss ziehen (mittig snappt), Ecke zieht die Grösse. Speichern gilt ab jetzt für alle Renders mit diesem Verschluss.</p>
+        <p className="kal-hilfe">Verschluss ziehen (mittig snappt), Ecke zieht die Grösse. Speichern gilt ab jetzt für alle Renders mit diesem Verschluss.{!bereit ? ' — Geometrie wird gelesen …' : ''}{geoFehler ? ` — ${geoFehler}` : ''}</p>
         <div className="kal-flaeche">
           <div className="kal-rahmen" style={bodyBox ? { paddingTop: kopf } : undefined}>
             <img ref={bodyImgRef} className="kal-body" src={bodyUrl} alt="Körper"
               onLoad={e => setBodyBox({ w: e.currentTarget.clientWidth, h: e.currentTarget.clientHeight })} />
-            {bodyBox && (
+            {bodyBox && bereit && (
               <div className="kal-cap" style={{ width: capW, height: capH, left: posX * bodyBox.w - capW / 2, top: kopf + bottomY * bodyBox.h - capH }}
                 onPointerDown={onDown('move')}>
-                <img src={capUrl} alt="Verschluss" draggable={false}
-                  onLoad={e => setCapRatio(e.currentTarget.naturalHeight / Math.max(1, e.currentTarget.naturalWidth))} />
+                {geo
+                  ? <CapAusschnitt geo={geo} breite={capW} />
+                  : <img src={capUrl} alt="Verschluss" draggable={false}
+                      onLoad={e => setCapRatio(e.currentTarget.naturalHeight / Math.max(1, e.currentTarget.naturalWidth))} />}
                 <i className="kal-griff" onPointerDown={onDown('size')} />
               </div>
             )}
@@ -164,8 +201,8 @@ function KalibrierOverlay({ bodyUrl, capUrl, start, laeuft, fehler, onSpeichern,
         {fehler && <p className="pn-fehler">{fehler}</p>}
         <div className="kal-aktionen">
           <button className="knopf zweit" onClick={onZu}>Abbrechen</button>
-          <button className="knopf haupt" disabled={laeuft}
-            onClick={() => onSpeichern(Math.round(skala * 1000) / 1000, Math.round(bottomY * 10000) / 100)}>
+          <button className="knopf haupt" disabled={laeuft || !bereit}
+            onClick={() => onSpeichern(Math.round(skala * 10000) / 10000, Math.round(bottomY * 10000) / 100, !!geo)}>
             {laeuft ? 'Speichert …' : 'Speichern'}
           </button>
         </div>
@@ -238,6 +275,42 @@ function StapelBild({ bodyUrl, capUrl, scale, alt, klasse }: {
         alt={alt}
         onLoad={e => setBodyW(e.currentTarget.clientWidth)}
       />
+    </div>
+  );
+}
+
+/* v76 — Vorschau-Stapel EXAKT wie das Komposit: Body-Bild gemessen
+   (Rect im Container), Cap gecroppt, Breite = skala x Body-Breite,
+   Unterkante = bottomY x Body-Hoehe, mittig auf dem Body. */
+function StapelGenau({ geo, skala, bottomY, alt, klasse }: {
+  geo: KalGeo; skala: number; bottomY: number; alt: string; klasse: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLImageElement | null>(null);
+  const [box, setBox] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
+  const messen = () => {
+    const w = wrapRef.current, b = bodyRef.current;
+    if (!w || !b || b.clientWidth === 0) return;
+    const wr = w.getBoundingClientRect(), br = b.getBoundingClientRect();
+    setBox({ l: br.left - wr.left, t: br.top - wr.top, w: br.width, h: br.height });
+  };
+  useEffect(() => {
+    const b = bodyRef.current;
+    if (!b || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(messen);
+    ro.observe(b);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [geo.bodyUrl]);
+  const capW = box ? skala * box.w : 0;
+  const capH = capW * geo.cap.cropRatio;
+  return (
+    <div ref={wrapRef} className={klasse}>
+      <img ref={bodyRef} className={`${klasse}-body`} src={geo.bodyUrl} alt={alt} onLoad={messen} />
+      {box && capW > 0 && (
+        <CapAusschnitt geo={geo} breite={capW} klasse={`${klasse}-cap`}
+          style={{ position: 'absolute', left: Math.round(box.l + box.w / 2 - capW / 2), top: Math.round(box.t + bottomY * box.h - capH) }} />
+      )}
     </div>
   );
 }
@@ -1137,6 +1210,8 @@ const STYLES = `
 .pn-stapel img{object-fit:contain;mix-blend-mode:multiply}
 .pn-stapel-cap{max-height:23%;max-width:44%;margin-bottom:-2%}
 .pn-stapel-body{max-height:73%;max-width:84%}
+.pn-genau{position:relative;width:100%;height:100%}
+.pn-genau-body{position:absolute;left:50%;bottom:5%;transform:translateX(-50%);max-height:70%;max-width:84%;object-fit:contain;mix-blend-mode:multiply}
 .pn-look-marke i{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
 .pn-lade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(250,250,248,.9);font-size:13px;color:var(--grau);z-index:2}
 .pn-caps{margin-top:20px}
@@ -1697,8 +1772,24 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   // v74: kurze Bestaetigung nach dem Speichern + Teil-Reihe frisch laden.
   const [kalMeldung, setKalMeldung] = useState('');
   const [kalReload, setKalReload] = useState(0);
-  // v75: nach Vorschau-Kalibrierung (ohne Render) gemerkte Skala je Cap.
-  const [vorSkala, setVorSkala] = useState<Record<string, number>>({});
+  // v76: Montage-Geometrie je "capId|cacheId" (Vorschau: cacheId leer) aus
+  // GET /api/kalibrierung — Quelle fuer Vorschau-Stapel UND Overlay.
+  const [geos, setGeos] = useState<Record<string, KalGeo>>({});
+  const [geoFehler, setGeoFehler] = useState<Record<string, string>>({});
+  const geoKeyFuer = (capId: string, cacheId?: string | null) => `${capId}|${cacheId || ''}`;
+  const ladeGeo = (capId: string, cacheId?: string | null) => {
+    const key = geoKeyFuer(capId, cacheId);
+    if (geos[key] || geoFehler[key]) return;
+    const q = cacheId ? `capId=${capId}&cacheId=${cacheId}` : `capId=${capId}&systemId=${product.id}`;
+    fetch(`${KALIBRIER_API}?${q}`)
+      .then(async r => { const d = await r.json(); if (!r.ok || d.error || !d.cap) throw new Error(d.error || `Geometrie ${r.status}`); return d as KalGeo; })
+      .then(g => setGeos(v => ({ ...v, [key]: g })))
+      .catch(e => { console.error('kalibrierung geometrie:', e); setGeoFehler(v => ({ ...v, [key]: e instanceof Error ? e.message : 'Geometrie nicht lesbar' })); });
+  };
+  const vorCapId = caps[capIdx]?.id || '';
+  const vorGeo = vorCapId ? geos[geoKeyFuer(vorCapId)] : undefined;
+  // Vorschau-Geometrie fuer den gewaehlten Cap vorab laden (Stapel + Overlay).
+  useEffect(() => { if (vorCapId && product.imageUrl) ladeGeo(vorCapId); }, [vorCapId, product.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1761,23 +1852,29 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   // v62: Kalibrierung speichern -> Cap-Felder + Re-Komposit serverseitig.
   // v75: auch OHNE Render (Vorschau) — dann nur Cap-Felder, kein Komposit.
-  const kalSpeichern = async (skala: number, versatzY: number) => {
+  const kalSpeichern = async (skala: number, versatzY: number, cropBasiert: boolean) => {
     const capId = caps[capIdx]?.id;
     if (!capId) { setKalFehler('Kein Verschluss gewählt.'); return; }
     const cacheId = zeigtRender ? render?.cacheId : undefined;
     setKalLaeuft(true); setKalFehler('');
     try {
-      const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, ...(cacheId ? { cacheId } : {}), skala, versatzY }) });
-      const d = await r.json();
-      if (!r.ok || d.error) throw new Error(d.error || 'Speichern fehlgeschlagen');
+      const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, ...(cacheId ? { cacheId } : {}), skala, versatzY, cropBasiert }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) throw new Error(d.error || `Speichern fehlgeschlagen (${r.status})`);
+      // v76: gespeicherter Stand in ALLE Geometrien dieses Caps — Vorschau-
+      // Stapel und naechstes "Anpassen" starten exakt hier.
+      if (cropBasiert) {
+        setGeos(v => {
+          const o: Record<string, KalGeo> = {};
+          for (const k of Object.keys(v)) o[k] = k.startsWith(`${capId}|`) ? { ...v[k], gespeichert: { skala, versatzY, basis: 'crop' } } : v[k];
+          return o;
+        });
+      }
       /* v74: Konfidenz kommt vom Server — wurde der Hand-Versatz verworfen
          (Hals-Band-Guard), montiert er automatisch und meldet das ehrlich. */
       const uebernommen = d.versatzUebernommen !== false;
       if (cacheId && d.bildUrl) {
         setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: uebernommen ? 'auto_ok' : 'pruefen' } : rv);
-      } else {
-        // v75: Vorschau-Stapel sofort auf die Hand-Skala umstellen.
-        setVorSkala(v => ({ ...v, [capId]: skala }));
       }
       setKalOffen(false);
       setKalMeldung(uebernommen ? 'Gespeichert' : 'Gespeichert — Position automatisch korrigiert');
@@ -1787,19 +1884,28 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       // waitUntil — die Teil-Reihe danach noch einmal frisch holen.
       window.setTimeout(() => setKalReload(z => z + 1), 9000);
     } catch (e) {
+      // v76: nie stumm — Overlay zeigt den Fehler, Buehne den Chip, Konsole den Grund.
+      console.error('kalibrierung speichern:', e);
       setKalFehler(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
+      setKalMeldung('Speichern fehlgeschlagen');
+      window.setTimeout(() => setKalMeldung(''), 3500);
     }
     setKalLaeuft(false);
   };
   /* v75: Overlay kennt zwei Quellen — Render (Body_Bild+Cap_Bild) oder,
      vor dem ersten Render, die Original-Fotos (product.imageUrl + Cap). */
-  const kalBody = zeigtRender ? (render?.bodyUrl || render?.url || null) : (product.imageUrl || null);
-  const kalCap = zeigtRender ? (render?.capUrl || null) : (caps[capIdx]?.imageUrl || null);
+  const kalKey = geoKeyFuer(vorCapId, zeigtRender ? render?.cacheId : null);
+  const kalGeo = geos[kalKey] || null;
+  // v76: Overlay-Bilder = exakt die Bilder, auf denen die Geometrie gemessen
+  // wurde (Vorschau: Original-Fotos aus dem Endpoint; Render: Body_Bild/Cap_Bild).
+  const kalBody = kalGeo?.bodyUrl || (zeigtRender ? (render?.bodyUrl || render?.url || null) : (product.imageUrl || null));
+  const kalCap = kalGeo?.capUrl || (zeigtRender ? (render?.capUrl || null) : (caps[capIdx]?.imageUrl || null));
   const kalOverlay = kalOffen && kalBody && kalCap ? (
     <KalibrierOverlay
       bodyUrl={kalBody}
       capUrl={kalCap}
-      start={zeigtRender ? (render?.capScale ?? null) : (vorSkala[caps[capIdx]?.id || ''] ?? null)}
+      geo={kalGeo}
+      geoFehler={geoFehler[kalKey] || ''}
       laeuft={kalLaeuft}
       fehler={kalFehler}
       onSpeichern={kalSpeichern}
@@ -1865,12 +1971,22 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           /* v75: schon VOR dem Render zeigt die Buehne die gewaehlte Kombi —
              der Original-Cap stapelt per CSS (contain+multiply) ueber der
              Base; die Cap-Auswahl unten wirkt damit sofort sichtbar. */
-          ? (caps[capIdx]?.imageUrl
+          ? (vorGeo
+            /* v76: exakt wie das spaetere Komposit — gespeicherte (sonst
+               Auto-) Werte inkl. Position, Cap gecroppt; reload-fest. */
+            ? <StapelGenau
+                klasse="pn-genau"
+                geo={vorGeo}
+                skala={geoStart(vorGeo).skala}
+                bottomY={geoStart(vorGeo).bottomY}
+                alt={`${product.name} mit ${caps[capIdx]?.name || 'Verschluss'}`}
+              />
+            : caps[capIdx]?.imageUrl
             ? <StapelBild
                 klasse="pn-stapel"
                 bodyUrl={product.imageUrl}
                 capUrl={caps[capIdx].imageUrl}
-                scale={vorSkala[caps[capIdx].id] ?? capScaleHeuristik(caps[capIdx].name || product.closure)}
+                scale={capScaleHeuristik(caps[capIdx].name || product.closure)}
                 alt={`${product.name} mit ${caps[capIdx].name || 'Verschluss'}`}
               />
             : <img src={product.imageUrl} alt={product.name} />)
@@ -1887,7 +2003,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       {((zeigtRender && render?.capUrl && render?.cacheId) || (!zeigtRender && !!caps[capIdx]?.imageUrl && !!product.imageUrl)) && (
         /* v62: dezenter Einstieg in den Kalibrier-Regler (Split-Fälle);
            v75: auch VOR dem Render — kalibriert Original-Body + Original-Cap. */
-        <button type="button" className="pn-anpassen" onClick={() => setKalOffen(true)}>Anpassen</button>
+        <button type="button" className="pn-anpassen" onClick={() => { if (vorCapId) ladeGeo(vorCapId, zeigtRender ? render?.cacheId : null); setKalOffen(true); }}>Anpassen</button>
       )}
       {kalMeldung && <span className="pn-kal-ok">{kalMeldung}</span>}
       {rstatus === 'loading' && (
