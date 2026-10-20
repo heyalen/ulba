@@ -1159,6 +1159,7 @@ const STYLES = `
 .mini-stapel img{object-fit:contain;mix-blend-mode:multiply}
 .mini-stapel-cap{max-height:24%;max-width:60%;margin-bottom:-2%}
 .mini-stapel-body{max-height:78%;max-width:92%}
+.pn-kal-ok{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(20,22,20,.86);color:#fff;border-radius:999px;padding:7px 14px;font-size:12.5px;letter-spacing:.01em;pointer-events:none}
 .pn-anpassen{position:absolute;right:12px;top:12px;border:1px solid var(--linie);border-radius:999px;background:rgba(255,255,255,.92);padding:6px 12px;font-size:12px;color:var(--grau);cursor:pointer}
 .pn-anpassen:hover{border-color:var(--hell);color:var(--tinte)}
 .pn-h-link{background:none;border:none;padding:0;color:#8A6116;text-decoration:underline;cursor:pointer;font:inherit}
@@ -1693,6 +1694,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [kalOffen, setKalOffen] = useState(false);
   const [kalLaeuft, setKalLaeuft] = useState(false);
   const [kalFehler, setKalFehler] = useState('');
+  // v74: kurze Bestaetigung nach dem Speichern + Teil-Reihe frisch laden.
+  const [kalMeldung, setKalMeldung] = useState('');
+  const [kalReload, setKalReload] = useState(0);
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1706,7 +1710,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       .then(d => { if (!tot) setTeilRenders(Array.isArray(d?.renders) ? d.renders.slice(0, 8) : []); })
       .catch(() => { if (!tot) setTeilRenders([]); });
     return () => { tot = true; };
-  }, [product.id]);
+  }, [product.id, kalReload]);
 
   const rendern = async (code: DesignCodeKarte) => {
     setWandOffen(false);
@@ -1762,8 +1766,14 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, cacheId: render.cacheId, skala, versatzY }) });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || 'Speichern fehlgeschlagen');
-      setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: 'auto_ok' } : rv);
+      /* v74: Konfidenz kommt vom Server — wurde der Hand-Versatz verworfen
+         (Hals-Band-Guard), montiert er automatisch und meldet das ehrlich. */
+      const uebernommen = d.versatzUebernommen !== false;
+      setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: uebernommen ? 'auto_ok' : 'pruefen' } : rv);
       setKalOffen(false);
+      setKalMeldung(uebernommen ? 'Gespeichert' : 'Gespeichert — Position automatisch korrigiert');
+      window.setTimeout(() => setKalMeldung(''), 3500);
+      setKalReload(z => z + 1);
     } catch (e) {
       setKalFehler(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
     }
@@ -1851,6 +1861,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         /* v62: dezenter Einstieg in den Kalibrier-Regler (nur Split-Fälle). */
         <button type="button" className="pn-anpassen" onClick={() => setKalOffen(true)}>Anpassen</button>
       )}
+      {kalMeldung && <span className="pn-kal-ok">{kalMeldung}</span>}
       {rstatus === 'loading' && (
         <RenderFortschritt split={caps.length > 0} name={lookCode?.name || 'diesem Design'} />
       )}
