@@ -1697,6 +1697,8 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   // v74: kurze Bestaetigung nach dem Speichern + Teil-Reihe frisch laden.
   const [kalMeldung, setKalMeldung] = useState('');
   const [kalReload, setKalReload] = useState(0);
+  // v75: nach Vorschau-Kalibrierung (ohne Render) gemerkte Skala je Cap.
+  const [vorSkala, setVorSkala] = useState<Record<string, number>>({});
 
   // Teilwechsel: der Look bleibt, das Bild nicht — es gehörte zum alten Teil.
   useEffect(() => { setRender(null); setRstatus('idle'); setRerror(''); }, [product.id]);
@@ -1758,32 +1760,46 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const zeigtRender = !!render && rstatus !== 'loading';
 
   // v62: Kalibrierung speichern -> Cap-Felder + Re-Komposit serverseitig.
+  // v75: auch OHNE Render (Vorschau) — dann nur Cap-Felder, kein Komposit.
   const kalSpeichern = async (skala: number, versatzY: number) => {
     const capId = caps[capIdx]?.id;
-    if (!render?.cacheId || !capId) { setKalFehler('Kein gespeicherter Render — bitte frisch rendern.'); return; }
+    if (!capId) { setKalFehler('Kein Verschluss gewählt.'); return; }
+    const cacheId = zeigtRender ? render?.cacheId : undefined;
     setKalLaeuft(true); setKalFehler('');
     try {
-      const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, cacheId: render.cacheId, skala, versatzY }) });
+      const r = await fetch(KALIBRIER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capId, ...(cacheId ? { cacheId } : {}), skala, versatzY }) });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || 'Speichern fehlgeschlagen');
       /* v74: Konfidenz kommt vom Server — wurde der Hand-Versatz verworfen
          (Hals-Band-Guard), montiert er automatisch und meldet das ehrlich. */
       const uebernommen = d.versatzUebernommen !== false;
-      setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: uebernommen ? 'auto_ok' : 'pruefen' } : rv);
+      if (cacheId && d.bildUrl) {
+        setRender(rv => rv ? { ...rv, url: d.bildUrl, montiert: true, capScale: typeof d.capScale === 'number' ? d.capScale : rv.capScale, konfidenz: uebernommen ? 'auto_ok' : 'pruefen' } : rv);
+      } else {
+        // v75: Vorschau-Stapel sofort auf die Hand-Skala umstellen.
+        setVorSkala(v => ({ ...v, [capId]: skala }));
+      }
       setKalOffen(false);
       setKalMeldung(uebernommen ? 'Gespeichert' : 'Gespeichert — Position automatisch korrigiert');
       window.setTimeout(() => setKalMeldung(''), 3500);
       setKalReload(z => z + 1);
+      // v75: der Kombi-Nachzug (weitere Renders) laeuft serverseitig in
+      // waitUntil — die Teil-Reihe danach noch einmal frisch holen.
+      window.setTimeout(() => setKalReload(z => z + 1), 9000);
     } catch (e) {
       setKalFehler(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
     }
     setKalLaeuft(false);
   };
-  const kalOverlay = kalOffen && render?.capUrl ? (
+  /* v75: Overlay kennt zwei Quellen — Render (Body_Bild+Cap_Bild) oder,
+     vor dem ersten Render, die Original-Fotos (product.imageUrl + Cap). */
+  const kalBody = zeigtRender ? (render?.bodyUrl || render?.url || null) : (product.imageUrl || null);
+  const kalCap = zeigtRender ? (render?.capUrl || null) : (caps[capIdx]?.imageUrl || null);
+  const kalOverlay = kalOffen && kalBody && kalCap ? (
     <KalibrierOverlay
-      bodyUrl={render.bodyUrl || render.url}
-      capUrl={render.capUrl}
-      start={render.capScale}
+      bodyUrl={kalBody}
+      capUrl={kalCap}
+      start={zeigtRender ? (render?.capScale ?? null) : (vorSkala[caps[capIdx]?.id || ''] ?? null)}
       laeuft={kalLaeuft}
       fehler={kalFehler}
       onSpeichern={kalSpeichern}
@@ -1846,7 +1862,18 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
              die Flaschenwand. contain + multiply wie der Stapel/die Fotos. */
           : <img className={render!.montiert ? 'pn-montiert' : undefined} src={render!.url} alt={`${product.name} im Design ${lookCode?.name || ''}`} />)
         : product.imageUrl
-          ? <img src={product.imageUrl} alt={product.name} />
+          /* v75: schon VOR dem Render zeigt die Buehne die gewaehlte Kombi —
+             der Original-Cap stapelt per CSS (contain+multiply) ueber der
+             Base; die Cap-Auswahl unten wirkt damit sofort sichtbar. */
+          ? (caps[capIdx]?.imageUrl
+            ? <StapelBild
+                klasse="pn-stapel"
+                bodyUrl={product.imageUrl}
+                capUrl={caps[capIdx].imageUrl}
+                scale={vorSkala[caps[capIdx].id] ?? capScaleHeuristik(caps[capIdx].name || product.closure)}
+                alt={`${product.name} mit ${caps[capIdx].name || 'Verschluss'}`}
+              />
+            : <img src={product.imageUrl} alt={product.name} />)
           : <span className="pn-leer" aria-hidden />}
       {zeigtRender && (render?.weltName || lookCode?.name) && (
         /* v71.1: der Chip traegt IMMER die Welt des ANGEZEIGTEN Renders —
@@ -1857,8 +1884,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           {render?.weltName || lookCode?.name}
         </span>
       )}
-      {zeigtRender && render?.capUrl && render?.cacheId && (
-        /* v62: dezenter Einstieg in den Kalibrier-Regler (nur Split-Fälle). */
+      {((zeigtRender && render?.capUrl && render?.cacheId) || (!zeigtRender && !!caps[capIdx]?.imageUrl && !!product.imageUrl)) && (
+        /* v62: dezenter Einstieg in den Kalibrier-Regler (Split-Fälle);
+           v75: auch VOR dem Render — kalibriert Original-Body + Original-Cap. */
         <button type="button" className="pn-anpassen" onClick={() => setKalOffen(true)}>Anpassen</button>
       )}
       {kalMeldung && <span className="pn-kal-ok">{kalMeldung}</span>}
