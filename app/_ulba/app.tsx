@@ -619,10 +619,11 @@ const STYLES = `
 .burger,.tb-marke,.nav-ov{display:none}
 .content{flex:1;overflow-y:auto;min-height:0}
 .content-chat{overflow:hidden;display:flex}
-.start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
-.st-mitte{width:100%;max-width:640px;text-align:center;padding:0 24px}
+.start{height:100%;display:flex;flex-direction:column;align-items:center;padding:20px 0 0}
+.st-unten{flex:none;width:100%;max-width:640px;padding:0 20px calc(18px + env(safe-area-inset-bottom));margin:0 auto}
+.st-mitte{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:640px;text-align:center;padding:0 24px}
 .st-logo{font-family:var(--serif);font-size:26px;color:var(--rouge);margin-bottom:18px;opacity:.7}
-.st-mitte h1{font-family:var(--serif);font-size:clamp(28px,3.6vw,40px);font-weight:500;line-height:1.12;letter-spacing:-.02em;color:var(--tinte);margin-bottom:34px}
+.st-mitte h1{font-family:var(--serif);font-size:clamp(28px,3.6vw,40px);font-weight:500;line-height:1.12;letter-spacing:-.02em;color:var(--tinte);margin-bottom:14px}
 .st-mitte h1 em{font-style:normal;font-weight:500;color:var(--rouge)}
 .feld{position:relative;display:flex;align-items:center;max-width:600px;margin:0 auto;border:1px solid var(--linie);border-radius:14px;background:var(--panel);padding:6px 6px 6px 20px;box-shadow:none;transition:border-color .15s}
 .feld:focus-within{border-color:var(--hell)}
@@ -640,7 +641,7 @@ const STYLES = `
 .ek-ab{display:block;font-family:var(--mono);font-size:10px;color:var(--hell);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .feld .go{flex:none;width:38px;height:38px;border-radius:10px;background:var(--tinte);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
 .feld .go:hover{background:var(--rouge)}
-.st-vorschlaege{display:flex;flex-direction:column;gap:2px;margin:26px auto 0;max-width:460px;text-align:left}
+.st-vorschlaege{display:flex;flex-direction:column;gap:2px;margin:0 auto 12px;max-width:460px;text-align:left}
 .st-v{display:flex;align-items:center;border-radius:12px}
 .st-v:hover{background:var(--nische)}
 .st-v-haupt{flex:1;display:flex;align-items:center;gap:14px;padding:12px 10px;min-width:0;text-align:left}
@@ -650,7 +651,7 @@ const STYLES = `
 .st-v:hover .st-v-x{opacity:1}
 .st-v-x:hover{color:var(--tinte);background:var(--linie2)}
 @media(hover:none){.st-v-x{opacity:1}}
-.st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
+.st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:0 auto;line-height:1.5}
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
 .chat.split{grid-template-columns:minmax(380px,1fr) minmax(460px,720px)}
 .cs-main{display:flex;flex-direction:column;min-width:0;height:100%;min-height:0}
@@ -1073,7 +1074,8 @@ const STYLES = `
   .thread{padding:18px 14px 14px}
   .refine{padding:10px 12px calc(12px + env(safe-area-inset-bottom))}
   .eb-grid,.eb-grid.schmal{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .start{padding:16px 0 40px}
+  .start{padding:8px 0 0}
+  .st-unten{padding:0 14px calc(12px + env(safe-area-inset-bottom))}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 .nav-marke,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t{font-weight:800;letter-spacing:-.015em}
@@ -3043,6 +3045,19 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
             <div className="start">
               <div className="st-mitte">
                 <h1>Was möchtest du <em>launchen</em>?</h1>
+                <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
+              </div>
+              <div className="st-unten">
+                <div className="st-vorschlaege">
+                  {EXAMPLES.filter(ex => !vorschlagWeg.includes(ex.label)).slice(0, 3).map((ex, i) => (
+                    <div key={i} className="st-v">
+                      <button className="st-v-haupt" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>
+                        <span className="st-v-ic"><Icon n={ex.ic} /></span><span className="st-v-t">{ex.label}</span>
+                      </button>
+                      <button className="st-v-x" onClick={() => entferneVorschlag(ex.label)} aria-label={`${ex.label} entfernen`}>×</button>
+                    </div>
+                  ))}
+                </div>
                 <div
                   className="feld"
                   onDragOver={e => { e.preventDefault(); }}
@@ -3069,17 +3084,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                   />
                   <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">↑</button>
                 </div>
-                <div className="st-vorschlaege">
-                  {EXAMPLES.filter(ex => !vorschlagWeg.includes(ex.label)).map((ex, i) => (
-                    <div key={i} className="st-v">
-                      <button className="st-v-haupt" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>
-                        <span className="st-v-ic"><Icon n={ex.ic} /></span><span className="st-v-t">{ex.label}</span>
-                      </button>
-                      <button className="st-v-x" onClick={() => entferneVorschlag(ex.label)} aria-label={`${ex.label} entfernen`}>×</button>
-                    </div>
-                  ))}
-                </div>
-                <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
               </div>
             </div>
             </main>
