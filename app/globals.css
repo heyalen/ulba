@@ -6,3 +6,10 @@ body { background: #FAFAFA; color: #1C1C1A; font-family: 'Archivo', system-ui, s
 button { font: inherit; cursor: pointer; }
 input, textarea { font: inherit; }
 ::selection { background: #ECECEA; color: #1C1C1A; }
+
+/* v78 — Konto-Seiten (/anmelden, /registrieren): ruhige Buehne ausserhalb
+   der App-Shell, Clerk-Karte mittig, ein Weg zurueck. */
+.konto-seite { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px 16px; }
+.konto-zurueck { font-size: 13.5px; color: #5D5D58; text-decoration: none; }
+.konto-zurueck:hover { color: #1C1C1A; }
+.konto-hinweis { font-size: 14px; color: #5D5D58; max-width: 360px; text-align: center; }
