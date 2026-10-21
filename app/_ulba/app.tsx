@@ -19,12 +19,12 @@ const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
 const KALIBRIER_API = 'https://ulba-vision-renderer.vercel.app/api/kalibrierung';
 const SEARCH_API = 'https://ulba-vision-renderer.vercel.app/api/search';
 
-const EXAMPLES = [
-  { label: 'Ruhig & teuer', q: 'Feminine luxury glass serum, premium' },
-  { label: 'Laut & jung', q: 'Gen Z bold color fun affordable' },
-  { label: 'Männlich minimal', q: 'Mens shampoo minimal clean masculine' },
-  { label: 'Clean & nachhaltig', q: 'Sustainable clean beauty refill bamboo' },
-  { label: 'Premium Ritual', q: 'Premium anti-aging ceremonial glass luxe' },
+const EXAMPLES: { label: string; q: string; ic: IconName }[] = [
+  { label: 'Ruhig & teuer', q: 'Feminine luxury glass serum, premium', ic: 'herz' },
+  { label: 'Laut & jung', q: 'Gen Z bold color fun affordable', ic: 'raum' },
+  { label: 'Männlich minimal', q: 'Mens shampoo minimal clean masculine', ic: 'linien' },
+  { label: 'Clean & nachhaltig', q: 'Sustainable clean beauty refill bamboo', ic: 'anfragen' },
+  { label: 'Premium Ritual', q: 'Premium anti-aging ceremonial glass luxe', ic: 'bild' },
 ];
 
 const TYPE_LABELS = TYP_KURZ;
@@ -640,9 +640,16 @@ const STYLES = `
 .ek-ab{display:block;font-family:var(--mono);font-size:10px;color:var(--hell);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .feld .go{flex:none;width:38px;height:38px;border-radius:10px;background:var(--tinte);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
 .feld .go:hover{background:var(--rouge)}
-.st-trend{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:22px auto 0;max-width:580px}
-.tr-pill{padding:8px 15px;border-radius:999px;font-size:13px;color:var(--grau);border:1px solid transparent;background:var(--nische)}
-.tr-pill:hover{background:var(--linie2);color:var(--tinte)}
+.st-vorschlaege{display:flex;flex-direction:column;gap:2px;margin:26px auto 0;max-width:460px;text-align:left}
+.st-v{display:flex;align-items:center;border-radius:12px}
+.st-v:hover{background:var(--nische)}
+.st-v-haupt{flex:1;display:flex;align-items:center;gap:14px;padding:12px 10px;min-width:0;text-align:left}
+.st-v-ic{flex:none;width:22px;display:flex;color:var(--grau)}
+.st-v-t{font-size:15.5px;color:var(--tinte);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-v-x{flex:none;width:32px;height:32px;margin-right:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;color:var(--hell);opacity:0;transition:opacity .15s}
+.st-v:hover .st-v-x{opacity:1}
+.st-v-x:hover{color:var(--tinte);background:var(--linie2)}
+@media(hover:none){.st-v-x{opacity:1}}
 .st-note{color:var(--hell);font-size:13.5px;max-width:44ch;margin:32px auto 0;line-height:1.5}
 .chat{display:grid;grid-template-columns:1fr;height:100%;width:100%;min-height:0;overflow:hidden}
 .chat.split{grid-template-columns:minmax(380px,1fr) minmax(460px,720px)}
@@ -1047,10 +1054,10 @@ const STYLES = `
   .chat.split{grid-template-columns:1fr}
   .chat.split .cs-main{display:none}
   /* v79 — mobile Shell: Burger + Marke in der Topbar, Backdrop hinters Menü */
-  .burger{display:flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;margin-left:-8px;border-radius:9px;color:var(--tinte)}
+  .burger{display:flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;border-radius:50%;color:var(--tinte);background:#fff;border:1px solid var(--linie);box-shadow:0 1px 4px rgba(20,24,26,.05)}
   .burger:active{background:var(--nische)}
-  .tb-marke{display:block;flex:none;line-height:0;padding:0}
-  .tb-logo{height:19px;width:auto;display:block}
+  .tb-marke{display:block;line-height:0;padding:0;position:absolute;left:50%;transform:translateX(-50%)}
+  .tb-logo{height:20px;width:auto;display:block}
   .nav{padding:calc(20px + env(safe-area-inset-top)) 20px calc(16px + env(safe-area-inset-bottom))}
   .nav-logo{height:30px}
   .nav-marke{padding:2px 2px 20px}
@@ -1061,8 +1068,8 @@ const STYLES = `
   .nav-chat{padding:11px 28px 11px 10px;border-radius:11px}
   .nc-t{font-size:15px}
   .nc-s{font-size:11px}
-  .topbar{padding:12px 14px;gap:10px}
-  .topbar .spur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .topbar{position:relative;border-bottom:0;background:transparent;padding:12px 16px;gap:10px}
+  .topbar .spur{display:none}
   .thread{padding:18px 14px 14px}
   .refine{padding:10px 12px calc(12px + env(safe-area-inset-bottom))}
   .eb-grid,.eb-grid.schmal{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -2583,6 +2590,12 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [input, setInput] = useState('');
   const [navOffen, setNavOffen] = useState(false); // v79 — mobiles Menü
   const [kontoSheet, setKontoSheet] = useState<KontoZiel | null>(null); // v79.3 — Konto-Sheet
+  /* v79.4 — Start-Vorschläge: entfernbar per ×, Wahl bleibt gemerkt */
+  const [vorschlagWeg, setVorschlagWeg] = useState<string[]>([]);
+  useEffect(() => { try { const w = localStorage.getItem('ulba.vorschlaege.weg'); if (w) setVorschlagWeg(JSON.parse(w)); } catch {} }, []);
+  const entferneVorschlag = (label: string) => {
+    setVorschlagWeg(prev => { const n = [...prev, label]; try { localStorage.setItem('ulba.vorschlaege.weg', JSON.stringify(n)); } catch {} return n; });
+  };
   const [refineInput, setRefineInput] = useState('');
   // Ein Feld, eine Aufgabe: die untere Leiste verfeinert die Suche in Worten.
   const leisteSenden = () => {
@@ -3056,8 +3069,15 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                   />
                   <button className="go" onClick={() => starteSuche(input)} aria-label="Suchen">↑</button>
                 </div>
-                <div className="st-trend">
-                  {EXAMPLES.map((ex, i) => <button key={i} className="tr-pill" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>{ex.label}</button>)}
+                <div className="st-vorschlaege">
+                  {EXAMPLES.filter(ex => !vorschlagWeg.includes(ex.label)).map((ex, i) => (
+                    <div key={i} className="st-v">
+                      <button className="st-v-haupt" onClick={() => { setInput(ex.q); starteSuche(ex.q); }}>
+                        <span className="st-v-ic"><Icon n={ex.ic} /></span><span className="st-v-t">{ex.label}</span>
+                      </button>
+                      <button className="st-v-x" onClick={() => entferneVorschlag(ex.label)} aria-label={`${ex.label} entfernen`}>×</button>
+                    </div>
+                  ))}
                 </div>
                 <p className="st-note">ulba durchsucht echte Lieferanten-Kataloge und rankt nach Passung — wie eine Designagentur, in Minuten.</p>
               </div>
