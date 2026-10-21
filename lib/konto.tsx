@@ -42,18 +42,91 @@ function TokenBruecke() {
    Kontingente), der Bearer-Token sagt dem Renderer, wer angemeldet ist. */
 export type AnmeldeGrund = { scope: string; text: string };
 
+/* v79.2 — Freie Kontingente LOKAL mitzaehlen (localStorage).
+   Warum: Der Server zaehlt anonyme Nutzer per Cookie auf der Renderer-
+   Domain — mobile Browser (Safari/iOS, zunehmend auch Chrome) blocken
+   solche Drittanbieter-Cookies, das Cookie kommt nie zurueck und die
+   Wand erschien auf dem Handy nie. localStorage ist first-party und
+   funktioniert ueberall; der Browser zeigt die Wand damit selbst, bevor
+   die Anfrage rausgeht. Der Server bleibt zweiter Riegel, wo sein
+   Cookie greift. Bewusst unsigniert: eine freundliche Wand, kein Tresor. */
+const FREI_SUCHEN = 3;
+const FREI_RENDERS = 2;
+const FREI_KEY = 'ulba_frei';
+
+function freiLokal(): { s: number; r: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(FREI_KEY) || '{}');
+    return { s: Math.max(0, Number(v.s) || 0), r: Math.max(0, Number(v.r) || 0) };
+  } catch { return { s: 0, r: 0 }; }
+}
+function freiLokalSetzen(f: { s: number; r: number }) {
+  try { localStorage.setItem(FREI_KEY, JSON.stringify(f)); } catch { /* privater Modus o.ä. */ }
+}
+function zeigeWand(scope: string, text: string) {
+  window.dispatchEvent(new CustomEvent<AnmeldeGrund>('ulba:anmelden', { detail: { scope, text } }));
+}
+
 export async function kontoFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = await holeToken();
   const headers: Record<string, string> = { ...((init.headers as Record<string, string>) || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  // Was fuer ein Aufruf ist das? (fuer die lokale Zaehlung — spiegelt die
+  // Server-Logik: nur NEUE Suchen zaehlen, Design-Wand und Auffrischen nie.)
+  let body: any = null;
+  try { body = typeof init.body === 'string' ? JSON.parse(init.body) : null; } catch { body = null; }
+  const istNeueSuche = url.includes('/api/search') && !!body
+    && !body.ids && !body.active_filters && !body.removed_filters && !body.bildlesart;
+  const istRender = url.includes('/api/render') && !url.includes('/api/renders')
+    && !!body && body.codes !== true;
+
+  // Lokale Anmelde-Wand: greift VOR der Anfrage, auch wo das Server-Cookie
+  // geblockt wird (Safari/iOS). Angemeldete laufen frei durch.
+  if (CLERK_AKTIV && !token) {
+    const f = freiLokal();
+    if (istNeueSuche && f.s >= FREI_SUCHEN) {
+      const text = `Deine ${FREI_SUCHEN} kostenlosen Suchen sind aufgebraucht — mit einem kostenlosen Konto suchst du unbegrenzt.`;
+      zeigeWand('suche', text);
+      return new Response(JSON.stringify({ error: text, code: 'login_required', scope: 'suche' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (istRender && f.r >= FREI_RENDERS) {
+      const text = `Deine ${FREI_RENDERS} kostenlosen Renders sind aufgebraucht — mit einem kostenlosen Konto hast du 5 Renders pro Monat.`;
+      zeigeWand('render', text);
+      return new Response(JSON.stringify({ error: text, code: 'login_required', scope: 'render' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
   const res = await fetch(url, { ...init, headers, credentials: 'include' });
+
+  // Ehrlich mitzaehlen, erst nach Erfolg: Suchen immer, Renders nur wenn
+  // wirklich frisch gerendert wurde (Cache-Treffer kosten nichts).
+  if (CLERK_AKTIV && !token && res.ok) {
+    try {
+      if (istNeueSuche) {
+        const f = freiLokal();
+        freiLokalSetzen({ ...f, s: f.s + 1 });
+      } else if (istRender) {
+        const d = await res.clone().json();
+        if (d && d.cached !== true) {
+          const f = freiLokal();
+          freiLokalSetzen({ ...f, r: f.r + 1 });
+        }
+      }
+    } catch { /* Zaehlen ist Kuer */ }
+  }
+
   if (res.status === 401) {
     try {
       const d = await res.clone().json();
       if (d?.code === 'login_required') {
-        window.dispatchEvent(new CustomEvent<AnmeldeGrund>('ulba:anmelden', {
-          detail: { scope: String(d.scope || ''), text: String(d.error || '') },
-        }));
+        // Server-Urteil lokal uebernehmen — die Wand steht dann auch nach Reload.
+        const f = freiLokal();
+        if (d.scope === 'render') freiLokalSetzen({ ...f, r: Math.max(f.r, FREI_RENDERS) });
+        else freiLokalSetzen({ ...f, s: Math.max(f.s, FREI_SUCHEN) });
+        zeigeWand(String(d.scope || ''), String(d.error || ''));
       }
     } catch { /* kein JSON — normaler Fehlerpfad */ }
   }
