@@ -597,6 +597,7 @@ const STYLES = `
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
 .topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--hell)}
+.burger,.tb-marke,.nav-ov{display:none}
 .content{flex:1;overflow-y:auto;min-height:0}
 .content-chat{overflow:hidden;display:flex}
 .start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
@@ -1021,10 +1022,22 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:347px;max-width:88vw;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--flaeche)}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:347px;max-width:86vw;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.2);background:var(--flaeche)}
   .nav.offen{transform:none}
   .chat.split{grid-template-columns:1fr}
   .chat.split .cs-main{display:none}
+  /* v79 — mobile Shell: Burger + Marke in der Topbar, Backdrop hinters Menü */
+  .nav-ov{display:block;position:fixed;inset:0;background:rgba(28,28,26,.35);z-index:55}
+  .burger{display:flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;margin-left:-8px;border-radius:9px;color:var(--tinte)}
+  .burger:active{background:var(--nische)}
+  .tb-marke{display:block;flex:none;line-height:0;padding:0}
+  .tb-logo{height:19px;width:auto;display:block}
+  .topbar{padding:12px 14px;gap:10px}
+  .topbar .spur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .thread{padding:18px 14px 14px}
+  .refine{padding:10px 12px calc(12px + env(safe-area-inset-bottom))}
+  .eb-grid,.eb-grid.schmal{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .start{padding:16px 0 40px}
 }
 @media(prefers-reduced-motion:reduce){.ulba *{transition:none!important}}
 .nav-marke,.ebk-h,.pn-kopf h3,.ber-kopf h2,.lk-t{font-weight:800;letter-spacing:-.015em}
@@ -2515,6 +2528,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<Ansicht>(pfad !== '/' ? 'seite' : 'start');
   const [input, setInput] = useState('');
+  const [navOffen, setNavOffen] = useState(false); // v79 — mobiles Menü
   const [refineInput, setRefineInput] = useState('');
   // Ein Feld, eine Aufgabe: die untere Leiste verfeinert die Suche in Worten.
   const leisteSenden = () => {
@@ -2726,7 +2740,19 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   };
   const zurueck = () => { if (tiefe.current > 0) router.back(); else router.push('/'); };
 
-  useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [blocks, activeId]);
+  /* v79 — Scroll-Fix (Mobile): beim neuen Suchlauf zum ANFANG des neuesten
+     Blocks scrollen (Frage + Ergebnis-Kopf sichtbar), nie ans Seitenende.
+     Scrollt nur bei neuem Block oder Statuswechsel, nicht bei Filter-Klicks. */
+  const blockScroll = useRef('');
+  useEffect(() => {
+    const t = threadRef.current; if (!t || !blocks.length) return;
+    const b = blocks[blocks.length - 1];
+    const key = `${activeId}:${b.id}:${b.status}`;
+    if (blockScroll.current === key) return;
+    blockScroll.current = key;
+    const el = t.querySelector<HTMLElement>(`[data-blk="${b.id}"]`);
+    t.scrollTop = el ? Math.max(0, el.offsetTop - 10) : t.scrollHeight;
+  }, [blocks, activeId]);
 
   const patchProject = useCallback((id: string, patch: (p: Project) => Project) => {
     setProjects(prev => prev.map(p => p.id === id ? patch(p) : p));
@@ -2878,7 +2904,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
 
   const nav = (
-    <aside className="nav">
+    <aside className={`nav${navOffen ? ' offen' : ''}`} onClick={() => setNavOffen(false)}>
       <button className="nav-marke" onClick={neuesProjekt} aria-label="ulba – Start">
         <svg className="nav-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba">
           <text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="var(--tinte)">ulba</text>
@@ -2919,8 +2945,9 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       <UlbaKontext.Provider value={kontext}>
         <Suspense fallback={null}><UrlWaechter onWechsel={urlGewechselt} /></Suspense>
         <div className="ulba"><style dangerouslySetInnerHTML={{ __html: STYLES }} />{nav}
+          {navOffen && <div className="nav-ov" onClick={() => setNavOffen(false)} />}
           <div className="main">
-            <header className="topbar"><span className="spur">{istSeite ? seitenTitel(pfad) : 'Generatives Sourcing'}</span></header>
+            <header className="topbar"><button className="burger" onClick={() => setNavOffen(true)} aria-label="Menü öffnen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg></button><button className="tb-marke" onClick={neuesProjekt} aria-label="ulba – Start"><svg className="tb-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba"><text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="var(--tinte)">ulba</text></svg></button><span className="spur">{istSeite ? seitenTitel(pfad) : 'Generatives Sourcing'}</span></header>
             <div className="content">{istSeite ? children : null}</div>
           </div>
         </div>
@@ -2934,8 +2961,10 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     <div className="ulba">
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       {nav}
+      {navOffen && <div className="nav-ov" onClick={() => setNavOffen(false)} />}
       <div className="main">
         <header className="topbar">
+          <button className="burger" onClick={() => setNavOffen(true)} aria-label="Menü öffnen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg></button><button className="tb-marke" onClick={neuesProjekt} aria-label="ulba – Start"><svg className="tb-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba"><text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="var(--tinte)">ulba</text></svg></button>
           <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : view === 'renders' ? 'Renders' : 'Musteranfragen'}</span>
         </header>
 
@@ -3017,7 +3046,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                       });
                       const facetten = FACETTEN.filter(f => !hasDim(b.filters, f.dim));
                       return (
-                        <div key={b.id}>
+                        <div key={b.id} data-blk={b.id}>
                           <div className="msg-user">
                             {b.bild && <img className="msg-bild" src={b.bild} alt="Referenzbild" />}
                             <span>{b.intro}</span>
