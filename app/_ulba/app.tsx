@@ -597,7 +597,7 @@ const STYLES = `
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
 .topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--hell)}
-.burger,.tb-marke,.nav-ov,.nav-zu{display:none}
+.burger,.tb-marke,.nav-ov{display:none}
 .content{flex:1;overflow-y:auto;min-height:0}
 .content-chat{overflow:hidden;display:flex}
 .start{height:100%;display:flex;align-items:center;justify-content:center;padding:20px 0 80px}
@@ -1022,8 +1022,8 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:100%;z-index:60;transform:translateX(-100%);transition:transform .25s;background:var(--flaeche);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
-  .nav-zu{display:flex;position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;width:38px;height:38px;align-items:center;justify-content:center;border-radius:10px;font-size:26px;line-height:1;color:var(--grau)}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:360px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.25);background:var(--flaeche);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
+  .nav-ov{display:block;position:fixed;inset:0;background:rgba(28,28,26,.35);z-index:55}
   .nav.offen{transform:none}
   .chat.split{grid-template-columns:1fr}
   .chat.split .cs-main{display:none}
@@ -2905,7 +2905,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
 
   const nav = (
     <aside className={`nav${navOffen ? ' offen' : ''}`} onClick={() => setNavOffen(false)}>
-      <button className="nav-zu" aria-label="Menü schliessen">×</button>
       <button className="nav-marke" onClick={neuesProjekt} aria-label="ulba – Start">
         <svg className="nav-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba">
           <text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="var(--tinte)">ulba</text>
