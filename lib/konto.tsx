@@ -85,7 +85,9 @@ export function KontoProvider({ children }: { children: ReactNode }) {
 }
 
 /* ── Profil-Ecke der Navigation ──────────────────────────────────── */
-function NavKontoClerk() {
+export type KontoZiel = 'anmelden' | 'registrieren';
+
+function NavKontoClerk({ onKonto }: { onKonto?: (ziel: KontoZiel) => void }) {
   const { isSignedIn, user } = useUser();
   if (isSignedIn) {
     const name = user?.firstName || user?.username
@@ -101,13 +103,20 @@ function NavKontoClerk() {
     <div className="nav-konto">
       <div className="nk-t serif">Hol dir mehr aus ulba</div>
       <p className="nk-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
-      <a className="nk-haupt" href="/registrieren">Kostenlos registrieren</a>
-      <a className="nk-neben" href="/anmelden">Anmelden</a>
+      {onKonto
+        ? <>
+            <button className="nk-haupt" onClick={e => { e.stopPropagation(); onKonto('registrieren'); }}>Kostenlos registrieren</button>
+            <button className="nk-neben" onClick={e => { e.stopPropagation(); onKonto('anmelden'); }}>Anmelden</button>
+          </>
+        : <>
+            <a className="nk-haupt" href="/registrieren">Kostenlos registrieren</a>
+            <a className="nk-neben" href="/anmelden">Anmelden</a>
+          </>}
     </div>
   );
 }
 
-export function NavKonto() {
+export function NavKonto({ onKonto }: { onKonto?: (ziel: KontoZiel) => void } = {}) {
   if (!CLERK_AKTIV) {
     return (
       <div className="nav-profil">
@@ -116,7 +125,7 @@ export function NavKonto() {
       </div>
     );
   }
-  return <NavKontoClerk />;
+  return <NavKontoClerk onKonto={onKonto} />;
 }
 
 /* ── Anmelde-Wand ────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
-import { kontoFetch, NavKonto, AnmeldeWand, type AnmeldeGrund } from '@/lib/konto';
+import { kontoFetch, NavKonto, AnmeldeWand, type AnmeldeGrund, type KontoZiel } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
@@ -595,6 +595,22 @@ const STYLES = `
 .aw-haupt{display:block;text-align:center;background:var(--tinte);color:#fff;border-radius:999px;padding:12px 18px;font-size:14.5px;text-decoration:none;margin-bottom:10px}
 .aw-haupt:hover{opacity:.9}
 .ulba a.aw-haupt{color:#fff}
+.nk-haupt,.nk-neben{width:100%}
+.ks-ov{position:fixed;inset:0;background:rgba(28,28,26,.45);z-index:130;display:flex;align-items:flex-end;justify-content:center}
+.ks-box{position:relative;background:#fff;border-radius:22px 22px 0 0;width:100%;max-width:560px;padding:12px 24px calc(28px + env(safe-area-inset-bottom));box-shadow:0 -12px 50px rgba(20,24,26,.2);animation:ksHoch .32s cubic-bezier(.2,.7,.2,1)}
+@keyframes ksHoch{from{transform:translateY(48px);opacity:.3}to{transform:none;opacity:1}}
+.ks-griff{width:42px;height:5px;border-radius:999px;background:var(--linie);margin:0 auto 16px}
+.ks-zu{position:absolute;top:16px;right:18px;font-size:24px;line-height:1;color:var(--grau)}
+.ks-zu:hover{color:var(--tinte)}
+.ks-t{font-size:22px;letter-spacing:-.015em;text-align:center;margin:4px 0 10px}
+.ks-s{font-size:14.5px;color:var(--grau);text-align:center;line-height:1.55;margin:0 auto 22px;max-width:42ch}
+.ks-haupt{display:block;text-align:center;background:var(--tinte);border-radius:999px;padding:14px 18px;font-size:15px;margin-bottom:10px}
+.ulba a.ks-haupt{color:#fff}
+.ks-haupt:hover{opacity:.92}
+.ks-neben{display:block;text-align:center;border:1px solid var(--linie);border-radius:999px;padding:13px 18px;font-size:15px}
+.ks-neben:hover{border-color:var(--tinte)}
+@media(min-width:821px){.ks-ov{align-items:center;padding:24px}.ks-box{border-radius:22px;max-width:420px;padding:20px 28px 26px}.ks-griff{display:none}}
+@media(prefers-reduced-motion:reduce){.ks-box{animation:none}}
 .aw-neben{display:block;text-align:center;color:var(--grau);font-size:13px;text-decoration:none}
 .aw-neben:hover{color:var(--tinte)}
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
@@ -1025,8 +1041,8 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:360px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px -10px rgba(0,0,0,.25);background:var(--flaeche);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
-  .nav-ov{display:block;position:fixed;inset:0;background:rgba(28,28,26,.35);z-index:55}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:360px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 44px -8px rgba(0,0,0,.28);border-right:1px solid var(--linie);background:var(--flaeche);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
+  .nav-ov{display:block;position:fixed;inset:0;background:rgba(250,250,250,.65);z-index:55}
   .nav.offen{transform:none}
   .chat.split{grid-template-columns:1fr}
   .chat.split .cs-main{display:none}
@@ -2366,6 +2382,30 @@ const SCAN_MESSAGES = [
   'Wäge Markenfit und Regalwirkung ab …',
   'Stelle die besten Treffer zusammen …',
 ];
+/* v79.3 — Konto-Sheet: schiebt sich von unten herein (Griff, ×, zwei Wege),
+   auf dem Desktop als mittige Karte. Die eigentliche Anmeldung bleibt auf
+   /anmelden bzw. /registrieren (Clerk). */
+function KontoSheet({ ziel, onClose }: { ziel: KontoZiel; onClose: () => void }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+  const anm = ziel === 'anmelden';
+  return (
+    <div className="ks-ov" role="dialog" aria-modal="true" aria-label="Konto" onClick={onClose}>
+      <div className="ks-box" onClick={e => e.stopPropagation()}>
+        <div className="ks-griff" aria-hidden />
+        <button className="ks-zu" onClick={onClose} aria-label="Schliessen">×</button>
+        <h2 className="ks-t serif">{anm ? 'Willkommen zurück' : 'Anmelden oder registrieren'}</h2>
+        <p className="ks-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
+        <a className="ks-haupt" href={anm ? '/anmelden' : '/registrieren'}>{anm ? 'Anmelden' : 'Kostenlos registrieren'}</a>
+        <a className="ks-neben" href={anm ? '/registrieren' : '/anmelden'}>{anm ? 'Neu hier? Kostenlos registrieren' : 'Ich habe schon ein Konto'}</a>
+      </div>
+    </div>
+  );
+}
+
 function ScanBar() {
   const [pct, setPct] = useState(4);
   const [msg, setMsg] = useState(0);
@@ -2542,6 +2582,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [view, setView] = useState<Ansicht>(pfad !== '/' ? 'seite' : 'start');
   const [input, setInput] = useState('');
   const [navOffen, setNavOffen] = useState(false); // v79 — mobiles Menü
+  const [kontoSheet, setKontoSheet] = useState<KontoZiel | null>(null); // v79.3 — Konto-Sheet
   const [refineInput, setRefineInput] = useState('');
   // Ein Feld, eine Aufgabe: die untere Leiste verfeinert die Suche in Worten.
   const leisteSenden = () => {
@@ -2943,7 +2984,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
             </button>
           ))}
       </div>
-      <NavKonto />
+      <NavKonto onKonto={setKontoSheet} />
     </aside>
   );
 
@@ -3237,6 +3278,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       </div>
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
       {anmeldeGrund && <AnmeldeWand grund={anmeldeGrund} onClose={() => setAnmeldeGrund(null)} />}
+      {kontoSheet && <KontoSheet ziel={kontoSheet} onClose={() => setKontoSheet(null)} />}
     </div>
     </UlbaKontext.Provider>
   );
