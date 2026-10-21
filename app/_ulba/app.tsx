@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
+import { kontoFetch, NavKonto, AnmeldeWand, type AnmeldeGrund } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
@@ -573,6 +574,26 @@ const STYLES = `
 .nav-profil{display:flex;align-items:center;gap:10px;padding:12px 8px 4px;margin-top:8px;border-top:1px solid var(--linie)}
 .np-av{width:30px;height:30px;border-radius:50%;background:var(--rouge);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
 .np-n{display:block;font-size:13.5px} .np-s{display:block;font-family:var(--mono);font-size:10.5px;color:var(--hell)}
+/* v78 — Konto-Ecke (abgemeldet) + Anmelde-Wand */
+.nav-konto{display:flex;flex-direction:column;gap:7px;padding:12px 8px 4px;margin-top:8px;border-top:1px solid var(--linie)}
+.nk-haupt{display:block;text-align:center;background:var(--tinte);color:#fff;border-radius:999px;padding:9px 14px;font-size:13.5px;text-decoration:none}
+.nk-haupt:hover{opacity:.9}
+.nk-neben{display:block;text-align:center;color:var(--grau);font-size:12.5px;text-decoration:none;padding:2px}
+.nk-neben:hover{color:var(--tinte)}
+.aw-ov{position:fixed;inset:0;background:rgba(28,28,26,.45);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px}
+.aw-box{position:relative;background:var(--panel);border-radius:18px;max-width:420px;width:100%;padding:38px 36px 32px;box-shadow:0 30px 80px -20px rgba(0,0,0,.35)}
+.aw-zu{position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;color:var(--hell)}
+.aw-zu:hover{color:var(--tinte)}
+.aw-logo{font-size:22px;color:var(--rouge);opacity:.75;margin-bottom:14px}
+.aw-t{font-size:19px;letter-spacing:-.015em;margin-bottom:8px}
+.aw-s{font-size:14px;color:var(--grau);margin-bottom:14px}
+.aw-liste{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:7px}
+.aw-liste li{font-size:13.5px;color:var(--grau);padding-left:20px;position:relative}
+.aw-liste li::before{content:'✓';position:absolute;left:0;color:var(--rouge)}
+.aw-haupt{display:block;text-align:center;background:var(--tinte);color:#fff;border-radius:999px;padding:12px 18px;font-size:14.5px;text-decoration:none;margin-bottom:10px}
+.aw-haupt:hover{opacity:.9}
+.aw-neben{display:block;text-align:center;color:var(--grau);font-size:13px;text-decoration:none}
+.aw-neben:hover{color:var(--tinte)}
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .topbar{flex:none;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:14px;padding:14px 32px}
 .topbar .spur{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--hell)}
@@ -1677,7 +1698,7 @@ function RenderGalerie() {
     if (!e.systemId || !e.codeId) return;
     setNeuLauf('loading'); setNeuBild(null);
     try {
-      const res = await fetch(RENDER_API, {
+      const res = await kontoFetch(RENDER_API, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemId: e.systemId, query: e.weltName || e.konzeptName, tier: 'lite', forceCodeId: e.codeId }),
       });
@@ -1832,7 +1853,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       // die Farbe kommt immer von der Welt. Kein capExplizit-Flag mehr.
       const capId = caps[capIdx]?.id || null;
       if (capId) body.selectedCapId = capId;
-      const res = await fetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await kontoFetch(RENDER_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Render fehlgeschlagen');
       if (!data.renderingUrl) throw new Error('Kein Bild erhalten');
@@ -2512,6 +2533,14 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
+  // v78 — Anmelde-Wand: kontoFetch meldet per Event, wenn der Server die
+  // freien Kontingente (3 Suchen / 2 Renders) fuer aufgebraucht erklaert.
+  const [anmeldeGrund, setAnmeldeGrund] = useState<AnmeldeGrund | null>(null);
+  useEffect(() => {
+    const auf = (e: Event) => setAnmeldeGrund((e as CustomEvent<AnmeldeGrund>).detail || { scope: '', text: '' });
+    window.addEventListener('ulba:anmelden', auf);
+    return () => window.removeEventListener('ulba:anmelden', auf);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -2747,7 +2776,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       if (rem.sizes.length || rem.materials.length || rem.types.length || rem.closures.length) {
         body.removed_filters = rem;
       }
-      const res = await fetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await kontoFetch(SEARCH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       const serverFilters: ParsedFilters = data.parsedFilters || filters;
@@ -2875,7 +2904,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
             </button>
           ))}
       </div>
-      <div className="nav-profil"><span className="np-av">A</span><div><span className="np-n">Alen</span><span className="np-s">ulba · Basel</span></div></div>
+      <NavKonto />
     </aside>
   );
 
@@ -3165,6 +3194,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
         </div>
       </div>
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
+      {anmeldeGrund && <AnmeldeWand grund={anmeldeGrund} onClose={() => setAnmeldeGrund(null)} />}
     </div>
     </UlbaKontext.Provider>
   );
