@@ -1,10 +1,20 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { KontoProvider } from '../lib/konto';
 
 export const metadata: Metadata = {
   title: 'ulba.ai — Packaging Discovery',
   description: 'Find your perfect beauty packaging',
+};
+
+/* v79.1 — Browser-Chrome (iOS-Statusleiste/-Toolbar) faerbt sich nach
+   theme-color: auf Flaechen-Ton gesetzt, damit oben/unten keine grauen
+   Balken mehr stehen; viewport-fit=cover zieht die App bis in die Safe-Areas. */
+export const viewport: Viewport = {
+  themeColor: '#FAFAFA',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
