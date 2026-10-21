@@ -99,6 +99,8 @@ function NavKontoClerk() {
   }
   return (
     <div className="nav-konto">
+      <div className="nk-t serif">Hol dir mehr aus ulba</div>
+      <p className="nk-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
       <a className="nk-haupt" href="/registrieren">Kostenlos registrieren</a>
       <a className="nk-neben" href="/anmelden">Anmelden</a>
     </div>

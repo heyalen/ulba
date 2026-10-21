@@ -575,10 +575,12 @@ const STYLES = `
 .np-av{width:30px;height:30px;border-radius:50%;background:var(--rouge);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
 .np-n{display:block;font-size:13.5px} .np-s{display:block;font-family:var(--mono);font-size:10.5px;color:var(--hell)}
 /* v78 — Konto-Ecke (abgemeldet) + Anmelde-Wand */
-.nav-konto{display:flex;flex-direction:column;gap:7px;padding:12px 8px 4px;margin-top:8px;border-top:1px solid var(--linie)}
-.nk-haupt{display:block;text-align:center;background:var(--tinte);color:#fff;border-radius:999px;padding:9px 14px;font-size:13.5px;text-decoration:none}
-.nk-haupt:hover{opacity:.9}
-.nk-neben{display:block;text-align:center;color:var(--grau);font-size:12.5px;text-decoration:none;padding:2px}
+.nav-konto{display:flex;flex-direction:column;gap:9px;padding:16px 8px 4px;margin-top:10px;border-top:1px solid var(--linie)}
+.nk-t{font-size:16.5px;letter-spacing:-.012em;line-height:1.3}
+.nk-s{font-size:13px;color:var(--grau);line-height:1.5;margin:0 0 3px}
+.nk-haupt{display:block;text-align:center;background:var(--nische);color:var(--tinte);border-radius:999px;padding:12px 16px;font-size:14px;text-decoration:none}
+.nk-haupt:hover{background:var(--linie2)}
+.nk-neben{display:block;text-align:center;color:var(--grau);font-size:13px;text-decoration:none;padding:3px}
 .nk-neben:hover{color:var(--tinte)}
 .aw-ov{position:fixed;inset:0;background:rgba(28,28,26,.45);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px}
 .aw-box{position:relative;background:var(--panel);border-radius:18px;max-width:420px;width:100%;padding:38px 36px 32px;box-shadow:0 30px 80px -20px rgba(0,0,0,.35)}
@@ -592,6 +594,7 @@ const STYLES = `
 .aw-liste li::before{content:'✓';position:absolute;left:0;color:var(--rouge)}
 .aw-haupt{display:block;text-align:center;background:var(--tinte);color:#fff;border-radius:999px;padding:12px 18px;font-size:14.5px;text-decoration:none;margin-bottom:10px}
 .aw-haupt:hover{opacity:.9}
+.ulba a.aw-haupt{color:#fff}
 .aw-neben{display:block;text-align:center;color:var(--grau);font-size:13px;text-decoration:none}
 .aw-neben:hover{color:var(--tinte)}
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
@@ -1032,6 +1035,16 @@ const STYLES = `
   .burger:active{background:var(--nische)}
   .tb-marke{display:block;flex:none;line-height:0;padding:0}
   .tb-logo{height:19px;width:auto;display:block}
+  .nav{padding:calc(20px + env(safe-area-inset-top)) 20px calc(16px + env(safe-area-inset-bottom))}
+  .nav-logo{height:30px}
+  .nav-marke{padding:2px 2px 20px}
+  .nav-neu{padding:13px 16px;font-size:15px;border-radius:999px;margin-bottom:14px}
+  .nav-item{padding:12px 10px;font-size:16px;gap:14px;border-radius:11px}
+  .ni-ic{width:20px}
+  .nav-lbl{font-size:11px;padding:18px 10px 8px}
+  .nav-chat{padding:11px 28px 11px 10px;border-radius:11px}
+  .nc-t{font-size:15px}
+  .nc-s{font-size:11px}
   .topbar{padding:12px 14px;gap:10px}
   .topbar .spur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
   .thread{padding:18px 14px 14px}
