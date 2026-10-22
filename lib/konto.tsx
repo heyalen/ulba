@@ -13,7 +13,7 @@
    - NavKonto       — Profil-Ecke der Navigation (Anmelden / Nutzermenu).
    - AnmeldeWand    — Overlay, wenn die freien Kontingente aufgebraucht sind. */
 
-import { ClerkProvider, UserButton, useAuth, useClerk, useUser } from '@clerk/nextjs';
+import { ClerkProvider, UserButton, useAuth, useUser } from '@clerk/nextjs';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -37,27 +37,12 @@ function TokenBruecke() {
   return null;
 }
 
-/* ── Konto-Overlay (v79.4) ───────────────────────────────────────────
-   Anmelden/Registrieren oeffnen sich als Clerk-Modal DIREKT in der App —
-   kein Seitenwechsel, die Suche bleibt stehen. Die Seiten /anmelden und
-   /registrieren bleiben als Fallback (Direktlinks, Clerk ohne Modal). */
-let modalOeffnen: ((ziel: KontoZiel) => void) | null = null;
-
+/* ── Konto oeffnen (v79.9) ───────────────────────────────────────────
+   Anmelden/Registrieren fuehren IMMER auf die grossen Konto-Seiten
+   (/anmelden, /registrieren — Claude-Vorbild: Ueberschrift links, Visual
+   rechts). Das Clerk-Modal von v79.4 ist raus — Alen will die Seite. */
 export function oeffneKonto(ziel: KontoZiel): void {
-  if (modalOeffnen) { modalOeffnen(ziel); return; }
   window.location.href = ziel === 'anmelden' ? '/anmelden' : '/registrieren';
-}
-
-function ModalBruecke() {
-  const clerk = useClerk();
-  useEffect(() => {
-    modalOeffnen = (ziel: KontoZiel) => {
-      if (ziel === 'anmelden') clerk.openSignIn({});
-      else clerk.openSignUp({});
-    };
-    return () => { modalOeffnen = null; };
-  }, [clerk]);
-  return null;
 }
 
 /* ── kontoFetch ──────────────────────────────────────────────────────
@@ -215,7 +200,6 @@ export function KontoProvider({ children }: { children: ReactNode }) {
       }}
     >
       <TokenBruecke />
-      <ModalBruecke />
       {children}
     </ClerkProvider>
   );
