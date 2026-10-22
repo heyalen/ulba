@@ -157,11 +157,25 @@ export async function kontoFetch(url: string, init: RequestInit = {}): Promise<R
 }
 
 /* ── Provider ────────────────────────────────────────────────────── */
+/* v79.7 — Clerks deutsches Sprachpaket siezt («Haben Sie ein Konto?»);
+   die sichtbaren Zeilen stellen wir auf ulbas Du-Form um. */
+const deUlba = {
+  ...deDE,
+  signUp: {
+    ...(deDE as any).signUp,
+    start: { ...((deDE as any).signUp?.start || {}), actionText: 'Schon ein Konto?', actionLink: 'Anmelden' },
+  },
+  signIn: {
+    ...(deDE as any).signIn,
+    start: { ...((deDE as any).signIn?.start || {}), actionText: 'Neu hier?', actionLink: 'Kostenlos registrieren' },
+  },
+} as typeof deDE;
+
 export function KontoProvider({ children }: { children: ReactNode }) {
   if (!CLERK_AKTIV) return <>{children}</>;
   return (
     <ClerkProvider
-      localization={deDE}
+      localization={deUlba}
       signInUrl="/anmelden"
       signUpUrl="/registrieren"
       afterSignOutUrl="/"
