@@ -7,9 +7,14 @@ button { font: inherit; cursor: pointer; }
 input, textarea { font: inherit; }
 ::selection { background: #ECECEA; color: #1C1C1A; }
 
-/* v78 — Konto-Seiten (/anmelden, /registrieren): ruhige Buehne ausserhalb
-   der App-Shell, Clerk-Karte mittig, ein Weg zurueck. */
-.konto-seite { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px 16px; }
-.konto-zurueck { font-size: 13.5px; color: #5D5D58; text-decoration: none; }
+/* v79.6 — Konto-Seiten (/anmelden, /registrieren) nach Claude-Vorbild:
+   alles auf EINER Flaeche (#FAFAFA), grosse Display-Ueberschrift, darunter
+   die Karte im selben Grundton; Wortmarke oben links, ein Weg zurueck. */
+.konto-seite { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 72px 16px 40px; position: relative; }
+.konto-marke { position: absolute; top: 22px; left: 28px; font-weight: 800; font-size: 26px; letter-spacing: -.04em; color: #1C1C1A; text-decoration: none; line-height: 1; }
+.konto-mitte { display: flex; flex-direction: column; align-items: center; gap: 0; max-width: 560px; width: 100%; }
+.konto-titel { font-weight: 800; font-size: clamp(34px, 6vw, 52px); letter-spacing: -.03em; line-height: 1.08; text-align: center; color: #1C1C1A; margin-bottom: 14px; }
+.konto-sub { font-size: 17px; color: #5D5D58; text-align: center; margin-bottom: 34px; }
+.konto-zurueck { font-size: 13.5px; color: #9C9C96; text-decoration: none; margin-top: 26px; }
 .konto-zurueck:hover { color: #1C1C1A; }
 .konto-hinweis { font-size: 14px; color: #5D5D58; max-width: 360px; text-align: center; }
