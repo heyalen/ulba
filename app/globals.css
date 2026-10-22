@@ -18,3 +18,16 @@ input, textarea { font: inherit; }
 .konto-zurueck { font-size: 13.5px; color: #9C9C96; text-decoration: none; margin-top: 26px; }
 .konto-zurueck:hover { color: #1C1C1A; }
 .konto-hinweis { font-size: 14px; color: #5D5D58; max-width: 360px; text-align: center; }
+
+/* v79.7 — Clerk-Karte hart auf ulbas Flaeche ziehen. Clerks eigenes
+   Stylesheet nutzt teils background-GRADIENTS und gewinnt gegen die
+   Appearance-Werte — darum hier global ueber die stabilen .cl-*-Klassen
+   mit !important (gilt fuer Modal UND /anmelden, /registrieren). */
+.cl-cardBox { border-radius: 24px !important; border: 1px solid #EFEFEC !important; box-shadow: 0 14px 40px -24px rgba(28,28,26,.28), 0 1px 3px rgba(28,28,26,.05) !important; }
+.cl-card { background: #FAFAFA !important; box-shadow: none !important; }
+.cl-footer { background: #FAFAFA !important; }
+.cl-footerAction { background: #FAFAFA !important; }
+.cl-socialButtonsBlockButton { background: #FFFFFF !important; border: 1px solid #EAEAE7 !important; box-shadow: none !important; border-radius: 10px !important; }
+.cl-formFieldInput { background: #FFFFFF !important; border: 1px solid #EAEAE7 !important; box-shadow: none !important; border-radius: 10px !important; }
+.cl-formButtonPrimary { background: #1C1C1A !important; box-shadow: none !important; border-radius: 10px !important; }
+.cl-dividerLine { background: #EAEAE7 !important; }
