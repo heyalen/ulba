@@ -182,7 +182,10 @@ export function KontoProvider({ children }: { children: ReactNode }) {
       appearance={{
         /* v79.5 — einheitlich mit ulbas Flaeche: die Karte sitzt im selben
            Off-White (#FAFAFA) wie die App, weiche Kante statt hartem Weiss
-           und Schattenwurf; Eingaben und Social-Buttons weiss mit ulba-Linie. */
+           und Schattenwurf; Eingaben und Social-Buttons weiss mit ulba-Linie.
+           v79.8 — Social-Buttons gestapelt in voller Breite («Weiter mit
+           Google»), wie im Claude-Vorbild. */
+        layout: { socialButtonsVariant: 'blockButton', socialButtonsPlacement: 'top' },
         variables: {
           colorPrimary: '#1C1C1A',
           colorText: '#1C1C1A',
