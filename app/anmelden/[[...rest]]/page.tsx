@@ -1,8 +1,9 @@
-/* ulba · /anmelden — Anmeldung (Clerk), v79.6 nach Claude-Vorbild:
-   grosse Display-Überschrift auf der Fläche, darunter die Karte im selben
-   Grundton — die Karten-eigene Überschrift ist ausgeblendet (Appearance). */
+/* ulba · /anmelden — Anmeldung (Clerk), v79.8 nach Claude-Vorbild:
+   zweispaltig — links Wortmarke, grosse Überschrift, Karte; rechts das
+   grosse Markenvisual. Alles auf einer Fläche (#FAFAFA). */
 import type { Metadata } from 'next';
 import { SignIn } from '@clerk/nextjs';
+import { KontoVisual } from '../../../lib/kontoVisual';
 
 export const metadata: Metadata = { title: 'Anmelden — ulba.ai' };
 
@@ -18,11 +19,14 @@ export default function AnmeldenSeite() {
   return (
     <main className="konto-seite">
       <a className="konto-marke" href="/">ulba</a>
-      <div className="konto-mitte">
-        <h1 className="konto-titel">Schön, dich wiederzusehen</h1>
-        <p className="konto-sub">Dein Werkzeug für Beauty Packaging — suchen, vergleichen, rendern.</p>
-        <SignIn />
-        <a className="konto-zurueck" href="/">← Zurück zu ulba</a>
+      <div className="konto-spalten">
+        <div className="konto-links">
+          <h1 className="konto-titel">Schön, dich wiederzusehen</h1>
+          <p className="konto-sub">Suchen, vergleichen, rendern — weiter, wo du aufgehört hast.</p>
+          <SignIn />
+          <a className="konto-zurueck" href="/">← Zurück zu ulba</a>
+        </div>
+        <div className="konto-visual" aria-hidden><KontoVisual /></div>
       </div>
     </main>
   );
