@@ -13,7 +13,7 @@
    - NavKonto       — Profil-Ecke der Navigation (Anmelden / Nutzermenu).
    - AnmeldeWand    — Overlay, wenn die freien Kontingente aufgebraucht sind. */
 
-import { ClerkProvider, UserButton, useAuth, useUser } from '@clerk/nextjs';
+import { ClerkProvider, UserButton, useAuth, useClerk, useUser } from '@clerk/nextjs';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -34,6 +34,29 @@ function TokenBruecke() {
     tokenHolen = () => getToken();
     return () => { tokenHolen = null; };
   }, [getToken]);
+  return null;
+}
+
+/* ── Konto-Overlay (v79.4) ───────────────────────────────────────────
+   Anmelden/Registrieren oeffnen sich als Clerk-Modal DIREKT in der App —
+   kein Seitenwechsel, die Suche bleibt stehen. Die Seiten /anmelden und
+   /registrieren bleiben als Fallback (Direktlinks, Clerk ohne Modal). */
+let modalOeffnen: ((ziel: KontoZiel) => void) | null = null;
+
+export function oeffneKonto(ziel: KontoZiel): void {
+  if (modalOeffnen) { modalOeffnen(ziel); return; }
+  window.location.href = ziel === 'anmelden' ? '/anmelden' : '/registrieren';
+}
+
+function ModalBruecke() {
+  const clerk = useClerk();
+  useEffect(() => {
+    modalOeffnen = (ziel: KontoZiel) => {
+      if (ziel === 'anmelden') clerk.openSignIn({});
+      else clerk.openSignUp({});
+    };
+    return () => { modalOeffnen = null; };
+  }, [clerk]);
   return null;
 }
 
@@ -152,6 +175,7 @@ export function KontoProvider({ children }: { children: ReactNode }) {
       }}
     >
       <TokenBruecke />
+      <ModalBruecke />
       {children}
     </ClerkProvider>
   );
@@ -182,8 +206,8 @@ function NavKontoClerk({ onKonto }: { onKonto?: (ziel: KontoZiel) => void }) {
             <button className="nk-neben" onClick={e => { e.stopPropagation(); onKonto('anmelden'); }}>Anmelden</button>
           </>
         : <>
-            <a className="nk-haupt" href="/registrieren">Kostenlos registrieren</a>
-            <a className="nk-neben" href="/anmelden">Anmelden</a>
+            <a className="nk-haupt" href="/registrieren" onClick={e => { e.preventDefault(); oeffneKonto('registrieren'); }}>Kostenlos registrieren</a>
+            <a className="nk-neben" href="/anmelden" onClick={e => { e.preventDefault(); oeffneKonto('anmelden'); }}>Anmelden</a>
           </>}
     </div>
   );
@@ -225,8 +249,8 @@ export function AnmeldeWand({ grund, onClose }: { grund: AnmeldeGrund; onClose: 
           <li>5 Design-Renders pro Monat</li>
           <li>Favoriten und Projekte überall dabei</li>
         </ul>
-        <a className="aw-haupt" href="/registrieren">Kostenlos registrieren</a>
-        <a className="aw-neben" href="/anmelden">Ich habe schon ein Konto — anmelden</a>
+        <a className="aw-haupt" href="/registrieren" onClick={e => { e.preventDefault(); onClose(); oeffneKonto('registrieren'); }}>Kostenlos registrieren</a>
+        <a className="aw-neben" href="/anmelden" onClick={e => { e.preventDefault(); onClose(); oeffneKonto('anmelden'); }}>Ich habe schon ein Konto — anmelden</a>
       </div>
     </div>
   );
