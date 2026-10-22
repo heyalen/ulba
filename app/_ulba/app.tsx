@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
-import { kontoFetch, NavKonto, AnmeldeWand, type AnmeldeGrund, type KontoZiel } from '@/lib/konto';
+import { kontoFetch, NavKonto, AnmeldeWand, oeffneKonto, type AnmeldeGrund, type KontoZiel } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
@@ -2392,8 +2392,9 @@ const SCAN_MESSAGES = [
   'Stelle die besten Treffer zusammen …',
 ];
 /* v79.3 — Konto-Sheet: schiebt sich von unten herein (Griff, ×, zwei Wege),
-   auf dem Desktop als mittige Karte. Die eigentliche Anmeldung bleibt auf
-   /anmelden bzw. /registrieren (Clerk). */
+   auf dem Desktop als mittige Karte. v79.4: die Anmeldung selbst oeffnet
+   sich als Clerk-Overlay in der App (oeffneKonto) — kein Seitenwechsel,
+   die Suche bleibt stehen; /anmelden + /registrieren nur noch Fallback. */
 function KontoSheet({ ziel, onClose }: { ziel: KontoZiel; onClose: () => void }) {
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -2408,8 +2409,8 @@ function KontoSheet({ ziel, onClose }: { ziel: KontoZiel; onClose: () => void })
         <button className="ks-zu" onClick={onClose} aria-label="Schliessen">×</button>
         <h2 className="ks-t serif">{anm ? 'Willkommen zurück' : 'Anmelden oder registrieren'}</h2>
         <p className="ks-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
-        <a className="ks-haupt" href={anm ? '/anmelden' : '/registrieren'}>{anm ? 'Anmelden' : 'Kostenlos registrieren'}</a>
-        <a className="ks-neben" href={anm ? '/registrieren' : '/anmelden'}>{anm ? 'Neu hier? Kostenlos registrieren' : 'Ich habe schon ein Konto'}</a>
+        <a className="ks-haupt" href={anm ? '/anmelden' : '/registrieren'} onClick={e => { e.preventDefault(); onClose(); oeffneKonto(anm ? 'anmelden' : 'registrieren'); }}>{anm ? 'Anmelden' : 'Kostenlos registrieren'}</a>
+        <a className="ks-neben" href={anm ? '/registrieren' : '/anmelden'} onClick={e => { e.preventDefault(); onClose(); oeffneKonto(anm ? 'registrieren' : 'anmelden'); }}>{anm ? 'Neu hier? Kostenlos registrieren' : 'Ich habe schon ein Konto'}</a>
       </div>
     </div>
   );
