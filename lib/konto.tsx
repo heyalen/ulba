@@ -166,11 +166,30 @@ export function KontoProvider({ children }: { children: ReactNode }) {
       signUpUrl="/registrieren"
       afterSignOutUrl="/"
       appearance={{
+        /* v79.5 — einheitlich mit ulbas Flaeche: die Karte sitzt im selben
+           Off-White (#FAFAFA) wie die App, weiche Kante statt hartem Weiss
+           und Schattenwurf; Eingaben und Social-Buttons weiss mit ulba-Linie. */
         variables: {
           colorPrimary: '#1C1C1A',
           colorText: '#1C1C1A',
+          colorTextSecondary: '#5D5D58',
+          colorBackground: '#FAFAFA',
+          colorInputBackground: '#FFFFFF',
+          colorInputText: '#1C1C1A',
+          colorNeutral: '#1C1C1A',
           borderRadius: '11px',
           fontFamily: 'Archivo, system-ui, sans-serif',
+        },
+        elements: {
+          cardBox: { boxShadow: '0 1px 3px rgba(28,28,26,.06)', border: '1px solid #EAEAE7', borderRadius: '18px' },
+          card: { backgroundColor: '#FAFAFA', boxShadow: 'none' },
+          footer: { background: '#FAFAFA' },
+          footerAction: { background: '#FAFAFA' },
+          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none' },
+          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none' },
+          formButtonPrimary: { boxShadow: 'none' },
+          dividerLine: { background: '#EAEAE7' },
+          modalBackdrop: { backgroundColor: 'rgba(28,28,26,.45)' },
         },
       }}
     >
