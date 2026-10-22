@@ -181,13 +181,17 @@ export function KontoProvider({ children }: { children: ReactNode }) {
           fontFamily: 'Archivo, system-ui, sans-serif',
         },
         elements: {
-          cardBox: { boxShadow: '0 1px 3px rgba(28,28,26,.06)', border: '1px solid #EAEAE7', borderRadius: '18px' },
-          card: { backgroundColor: '#FAFAFA', boxShadow: 'none' },
+          /* v79.6 — Claude-Vorbild: Karte im Flaechen-Ton, grosse Rundung,
+             sehr weicher Schatten; die Karten-eigene Ueberschrift faellt weg
+             (die Seite bzw. der Kontext liefert sie). */
+          cardBox: { boxShadow: '0 14px 40px -24px rgba(28,28,26,.28), 0 1px 3px rgba(28,28,26,.05)', border: '1px solid #EFEFEC', borderRadius: '24px' },
+          card: { backgroundColor: '#FAFAFA', boxShadow: 'none', padding: '34px 32px 28px' },
+          header: { display: 'none' },
           footer: { background: '#FAFAFA' },
           footerAction: { background: '#FAFAFA' },
-          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none' },
-          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none' },
-          formButtonPrimary: { boxShadow: 'none' },
+          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none', borderRadius: '10px', height: '44px' },
+          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none', borderRadius: '10px', minHeight: '44px' },
+          formButtonPrimary: { boxShadow: 'none', borderRadius: '10px', height: '44px', fontSize: '14.5px' },
           dividerLine: { background: '#EAEAE7' },
           modalBackdrop: { backgroundColor: 'rgba(28,28,26,.45)' },
         },
