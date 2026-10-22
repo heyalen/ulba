@@ -13,7 +13,7 @@
    - NavKonto       — Profil-Ecke der Navigation (Anmelden / Nutzermenu).
    - AnmeldeWand    — Overlay, wenn die freien Kontingente aufgebraucht sind. */
 
-import { ClerkProvider, UserButton, useAuth, useUser } from '@clerk/nextjs';
+import { ClerkProvider, UserButton, useAuth, useClerk, useUser } from '@clerk/nextjs';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -37,12 +37,28 @@ function TokenBruecke() {
   return null;
 }
 
-/* ── Konto oeffnen (v79.9) ───────────────────────────────────────────
-   Anmelden/Registrieren fuehren IMMER auf die grossen Konto-Seiten
-   (/anmelden, /registrieren — Claude-Vorbild: Ueberschrift links, Visual
-   rechts). Das Clerk-Modal von v79.4 ist raus — Alen will die Seite. */
+/* ── Konto oeffnen (v80, ChatGPT-Vorbild) ────────────────────────────
+   Anmelden/Registrieren oeffnen ein zentrales weisses Modal ueber der
+   abgedunkelten App — Titel «Anmelden oder registrieren», Nutzen-Zeile,
+   gestapelte Buttons. Die grossen Seiten /anmelden und /registrieren
+   bleiben fuer Direktlinks und als Fallback ohne Modal. */
+let modalOeffnen: ((ziel: KontoZiel) => void) | null = null;
+
 export function oeffneKonto(ziel: KontoZiel): void {
+  if (modalOeffnen) { modalOeffnen(ziel); return; }
   window.location.href = ziel === 'anmelden' ? '/anmelden' : '/registrieren';
+}
+
+function ModalBruecke() {
+  const clerk = useClerk();
+  useEffect(() => {
+    modalOeffnen = (ziel: KontoZiel) => {
+      if (ziel === 'anmelden') clerk.openSignIn({});
+      else clerk.openSignUp({});
+    };
+    return () => { modalOeffnen = null; };
+  }, [clerk]);
+  return null;
 }
 
 /* ── kontoFetch ──────────────────────────────────────────────────────
@@ -148,11 +164,21 @@ const deUlba = {
   ...deDE,
   signUp: {
     ...(deDE as any).signUp,
-    start: { ...((deDE as any).signUp?.start || {}), actionText: 'Schon ein Konto?', actionLink: 'Anmelden' },
+    start: {
+      ...((deDE as any).signUp?.start || {}),
+      title: 'Anmelden oder registrieren',
+      subtitle: 'Mit einem kostenlosen Konto suchst du unbegrenzt und renderst 5 Designs pro Monat.',
+      actionText: 'Schon ein Konto?', actionLink: 'Anmelden',
+    },
   },
   signIn: {
     ...(deDE as any).signIn,
-    start: { ...((deDE as any).signIn?.start || {}), actionText: 'Neu hier?', actionLink: 'Kostenlos registrieren' },
+    start: {
+      ...((deDE as any).signIn?.start || {}),
+      title: 'Anmelden oder registrieren',
+      subtitle: 'Mit einem kostenlosen Konto suchst du unbegrenzt und renderst 5 Designs pro Monat.',
+      actionText: 'Neu hier?', actionLink: 'Kostenlos registrieren',
+    },
   },
 } as typeof deDE;
 
@@ -175,7 +201,7 @@ export function KontoProvider({ children }: { children: ReactNode }) {
           colorPrimary: '#1C1C1A',
           colorText: '#1C1C1A',
           colorTextSecondary: '#5D5D58',
-          colorBackground: '#FAFAFA',
+          colorBackground: '#FFFFFF',
           colorInputBackground: '#FFFFFF',
           colorInputText: '#1C1C1A',
           colorNeutral: '#1C1C1A',
@@ -183,23 +209,28 @@ export function KontoProvider({ children }: { children: ReactNode }) {
           fontFamily: 'Archivo, system-ui, sans-serif',
         },
         elements: {
-          /* v79.6 — Claude-Vorbild: Karte im Flaechen-Ton, grosse Rundung,
-             sehr weicher Schatten; die Karten-eigene Ueberschrift faellt weg
-             (die Seite bzw. der Kontext liefert sie). */
-          cardBox: { boxShadow: '0 14px 40px -24px rgba(28,28,26,.28), 0 1px 3px rgba(28,28,26,.05)', border: '1px solid #EFEFEC', borderRadius: '24px' },
-          card: { backgroundColor: '#FAFAFA', boxShadow: 'none', padding: '34px 32px 28px' },
-          header: { display: 'none' },
-          footer: { background: '#FAFAFA' },
-          footerAction: { background: '#FAFAFA' },
-          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none', borderRadius: '10px', height: '44px' },
-          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #EAEAE7', boxShadow: 'none', borderRadius: '10px', minHeight: '44px' },
-          formButtonPrimary: { boxShadow: 'none', borderRadius: '10px', height: '44px', fontSize: '14.5px' },
+          /* v80 — ChatGPT-Vorbild: weisses zentriertes Modal, Titel
+             «Anmelden oder registrieren» + Nutzen-Zeile IN der Karte,
+             gestapelte Buttons, runde Felder. Auf den grossen Seiten
+             (/anmelden, /registrieren) zieht globals.css die Karte auf
+             die Flaeche und blendet den Karten-Titel aus (dort liefert
+             die Seite die grosse Ueberschrift). */
+          cardBox: { boxShadow: '0 18px 50px -20px rgba(28,28,26,.35)', border: 'none', borderRadius: '18px' },
+          card: { backgroundColor: '#FFFFFF', boxShadow: 'none', padding: '36px 34px 28px' },
+          headerTitle: { fontSize: '24px', fontWeight: 700, letterSpacing: '-.02em' },
+          headerSubtitle: { fontSize: '14px', color: '#5D5D58' },
+          footer: { background: '#FFFFFF' },
+          footerAction: { background: '#FFFFFF' },
+          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #DADAD6', boxShadow: 'none', borderRadius: '999px', height: '46px' },
+          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #DADAD6', boxShadow: 'none', borderRadius: '999px', minHeight: '46px', paddingLeft: '18px' },
+          formButtonPrimary: { boxShadow: 'none', borderRadius: '999px', height: '46px', fontSize: '15px' },
           dividerLine: { background: '#EAEAE7' },
-          modalBackdrop: { backgroundColor: 'rgba(28,28,26,.45)' },
+          modalBackdrop: { backgroundColor: 'rgba(28,28,26,.5)' },
         },
       }}
     >
       <TokenBruecke />
+      <ModalBruecke />
       {children}
     </ClerkProvider>
   );
