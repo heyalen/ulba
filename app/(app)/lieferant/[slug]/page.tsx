@@ -74,7 +74,7 @@ export default async function LieferantSeite({ params }: { params: { slug: strin
         <div className="ub-lp-id">
           <h1 className="ub-h1">{l.name}{l.bestaetigt && <span className="ub-lp-check" title="Vom Lieferanten bestätigt">✓</span>}</h1>
           <span className="ub-lp-meta">{[[l.standort, l.land].filter(Boolean).join(', '), `${teile.length} ${teile.length === 1 ? 'Teil' : 'Teile'} auf ulba`].filter(Boolean).join(' · ')}</span>
-          <span className="ub-lp-quelle">{l.bestaetigt ? 'Profil vom Lieferanten bestätigt' : 'Aus dem öffentlichen Katalog des Lieferanten'}</span>
+          <span className="ub-lp-quelle">{l.bestaetigt ? 'Profil vom Lieferanten bestätigt' : <>Aus dem öffentlichen Katalog des Lieferanten · <a href="/partner" style={{ textDecoration: 'underline', textUnderlineOffset: 3, color: 'inherit' }}>Das ist dein Unternehmen? Profil übernehmen</a></>}</span>
         </div>
         {l.website && <a className="ub-lp-web" href={l.website} rel="nofollow noopener" target="_blank">Website ↗</a>}
       </div>
