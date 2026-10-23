@@ -1482,11 +1482,6 @@ interface DesignCodeKarte {
   hfForm: string | null; hfMaterial: string | null; hfTyp: string | null;
   bodyHex: string | null; capHex: string | null; wirkung: string; passend: boolean;
 }
-interface CodeFacetten { register: string[]; segment: string[]; form: string[]; material: string[]; wirkstoff: string[] }
-type FacettenDim = keyof CodeFacetten;
-const FACETTEN_LABEL: Record<FacettenDim, string> = {
-  register: 'Welt', segment: 'Preisniveau', form: 'Form', material: 'Material', wirkstoff: 'Wirkstoff',
-};
 
 /* ── v61 — Der Design-Raum.
    Statt Filterwand ein leeres Feld mit zwei Achsen: ruhig ↔ laut (Temp_Laut)
