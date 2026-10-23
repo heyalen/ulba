@@ -14,11 +14,11 @@ export function merkmalLabel(name: string, untertitel?: string): string {
   return kurz && kurz.length <= 28 ? kurz : name;
 }
 
-export const merkmalKey = (m: { kat: string; wert: string }) => `${m.kat}::${m.wert}`;
+const merkmalKey = (m: { kat: string; wert: string }) => `${m.kat}::${m.wert}`;
 
 /* Eingrenz-Gruppen über den Ergebnissen. Nur, was Einkäufer wirklich
    unterscheiden: Form, Proportion, Wandung, Optik, Oberfläche, Farbe, Kappe. */
-export const MERKMAL_GRUPPEN: { id: string; label: string; kats: string[] }[] = [
+const MERKMAL_GRUPPEN: { id: string; label: string; kats: string[] }[] = [
   { id: 'form', label: 'Form', kats: ['A1_Body_Geometry'] },
   { id: 'proportion', label: 'Proportion', kats: ['A2_Body_Proportion'] },
   { id: 'wand', label: 'Wandung', kats: ['A5_Body_Wall'] },
@@ -50,29 +50,4 @@ export function passtZuWahl(ms: Merkmal[] | undefined, wahl: string[]): boolean 
     const inGruppe = wahl.filter(k => g.kats.some(kat => k.startsWith(kat + '::')));
     return inGruppe.length === 0 || inGruppe.some(k => hat.has(k));
   });
-}
-
-/** Chips pro Gruppe: nur Werte, die die Liste wirklich teilen (nicht 0, nicht alle). */
-export function merkmalFacetten(listen: (Merkmal[] | undefined)[], wahl: string[]) {
-  const n = listen.length;
-  return MERKMAL_GRUPPEN.map(g => {
-    const zaehl = new Map<string, { m: Merkmal; n: number }>();
-    for (const ms of listen) {
-      const gesehen = new Set<string>();
-      for (const m of ms || []) {
-        if (!g.kats.includes(m.kat)) continue;
-        const k = merkmalKey(m);
-        if (gesehen.has(k)) continue;
-        gesehen.add(k);
-        const z = zaehl.get(k) || { m, n: 0 };
-        z.n++; zaehl.set(k, z);
-      }
-    }
-    const werte = Array.from(zaehl.entries())
-      .filter(([k, z]) => wahl.includes(k) || (z.n > 0 && z.n < n))
-      .sort((a, b) => b[1].n - a[1].n)
-      .slice(0, 5)
-      .map(([k, z]) => ({ key: k, label: z.m.label, n: z.n, an: wahl.includes(k) }));
-    return { ...g, werte };
-  }).filter(g => g.werte.length > 0);
 }
