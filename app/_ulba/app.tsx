@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
-import { kontoFetch, NavKonto, AnmeldeWand, oeffneKonto, type AnmeldeGrund, type KontoZiel } from '@/lib/konto';
+import { kontoFetch, NavKonto, AnmeldeWand, oeffneKonto, type AnmeldeGrund } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
 const RENDERS_API = 'https://ulba-vision-renderer.vercel.app/api/renders';
@@ -2391,30 +2391,9 @@ const SCAN_MESSAGES = [
   'Wäge Markenfit und Regalwirkung ab …',
   'Stelle die besten Treffer zusammen …',
 ];
-/* v79.3 — Konto-Sheet: schiebt sich von unten herein (Griff, ×, zwei Wege),
-   auf dem Desktop als mittige Karte. v79.4: die Anmeldung selbst oeffnet
-   sich als Clerk-Overlay in der App (oeffneKonto) — kein Seitenwechsel,
-   die Suche bleibt stehen; /anmelden + /registrieren nur noch Fallback. */
-function KontoSheet({ ziel, onClose }: { ziel: KontoZiel; onClose: () => void }) {
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
-  const anm = ziel === 'anmelden';
-  return (
-    <div className="ks-ov" role="dialog" aria-modal="true" aria-label="Konto" onClick={onClose}>
-      <div className="ks-box" onClick={e => e.stopPropagation()}>
-        <div className="ks-griff" aria-hidden />
-        <button className="ks-zu" onClick={onClose} aria-label="Schliessen">×</button>
-        <h2 className="ks-t serif">{anm ? 'Willkommen zurück' : 'Anmelden oder registrieren'}</h2>
-        <p className="ks-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
-        <a className="ks-haupt" href={anm ? '/anmelden' : '/registrieren'} onClick={e => { e.preventDefault(); onClose(); oeffneKonto(anm ? 'anmelden' : 'registrieren'); }}>{anm ? 'Anmelden' : 'Kostenlos registrieren'}</a>
-        <a className="ks-neben" href={anm ? '/registrieren' : '/anmelden'} onClick={e => { e.preventDefault(); onClose(); oeffneKonto(anm ? 'registrieren' : 'anmelden'); }}>{anm ? 'Neu hier? Kostenlos registrieren' : 'Ich habe schon ein Konto'}</a>
-      </div>
-    </div>
-  );
-}
+/* v80.1 — Konto-Sheet entfernt (war ein ueberfluessiger Zwischenschritt):
+   Anmelden/Registrieren oeffnen jetzt DIREKT das Clerk-Modal («Anmelden
+   oder registrieren» — ein Dialog fuer beides, ChatGPT-Vorbild). */
 
 function ScanBar() {
   const [pct, setPct] = useState(4);
@@ -2592,7 +2571,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [view, setView] = useState<Ansicht>(pfad !== '/' ? 'seite' : 'start');
   const [input, setInput] = useState('');
   const [navOffen, setNavOffen] = useState(false); // v79 — mobiles Menü
-  const [kontoSheet, setKontoSheet] = useState<KontoZiel | null>(null); // v79.3 — Konto-Sheet
   /* v79.4 — Start-Vorschläge: entfernbar per ×, Wahl bleibt gemerkt */
   const [vorschlagWeg, setVorschlagWeg] = useState<string[]>([]);
   useEffect(() => { try { const w = localStorage.getItem('ulba.vorschlaege.weg'); if (w) setVorschlagWeg(JSON.parse(w)); } catch {} }, []);
@@ -3000,7 +2978,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
             </button>
           ))}
       </div>
-      <NavKonto onKonto={setKontoSheet} />
+      <NavKonto onKonto={oeffneKonto} />
     </aside>
   );
 
@@ -3303,7 +3281,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       </div>
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
       {anmeldeGrund && <AnmeldeWand grund={anmeldeGrund} onClose={() => setAnmeldeGrund(null)} />}
-      {kontoSheet && <KontoSheet ziel={kontoSheet} onClose={() => setKontoSheet(null)} />}
     </div>
     </UlbaKontext.Provider>
   );
