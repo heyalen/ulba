@@ -1309,6 +1309,7 @@ const STYLES = `
 .pn-hinweis{font-size:12.5px;color:var(--hell);margin:9px 0 0;line-height:1.5}
 .pn-look{margin-top:18px}
 .pn-fehler{font-size:13px;color:#B3261E;margin:9px 0 0}
+.pn-rest{font-size:12px;color:var(--grau);margin:9px 0 0}
 .pn-waechter{margin-top:16px;background:var(--nische);border-radius:16px;padding:15px 17px;display:flex;flex-direction:column;gap:5px}
 .pn-waechter b{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .pn-waechter span{font-size:13px;line-height:1.55;color:var(--grau)}
@@ -1846,6 +1847,8 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   const [wandOffen, setWandOffen] = useState(false);
   const [rstatus, setRstatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [rerror, setRerror] = useState('');
+  // v81 — Kontingent-Echo des Renderers (nur bei frischem Lauf gesetzt).
+  const [rendersRest, setRendersRest] = useState<number | null>(null);
   // v61 (Alens UX-Entscheid): Ein Render = EIN Bild, in einem Feld, überall.
   const [render, setRender] = useState<{ url: string; bodyUrl: string | null; capUrl: string | null; capScale: number | null; montiert: boolean; cacheId: string | null; konfidenz: string | null; weltName: string | null; concept: RenderConcept | null; codeId: string } | null>(null);
   // v62: Kalibrier-Regler (Anpassen).
@@ -1923,6 +1926,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         concept: data.concept || null,
         codeId: code.id,
       });
+      if (typeof data.rendersRest === 'number') setRendersRest(data.rendersRest);
       setRstatus('idle');
       try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
@@ -2129,6 +2133,9 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
         <Icon n="raum" />{zeigtRender ? 'Anderes Design' : lookCode ? `In ${lookCode.name} zeigen` : 'In einem Design zeigen'}
       </button>
       {rstatus === 'error' && <p className="pn-fehler">{rerror || 'Das Rendern hat nicht geklappt. Versuch es noch einmal.'}</p>}
+      {rstatus !== 'error' && rendersRest !== null && (
+        <p className="pn-rest">{rendersRest === 0 ? 'Das war dein letzter Render fürs Erste.' : `Noch ${rendersRest} ${rendersRest === 1 ? 'Render' : 'Renders'} übrig.`}</p>
+      )}
     </div>
   );
 
@@ -3150,11 +3157,14 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                                       : `von ulba kuratiert · gelesen als ${pal}`}
                                   </span>
                                 </div>
+                                {liste.length > 0 && zeige[0] && zeige[0].score < 60 && (
+                                  <div className="ch-ulba" style={{ marginBottom: 14 }}>Ehrlich gesagt: kein Teil passt richtig gut. Die Treffer sind Näherungen — schärfe die Suche oder schau im Archiv.</div>
+                                )}
                                 {liste.length === 0
                                   ? <div className="leer"><div className="gr">Keine Treffer.</div>Versuch eine breitere Suche.</div>
                                   : <>
                                     <div className={`eb-grid${selected ? ' schmal' : ''}`}>
-                                      {(nahN > 0 && !b.alleZeigen ? zeige.slice(0, nahN) : zeige).map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected} onOpen={() => { if (active) oeffneImChat(r, active.id); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+                                      {(nahN > 0 && !b.alleZeigen ? zeige.slice(0, nahN) : zeige).map((r, i) => <Karte key={r.id} r={r} selected={selected?.id === r.id} isFav={isFav(r.id)} isLead={i === 0 && !selected && r.score >= 60} onOpen={() => { if (active) oeffneImChat(r, active.id); }} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
                                     </div>
                                     {nahN > 0 && aehnlichN > 0 && !b.alleZeigen && (
                                       <>
