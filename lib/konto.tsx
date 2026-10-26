@@ -13,7 +13,8 @@
    - NavKonto       — Profil-Ecke der Navigation (Anmelden / Nutzermenu).
    - AnmeldeWand    — Overlay, wenn die freien Kontingente aufgebraucht sind. */
 
-import { ClerkProvider, UserButton, useAuth, useUser } from '@clerk/nextjs';
+import { ClerkProvider, SignUp, UserButton, useAuth, useUser } from '@clerk/nextjs';
+import { KontoVideo } from './kontoVideo';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -261,29 +262,43 @@ export function NavKonto({ onKonto }: { onKonto?: (ziel: KontoZiel) => void } = 
    Erscheint, wenn der Server die freien Kontingente fuer erschoepft
    erklaert (3 Suchen bzw. 2 Renders). Freundlich, ehrlich, zwei Wege. */
 export function AnmeldeWand({ grund, onClose }: { grund: AnmeldeGrund; onClose: () => void }) {
+  /* v84 — Limit-Wand im Look der Konto-Seiten (Claude-Vorbild): Vollbild,
+     links Überschrift aus dem Grund + Nutzenliste + Clerk-Registrierung
+     direkt im Overlay (routing virtual → App-Zustand bleibt erhalten),
+     rechts das stumme Loop-Video. Nach erfolgreicher Anmeldung schliesst
+     sich die Wand selbst. */
+  const { isSignedIn } = useAuth();
+  useEffect(() => { if (isSignedIn) onClose(); }, [isSignedIn, onClose]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
+    const alt = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', esc); document.body.style.overflow = alt; };
   }, [onClose]);
   const titel = grund.scope === 'render' ? 'Deine kostenlosen Renders sind aufgebraucht' : 'Deine kostenlosen Suchen sind aufgebraucht';
+  const sub = grund.scope === 'render'
+    ? 'Mit einem kostenlosen Konto renderst du 5 Designs pro Monat.'
+    : 'Mit einem kostenlosen Konto suchst du unbegrenzt.';
   return (
-    <div className="aw-ov" role="dialog" aria-modal="true" aria-label={titel} onClick={onClose}>
-      <div className="aw-box" onClick={e => e.stopPropagation()}>
-        <button className="aw-zu" onClick={onClose} aria-label="schließen">×</button>
-        <div className="aw-logo serif">ulba</div>
-        <h2 className="aw-t">{titel}</h2>
-        <p className="aw-s">
-          {grund.text || 'Mit einem kostenlosen Konto suchst du unbegrenzt und renderst 5 Designs pro Monat.'}
-        </p>
-        <ul className="aw-liste">
-          <li>Unbegrenzt suchen und vergleichen</li>
-          <li>5 Design-Renders pro Monat</li>
-          <li>Favoriten und Projekte überall dabei</li>
-        </ul>
-        <a className="aw-haupt" href="/registrieren" onClick={e => { e.preventDefault(); onClose(); oeffneKonto('registrieren'); }}>Kostenlos registrieren</a>
-        <a className="aw-neben" href="/anmelden" onClick={e => { e.preventDefault(); onClose(); oeffneKonto('anmelden'); }}>Ich habe schon ein Konto — anmelden</a>
-      </div>
+    <div className="konto-overlay" role="dialog" aria-modal="true" aria-label={titel}>
+      <main className="konto-seite">
+        <a className="konto-marke" href="/">ulba</a>
+        <button className="konto-zu" onClick={onClose} aria-label="schließen">×</button>
+        <div className="konto-spalten">
+          <div className="konto-links">
+            <h1 className="konto-titel konto-titel--wand">{titel}</h1>
+            <p className="konto-sub">{sub}</p>
+            <ul className="konto-liste">
+              <li>Unbegrenzt suchen</li>
+              <li>5 Renders pro Monat</li>
+              <li>Favoriten &amp; Projekte</li>
+            </ul>
+            <SignUp routing="virtual" />
+          </div>
+          <div className="konto-visual"><KontoVideo /></div>
+        </div>
+      </main>
     </div>
   );
 }
