@@ -11,7 +11,7 @@ export const metadata: Metadata = {
    theme-color: auf Flaechen-Ton gesetzt, damit oben/unten keine grauen
    Balken mehr stehen; viewport-fit=cover zieht die App bis in die Safe-Areas. */
 export const viewport: Viewport = {
-  themeColor: '#FAFAFA',
+  themeColor: '#FFFFFF',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
