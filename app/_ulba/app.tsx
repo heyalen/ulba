@@ -533,11 +533,14 @@ function getCaps(p: Result): CapRef[] {
 /* ── Design-System: „Porzellan & Pigment" — reines Weiß ── */
 const STYLES = `
 :root{
-  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F4F4F2;
-  --tinte:#1C1C1A;--grau:#5D5D58;--hell:#9C9C96;
-  --rouge:#4C1420;--linie:#EAEAE7;--linie2:#F2F2F0;--r:14px;--buehne:#F5F5F3;
-  /* Chat-Ebene: eigene Blase fuer den Nutzer, ruhige Flaeche darunter. */
-  --blase:#ECECEA;--blase-txt:#1C1C1A;--flaeche:#FAFAFA;
+  /* v83 — Farbgebung nach Claude-Vorbild: Arbeitsfläche reinweiss,
+     Seitenleiste ein Hauch wärmer (#F9F9F7), Linien kaum sichtbar,
+     Tinte fast schwarz mit warmem Unterton. */
+  --porzellan:#FFFFFF;--panel:#FFFFFF;--nische:#F0F0ED;--seite:#F9F9F7;
+  --tinte:#141413;--grau:#5E5D59;--hell:#8F8E89;
+  --rouge:#4C1420;--linie:#E8E7E3;--linie2:#F0EFEB;--r:14px;--buehne:#F7F7F5;
+  /* Chat-Ebene: eigene Blase fuer den Nutzer, reinweisse Flaeche darunter. */
+  --blase:#F0EFEB;--blase-txt:#141413;--flaeche:#FFFFFF;
   --serif:'Archivo',system-ui,sans-serif;
   --sans:'Archivo',system-ui,sans-serif;
   --mono:'Archivo',system-ui,sans-serif;
@@ -550,7 +553,7 @@ const STYLES = `
 .ulba :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
 .serif{font-family:var(--serif);font-weight:800;letter-spacing:-.01em} .kursiv{font-family:var(--serif);font-style:normal}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.nav{background:var(--flaeche);border-right:1px solid var(--linie);padding:16px 14px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
+.nav{background:var(--seite);border-right:1px solid var(--linie);padding:16px 14px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
 .nav-marke{text-align:left;padding:6px 8px 14px;display:block;line-height:0}
 .nav-logo{height:26px;width:auto;display:block}
 .nav-neu{text-align:left;border:1px solid var(--linie);border-radius:11px;padding:11px 14px;font-size:14px;background:var(--panel);margin-bottom:10px}
@@ -1049,7 +1052,7 @@ const STYLES = `
 .mwunsch .v{font-size:13px;color:var(--grau);line-height:1.4}
 @media(max-width:820px){
   .ulba{grid-template-columns:1fr}
-  .nav{position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:360px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 44px -8px rgba(0,0,0,.28);border-right:1px solid var(--linie);background:var(--flaeche);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
+  .nav{position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:360px;z-index:60;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 44px -8px rgba(0,0,0,.28);border-right:1px solid var(--linie);background:var(--seite);padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
   .nav-ov{display:block;position:fixed;inset:0;background:rgba(250,250,250,.65);z-index:55}
   .nav.offen{transform:none}
   .chat.split{grid-template-columns:1fr}
