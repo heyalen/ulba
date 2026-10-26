@@ -3,7 +3,7 @@
    rechts das grosse Markenvisual. Alles auf einer Fläche (#FAFAFA). */
 import type { Metadata } from 'next';
 import { SignUp } from '@clerk/nextjs';
-import { KontoVisual } from '../../../lib/kontoVisual';
+import { KontoVideo } from '../../../lib/kontoVideo';
 
 export const metadata: Metadata = { title: 'Kostenlos registrieren — ulba.ai' };
 
@@ -22,11 +22,10 @@ export default function RegistrierenSeite() {
       <div className="konto-spalten">
         <div className="konto-links">
           <h1 className="konto-titel">Finde dein perfektes Packaging</h1>
-          <p className="konto-sub">Kostenlos — unbegrenzt suchen, 5 Renders im Monat.</p>
+          <p className="konto-sub">Unbegrenzt suchen, 5 Designs pro Monat rendern</p>
           <SignUp />
-          <a className="konto-zurueck" href="/">← Zurück zu ulba</a>
         </div>
-        <div className="konto-visual" aria-hidden><KontoVisual /></div>
+        <div className="konto-visual"><KontoVideo /></div>
       </div>
     </main>
   );
