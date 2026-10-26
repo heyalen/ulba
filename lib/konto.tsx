@@ -162,12 +162,14 @@ export async function kontoFetch(url: string, init: RequestInit = {}): Promise<R
    die sichtbaren Zeilen stellen wir auf ulbas Du-Form um. */
 const deUlba = {
   ...deDE,
+  /* v81 — zwei klare Zustände statt doppeltem «Anmelden oder registrieren»
+     (Titel und Fusszeile widersprachen sich). */
   signUp: {
     ...(deDE as any).signUp,
     start: {
       ...((deDE as any).signUp?.start || {}),
-      title: 'Anmelden oder registrieren',
-      subtitle: 'Mit einem kostenlosen Konto suchst du unbegrenzt und renderst 5 Designs pro Monat.',
+      title: 'Kostenlos starten',
+      subtitle: 'Unbegrenzt suchen, 5 Designs pro Monat rendern.',
       actionText: 'Schon ein Konto?', actionLink: 'Anmelden',
     },
   },
@@ -175,11 +177,17 @@ const deUlba = {
     ...(deDE as any).signIn,
     start: {
       ...((deDE as any).signIn?.start || {}),
-      title: 'Anmelden oder registrieren',
-      subtitle: 'Mit einem kostenlosen Konto suchst du unbegrenzt und renderst 5 Designs pro Monat.',
-      actionText: 'Neu hier?', actionLink: 'Kostenlos registrieren',
+      title: 'Willkommen zurück',
+      subtitle: 'Melde dich an, um weiterzumachen.',
+      actionText: 'Neu bei ulba?', actionLink: 'Kostenlos registrieren',
     },
   },
+  socialButtonsBlockButton: 'Weiter mit {{provider|titleize}}',
+  dividerText: 'oder mit E-Mail',
+  formFieldLabel__emailAddress: 'E-Mail',
+  formFieldInputPlaceholder__emailAddress: 'name@firma.ch',
+  formFieldInputPlaceholder__password: 'Mindestens 8 Zeichen',
+  formButtonPrimary: 'Weiter',
 } as typeof deDE;
 
 export function KontoProvider({ children }: { children: ReactNode }) {
@@ -196,36 +204,21 @@ export function KontoProvider({ children }: { children: ReactNode }) {
            und Schattenwurf; Eingaben und Social-Buttons weiss mit ulba-Linie.
            v79.8 — Social-Buttons gestapelt in voller Breite («Weiter mit
            Google»), wie im Claude-Vorbild. */
-        layout: { socialButtonsVariant: 'blockButton', socialButtonsPlacement: 'top' },
+        /* v81 — Stil lebt komplett in app/globals.css (Block «Clerk v81»),
+           weil Clerk Rahmen per box-shadow zeichnet und Inline-Overrides
+           sie wegputzten (randlose Felder). Hier nur Layout + Tokens. */
+        layout: { socialButtonsVariant: 'blockButton', socialButtonsPlacement: 'top', shimmer: false },
         variables: {
           colorPrimary: '#1C1C1A',
           colorText: '#1C1C1A',
-          colorTextSecondary: '#5D5D58',
+          colorTextSecondary: '#6B6B66',
           colorBackground: '#FFFFFF',
           colorInputBackground: '#FFFFFF',
           colorInputText: '#1C1C1A',
           colorNeutral: '#1C1C1A',
-          borderRadius: '11px',
+          borderRadius: '12px',
           fontFamily: 'Archivo, system-ui, sans-serif',
-        },
-        elements: {
-          /* v80 — ChatGPT-Vorbild: weisses zentriertes Modal, Titel
-             «Anmelden oder registrieren» + Nutzen-Zeile IN der Karte,
-             gestapelte Buttons, runde Felder. Auf den grossen Seiten
-             (/anmelden, /registrieren) zieht globals.css die Karte auf
-             die Flaeche und blendet den Karten-Titel aus (dort liefert
-             die Seite die grosse Ueberschrift). */
-          cardBox: { boxShadow: '0 18px 50px -20px rgba(28,28,26,.35)', border: 'none', borderRadius: '18px' },
-          card: { backgroundColor: '#FFFFFF', boxShadow: 'none', padding: '36px 34px 28px' },
-          headerTitle: { fontSize: '24px', fontWeight: 700, letterSpacing: '-.02em' },
-          headerSubtitle: { fontSize: '14px', color: '#5D5D58' },
-          footer: { background: '#FFFFFF' },
-          footerAction: { background: '#FFFFFF' },
-          socialButtonsBlockButton: { backgroundColor: '#FFFFFF', border: '1px solid #DADAD6', boxShadow: 'none', borderRadius: '999px', height: '46px' },
-          formFieldInput: { backgroundColor: '#FFFFFF', border: '1px solid #DADAD6', boxShadow: 'none', borderRadius: '999px', minHeight: '46px', paddingLeft: '18px' },
-          formButtonPrimary: { boxShadow: 'none', borderRadius: '999px', height: '46px', fontSize: '15px' },
-          dividerLine: { background: '#EAEAE7' },
-          modalBackdrop: { backgroundColor: 'rgba(28,28,26,.5)' },
+          fontSize: '15px',
         },
       }}
     >
