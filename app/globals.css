@@ -7,19 +7,17 @@ button { font: inherit; cursor: pointer; }
 input, textarea { font: inherit; }
 ::selection { background: #ECECEA; color: #1C1C1A; }
 
-/* v79.8 — Konto-Seiten (/anmelden, /registrieren) nach Claude-Vorbild:
-   zweispaltig auf EINER Flaeche (#FAFAFA) — links Wortmarke, grosse
-   Ueberschrift und Karte, rechts das grosse Markenvisual (abgerundet).
-   Unter 980px faellt das Visual weg, die linke Spalte zentriert sich. */
-.konto-seite { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 90px 40px 48px; position: relative; }
-.konto-marke { position: absolute; top: 24px; left: 32px; font-weight: 800; font-size: 27px; letter-spacing: -.045em; color: #1C1C1A; text-decoration: none; line-height: 1; }
-.konto-spalten { display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 620px); gap: 76px; align-items: center; width: 100%; max-width: 1180px; }
-.konto-links { display: flex; flex-direction: column; align-items: flex-start; }
-.konto-titel { font-weight: 800; font-size: clamp(36px, 4.6vw, 54px); letter-spacing: -.032em; line-height: 1.07; color: #1C1C1A; margin-bottom: 12px; }
-.konto-sub { font-size: 17px; color: #5D5D58; margin-bottom: 30px; }
-.konto-visual svg { display: block; width: 100%; height: auto; max-height: calc(100vh - 170px); border-radius: 22px; }
-.konto-zurueck { font-size: 13.5px; color: #9C9C96; text-decoration: none; margin-top: 24px; }
-.konto-zurueck:hover { color: #1C1C1A; }
+/* v82 — Konto-Seiten nach Claude-Vorbild: weisse Fläche, links zentriert
+   Überschrift + Unterzeile + Karte, rechts hochformatiges stummes Video
+   (abgerundet). Unter 980px fällt das Video weg. */
+.konto-seite { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 88px 40px 40px; position: relative; background: #FFFFFF; }
+.konto-marke { position: absolute; top: 24px; left: clamp(20px, 11vw, 220px); font-weight: 800; font-size: 27px; letter-spacing: -.045em; color: #1C1C1A; text-decoration: none; line-height: 1; }
+.konto-spalten { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(40px, 8vw, 160px); align-items: center; width: 100%; max-width: 1420px; }
+.konto-links { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.konto-titel { font-weight: 700; font-size: clamp(38px, 3.6vw, 58px); letter-spacing: -.035em; line-height: 1.08; color: #1C1C1A; max-width: 12ch; margin-bottom: 14px; }
+.konto-sub { font-size: 18px; color: #3A3A36; margin-bottom: 34px; }
+.konto-visual { display: flex; justify-content: center; }
+.konto-video { display: block; width: 100%; max-width: 620px; aspect-ratio: 4 / 5; max-height: calc(100dvh - 130px); object-fit: cover; border-radius: 18px; background: #EDEBE6; pointer-events: none; }
 .konto-hinweis { font-size: 14px; color: #5D5D58; max-width: 360px; text-align: center; }
 @media (max-width: 980px) {
   .konto-seite { padding: 84px 16px 36px; }
@@ -27,50 +25,33 @@ input, textarea { font: inherit; }
   .konto-visual { display: none; }
 }
 
-/* v80 — Zwei Erscheinungen derselben Clerk-Karte (harte Overrides ueber
-   die stabilen .cl-*-Klassen, weil Clerks Stylesheet teils mit Gradients
-   gegen Appearance-Werte gewinnt):
-   · Modal in der App (ChatGPT-Vorbild): weisse Karte mit Titel + Nutzen-
-     Zeile — kommt aus der Appearance in lib/konto.tsx, hier nichts noetig.
-   · Grosse Seiten /anmelden + /registrieren (Claude-Vorbild): Karte auf
-     ulbas Flaeche gezogen, Karten-Titel aus (die Seite traegt die grosse
-     Ueberschrift) — darum alles unter .konto-seite gescoped. */
-.konto-seite .cl-cardBox { border-radius: 24px !important; border: 1px solid #EFEFEC !important; box-shadow: 0 14px 40px -24px rgba(28,28,26,.28), 0 1px 3px rgba(28,28,26,.05) !important; }
-.konto-seite .cl-card { background: #FAFAFA !important; box-shadow: none !important; }
-.konto-seite .cl-header { display: none !important; }
-.konto-seite .cl-footer { background: #FAFAFA !important; }
-.konto-seite .cl-footerAction { background: #FAFAFA !important; }
-.konto-seite .cl-socialButtonsBlockButton { background: #FFFFFF !important; border: 1px solid #EAEAE7 !important; }
-.konto-seite .cl-formFieldInput { background: #FFFFFF !important; border: 1px solid #EAEAE7 !important; }
-/* Clerk v81 — ein ruhiges, email-first Modal (Stand 2026):
-   eine Spalte, klare Felder mit sichtbarem Rahmen, Fokus-Ring,
-   Namensfelder raus (optional = nur Reibung), gleiche Höhe 44px überall. */
-.cl-modalBackdrop { background: rgba(20,20,18,.42) !important; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); align-items: center !important; }
-.cl-cardBox { border-radius: 20px !important; border: 1px solid rgba(28,28,26,.06) !important; box-shadow: 0 24px 60px -24px rgba(28,28,26,.35), 0 2px 6px rgba(28,28,26,.04) !important; max-width: 400px !important; width: 100% !important; }
-.cl-card { padding: 32px 32px 24px !important; gap: 24px !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }
-.cl-header { gap: 6px !important; align-items: flex-start !important; text-align: left !important; }
-.cl-headerTitle { font-size: 22px !important; font-weight: 700 !important; letter-spacing: -.02em !important; }
-.cl-headerSubtitle { font-size: 14px !important; color: #6B6B66 !important; }
-.cl-socialButtons { display: flex !important; flex-direction: column !important; gap: 8px !important; }
-.cl-socialButtonsBlockButton { height: 44px !important; border-radius: 12px !important; background: #FFFFFF !important; border: 1px solid #E3E3DF !important; box-shadow: none !important; transition: background .15s, border-color .15s; }
-.cl-socialButtonsBlockButton:hover { background: #F6F6F4 !important; border-color: #D4D4CF !important; }
-.cl-socialButtonsBlockButtonText { font-size: 14.5px !important; font-weight: 500 !important; color: #1C1C1A !important; }
-.cl-dividerLine { background: #EDEDEA !important; }
-.cl-dividerText { font-size: 12.5px !important; color: #9C9C96 !important; }
-.cl-form { gap: 16px !important; }
+/* Clerk-Karte auf den Konto-Seiten (Claude-Vorbild): weisse Karte mit
+   feinem Rand, graue gefüllte Social-Buttons, «ODER», ein Feld, schwarzer
+   Button. Clerk zeichnet Rahmen per box-shadow — darum hier hart gesetzt. */
+.cl-rootBox { width: 100%; max-width: 448px; }
+.cl-cardBox { width: 100% !important; max-width: 448px !important; border-radius: 24px !important; border: 1px solid #E8E8E4 !important; box-shadow: 0 10px 34px -18px rgba(28,28,26,.18) !important; }
+.cl-card { padding: 28px 28px 18px !important; gap: 14px !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; background: #FFFFFF !important; }
+.cl-header { display: none !important; }
+.cl-socialButtons { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+.cl-socialButtonsBlockButton { height: 42px !important; border-radius: 10px !important; background: #F1F1EF !important; border: 0 !important; box-shadow: none !important; transition: background .15s; }
+.cl-socialButtonsBlockButton:hover { background: #E8E8E5 !important; }
+.cl-socialButtonsBlockButtonText { font-size: 15px !important; font-weight: 500 !important; color: #1C1C1A !important; }
+.cl-dividerRow { margin: 2px 0 !important; }
+.cl-dividerLine { background: transparent !important; }
+.cl-dividerText { font-size: 12px !important; letter-spacing: .04em !important; text-transform: uppercase !important; color: #6B6B66 !important; }
+.cl-form { gap: 12px !important; }
 .cl-formFieldRow__name { display: none !important; }
-.cl-formFieldLabel { font-size: 13px !important; font-weight: 500 !important; color: #3A3A36 !important; }
+.cl-formFieldLabelRow { display: none !important; }
 .cl-formFieldHintText { display: none !important; }
-.cl-formFieldInput { height: 44px !important; border-radius: 12px !important; padding: 0 14px !important; background: #FFFFFF !important; border: 1px solid #E3E3DF !important; box-shadow: none !important; font-size: 15px !important; transition: border-color .15s, box-shadow .15s; }
-.cl-formFieldInput:hover { border-color: #D4D4CF !important; }
-.cl-formFieldInput:focus, .cl-formFieldInput:focus-visible { border-color: #1C1C1A !important; box-shadow: 0 0 0 4px rgba(28,28,26,.07) !important; outline: none !important; }
-.cl-formFieldInput::placeholder { color: #B2B2AC !important; }
+.cl-formFieldInput { height: 42px !important; border-radius: 10px !important; padding: 0 14px !important; background: #FFFFFF !important; border: 1px solid #DADAD6 !important; box-shadow: none !important; font-size: 15px !important; transition: border-color .15s, box-shadow .15s; }
+.cl-formFieldInput:focus, .cl-formFieldInput:focus-visible { border-color: #1C1C1A !important; box-shadow: 0 0 0 3px rgba(28,28,26,.08) !important; outline: none !important; }
+.cl-formFieldInput::placeholder { color: #8E8E88 !important; }
 .cl-formFieldInputShowPasswordButton { right: 6px !important; color: #9C9C96 !important; }
-.cl-formButtonPrimary { height: 44px !important; border-radius: 12px !important; background: #1C1C1A !important; box-shadow: none !important; border: 0 !important; font-size: 15px !important; font-weight: 600 !important; text-transform: none !important; transition: background .15s; }
+.cl-formButtonPrimary { height: 42px !important; border-radius: 10px !important; background: #1C1C1A !important; box-shadow: none !important; border: 0 !important; font-size: 15px !important; font-weight: 600 !important; text-transform: none !important; transition: background .15s; }
 .cl-formButtonPrimary:hover { background: #33332F !important; }
 .cl-formButtonPrimary .cl-buttonArrowIcon { display: none !important; }
-.cl-footer { background: #FFFFFF !important; border-top: 1px solid #F0F0ED !important; }
-.cl-footerAction { padding: 14px 0 !important; justify-content: center !important; }
-.cl-footerActionText { font-size: 13.5px !important; color: #6B6B66 !important; }
-.cl-footerActionLink { font-size: 13.5px !important; font-weight: 600 !important; color: #1C1C1A !important; }
-.cl-modalCloseButton { top: 18px !important; right: 18px !important; color: #9C9C96 !important; }
+.cl-footer { background: #FFFFFF !important; border-top: 0 !important; }
+.cl-footerAction { padding: 0 0 6px !important; justify-content: center !important; }
+.cl-footerActionText, .cl-footerActionLink { font-size: 13px !important; }
+.cl-footerActionText { color: #6B6B66 !important; }
+.cl-footerActionLink { font-weight: 600 !important; color: #1C1C1A !important; }
