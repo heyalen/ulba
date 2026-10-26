@@ -1,7 +1,7 @@
 /* ulba · Lieferanten-Portal (v81) — eigene Maske: Cockpit statt Suche.
    Gleiche Tokens wie die App (Archivo, #FAFAFA, Tinte #1C1C1A), aber
    Kopfzeile + linke Navigation + weisse Karten. */
-.pa { min-height: 100dvh; display: flex; flex-direction: column; background: #FAFAFA; color: #1C1C1A; }
+.pa { min-height: 100dvh; display: flex; flex-direction: column; background: #FFFFFF; color: #141413; }
 .pa a { color: inherit; }
 .pa-kopf { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid #EAEAE7; background: #FFFFFF; position: sticky; top: 0; z-index: 5; }
 .pa-marke { font-weight: 800; font-size: 22px; letter-spacing: -.04em; text-decoration: none; line-height: 1; }
