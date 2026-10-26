@@ -13,7 +13,7 @@
    - NavKonto       — Profil-Ecke der Navigation (Anmelden / Nutzermenu).
    - AnmeldeWand    — Overlay, wenn die freien Kontingente aufgebraucht sind. */
 
-import { ClerkProvider, UserButton, useAuth, useClerk, useUser } from '@clerk/nextjs';
+import { ClerkProvider, UserButton, useAuth, useUser } from '@clerk/nextjs';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -37,28 +37,13 @@ function TokenBruecke() {
   return null;
 }
 
-/* ── Konto oeffnen (v80, ChatGPT-Vorbild) ────────────────────────────
-   Anmelden/Registrieren oeffnen ein zentrales weisses Modal ueber der
-   abgedunkelten App — Titel «Anmelden oder registrieren», Nutzen-Zeile,
-   gestapelte Buttons. Die grossen Seiten /anmelden und /registrieren
-   bleiben fuer Direktlinks und als Fallback ohne Modal. */
-let modalOeffnen: ((ziel: KontoZiel) => void) | null = null;
-
+/* ── Konto oeffnen (v82, Claude-Vorbild) ─────────────────────────────
+   Kein Modal mehr: Anmelden/Registrieren führt auf die grosse Seite
+   (/anmelden, /registrieren) und Clerk springt danach per redirect_url
+   genau dorthin zurück, wo man war. */
 export function oeffneKonto(ziel: KontoZiel): void {
-  if (modalOeffnen) { modalOeffnen(ziel); return; }
-  window.location.href = ziel === 'anmelden' ? '/anmelden' : '/registrieren';
-}
-
-function ModalBruecke() {
-  const clerk = useClerk();
-  useEffect(() => {
-    modalOeffnen = (ziel: KontoZiel) => {
-      if (ziel === 'anmelden') clerk.openSignIn({});
-      else clerk.openSignUp({});
-    };
-    return () => { modalOeffnen = null; };
-  }, [clerk]);
-  return null;
+  const zurueck = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.href = (ziel === 'anmelden' ? '/anmelden' : '/registrieren') + '?redirect_url=' + zurueck;
 }
 
 /* ── kontoFetch ──────────────────────────────────────────────────────
@@ -169,7 +154,7 @@ const deUlba = {
     start: {
       ...((deDE as any).signUp?.start || {}),
       title: 'Kostenlos starten',
-      subtitle: 'Unbegrenzt suchen, 5 Designs pro Monat rendern.',
+      subtitle: '',
       actionText: 'Schon ein Konto?', actionLink: 'Anmelden',
     },
   },
@@ -178,16 +163,16 @@ const deUlba = {
     start: {
       ...((deDE as any).signIn?.start || {}),
       title: 'Willkommen zurück',
-      subtitle: 'Melde dich an, um weiterzumachen.',
+      subtitle: '',
       actionText: 'Neu bei ulba?', actionLink: 'Kostenlos registrieren',
     },
   },
-  socialButtonsBlockButton: 'Weiter mit {{provider|titleize}}',
-  dividerText: 'oder mit E-Mail',
+  socialButtonsBlockButton: 'Mit {{provider|titleize}} fortfahren',
+  dividerText: 'oder',
   formFieldLabel__emailAddress: 'E-Mail',
-  formFieldInputPlaceholder__emailAddress: 'name@firma.ch',
+  formFieldInputPlaceholder__emailAddress: 'Gib deine E-Mail ein',
   formFieldInputPlaceholder__password: 'Mindestens 8 Zeichen',
-  formButtonPrimary: 'Weiter',
+  formButtonPrimary: 'Fortfahren',
 } as typeof deDE;
 
 export function KontoProvider({ children }: { children: ReactNode }) {
@@ -223,7 +208,6 @@ export function KontoProvider({ children }: { children: ReactNode }) {
       }}
     >
       <TokenBruecke />
-      <ModalBruecke />
       {children}
     </ClerkProvider>
   );
