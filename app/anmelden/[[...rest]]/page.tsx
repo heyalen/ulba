@@ -3,7 +3,7 @@
    grosse Markenvisual. Alles auf einer Fläche (#FAFAFA). */
 import type { Metadata } from 'next';
 import { SignIn } from '@clerk/nextjs';
-import { KontoVisual } from '../../../lib/kontoVisual';
+import { KontoVideo } from '../../../lib/kontoVideo';
 
 export const metadata: Metadata = { title: 'Anmelden — ulba.ai' };
 
@@ -22,11 +22,10 @@ export default function AnmeldenSeite() {
       <div className="konto-spalten">
         <div className="konto-links">
           <h1 className="konto-titel">Schön, dich wiederzusehen</h1>
-          <p className="konto-sub">Suchen, vergleichen, rendern — weiter, wo du aufgehört hast.</p>
+          <p className="konto-sub">Dein Sourcing-Partner für Beauty-Packaging</p>
           <SignIn />
-          <a className="konto-zurueck" href="/">← Zurück zu ulba</a>
         </div>
-        <div className="konto-visual" aria-hidden><KontoVisual /></div>
+        <div className="konto-visual"><KontoVideo /></div>
       </div>
     </main>
   );
