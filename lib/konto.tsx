@@ -15,6 +15,7 @@
 
 import { ClerkProvider, SignUp, UserButton, useAuth, useUser } from '@clerk/nextjs';
 import { KontoVideo } from './kontoVideo';
+import { RechtLinks } from './rechtlich';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
 
@@ -295,7 +296,7 @@ export function AnmeldeWand({ grund, onClose }: { grund: AnmeldeGrund; onClose: 
               <li>Favoriten &amp; Projekte</li>
             </ul>
             <SignUp routing="virtual" />
-            <p className="konto-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+            <RechtLinks className="konto-recht" />
           </div>
           <div className="konto-visual"><KontoVideo /></div>
         </div>
