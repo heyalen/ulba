@@ -47,7 +47,8 @@ input, textarea { font: inherit; }
 .recht-inhalt li { margin-bottom: 6px; }
 .recht-inhalt a { color: #141413; }
 .recht-stand { font-size: 13px; color: #8F8E89 !important; }
-.recht-fuss { margin-top: 48px; padding-top: 18px; border-top: 1px solid #F0EFEB; font-size: 13px; color: #8F8E89 !important; }
+.recht-fuss { margin-top: 48px; padding-top: 18px; border-top: 1px solid #F0EFEB; font-size: 13px; color: #8F8E89; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.recht-fuss p { margin: 0; color: inherit; }
 .recht-fuss a { color: #8F8E89; text-decoration: none; }
 .recht-fuss a:hover { color: #141413; }
 
