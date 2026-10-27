@@ -24,6 +24,7 @@ export default function RegistrierenSeite() {
           <h1 className="konto-titel">Finde dein perfektes Packaging</h1>
           <p className="konto-sub">Unbegrenzt suchen, 5 Designs pro Monat rendern</p>
           <SignUp />
+          <p className="konto-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
         </div>
         <div className="konto-visual"><KontoVideo /></div>
       </div>
