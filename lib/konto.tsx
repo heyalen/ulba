@@ -295,6 +295,7 @@ export function AnmeldeWand({ grund, onClose }: { grund: AnmeldeGrund; onClose: 
               <li>Favoriten &amp; Projekte</li>
             </ul>
             <SignUp routing="virtual" />
+            <p className="konto-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
           </div>
           <div className="konto-visual"><KontoVideo /></div>
         </div>
