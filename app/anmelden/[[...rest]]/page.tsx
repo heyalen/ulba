@@ -24,6 +24,7 @@ export default function AnmeldenSeite() {
           <h1 className="konto-titel">Schön, dich wiederzusehen</h1>
           <p className="konto-sub">Dein Sourcing-Partner für Beauty-Packaging</p>
           <SignIn />
+          <p className="konto-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
         </div>
         <div className="konto-visual"><KontoVideo /></div>
       </div>
