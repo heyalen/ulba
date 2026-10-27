@@ -561,6 +561,7 @@ const STYLES = `
 .nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;text-align:left;color:var(--grau);font-size:14px}
 .nav-item:hover{background:var(--nische)}
 .nav-item.an{background:var(--nische);color:var(--tinte)}
+.nav-recht{padding:10px 11px 2px;font-size:11.5px;color:var(--hell)} .nav-recht a{color:inherit} .nav-recht a:hover{color:var(--tinte)}
 .ni-ic{width:18px;text-align:center;color:var(--hell)} .nav-item.an .ni-ic{color:var(--rouge)}
 .ni-t{flex:1}
 .ni-b{font-family:var(--mono);font-size:11px;background:var(--rouge);color:#fff;border-radius:999px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
@@ -2984,6 +2985,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
           ))}
       </div>
       <NavKonto onKonto={oeffneKonto} />
+      <div className="nav-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></div>
     </aside>
   );
 
