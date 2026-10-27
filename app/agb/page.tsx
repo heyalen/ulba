@@ -12,7 +12,7 @@ export default function Agb() {
 
       <h2>1. Geltungsbereich</h2>
       <p>
-        Diese Bedingungen gelten für die Nutzung von ulba.ai (nachfolgend «ulba»), betrieben von {ANBIETER.name}
+        Diese Bedingungen gelten für die Nutzung von ulba.ai (nachfolgend «ulba»), betrieben von {ANBIETER.name}{' '}
         (siehe <a href="/impressum">Impressum</a>). Mit der Nutzung oder Registrierung akzeptierst du sie.
       </p>
 
