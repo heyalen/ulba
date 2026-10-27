@@ -1,14 +1,26 @@
-/* ulba · /impressum — Anbieterkennzeichnung (Art. 3 Abs. 1 lit. s UWG). */
+/* ulba · /impressum — Anbieterkennzeichnung (§ 5 DDG, § 18 MStV). */
 import type { Metadata } from 'next';
-import { RechtSeite, Adresse } from '../../lib/rechtlich';
+import { RechtSeite, Adresse, ANBIETER } from '../../lib/rechtlich';
 
 export const metadata: Metadata = { title: 'Impressum — ulba.ai' };
 
 export default function Impressum() {
   return (
     <RechtSeite titel="Impressum">
-      <h2>Anbieter</h2>
+      <h2>Angaben gemäss § 5 DDG</h2>
       <Adresse />
+
+      <h2>Umsatzsteuer</h2>
+      <p>Umsatzsteuer-Identifikationsnummer: {ANBIETER.ustId}</p>
+
+      <h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+      <p>{ANBIETER.name}, Anschrift wie oben</p>
+
+      <h2>Streitschlichtung</h2>
+      <p>
+        Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer
+        Verbraucherschlichtungsstelle teilzunehmen.
+      </p>
 
       <h2>Haftung für Inhalte</h2>
       <p>
