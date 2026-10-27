@@ -1,5 +1,5 @@
-/* ulba · /datenschutz — Datenschutzerklärung nach revDSG (CH), berücksichtigt
-   DSGVO für Nutzerinnen und Nutzer aus der EU. Dienste-Liste = tatsächlich
+/* ulba · /datenschutz — Datenschutzerklärung nach DSGVO, berücksichtigt das
+   Schweizer DSG für Nutzerinnen und Nutzer aus der Schweiz. Dienste-Liste = tatsächlich
    eingebundene Anbieter (Stand Code v85). */
 import type { Metadata } from 'next';
 import { RechtSeite, Adresse, STAND } from '../../lib/rechtlich';
@@ -14,8 +14,8 @@ export default function Datenschutz() {
       <h2>1. Verantwortlich</h2>
       <Adresse />
       <p>
-        Diese Erklärung richtet sich nach dem Schweizer Datenschutzgesetz (DSG). Soweit die
-        Datenschutz-Grundverordnung der EU (DSGVO) anwendbar ist, gelten die dort vorgesehenen Rechte ebenfalls.
+        Diese Erklärung richtet sich nach der Datenschutz-Grundverordnung der EU (DSGVO). Für Nutzerinnen und Nutzer
+        aus der Schweiz gilt zusätzlich das Schweizer Datenschutzgesetz (DSG).
       </p>
 
       <h2>2. Welche Daten wir bearbeiten</h2>
@@ -34,8 +34,8 @@ export default function Datenschutz() {
         <li>Fehleranalyse und Verbesserung des Angebots</li>
       </ul>
       <p>
-        Rechtsgrundlage ist die Erfüllung des Nutzungsvertrags, bei Musteranfragen deine Einwilligung, für Sicherheit
-        und Missbrauchsschutz unser berechtigtes Interesse. Wir verkaufen keine Daten und nutzen sie nicht für Werbung.
+        Rechtsgrundlagen sind die Erfüllung des Nutzungsvertrags (Art. 6 Abs. 1 lit. b DSGVO), bei Musteranfragen
+        deine Einwilligung (lit. a) und für Sicherheit und Missbrauchsschutz unser berechtigtes Interesse (lit. f). Wir verkaufen keine Daten und nutzen sie nicht für Werbung.
       </p>
 
       <h2>4. Dienstleister</h2>
@@ -49,13 +49,13 @@ export default function Datenschutz() {
         <li><strong>fal.ai / Features &amp; Labels Inc.</strong> (USA): Erzeugung der Design-Renders</li>
       </ul>
       <p>
-        Die Übermittlung in die USA erfolgt auf Grundlage des Swiss-U.S. bzw. EU-U.S. Data Privacy Framework, soweit
+        Die Übermittlung in die USA erfolgt auf Grundlage des EU-U.S. bzw. Swiss-U.S. Data Privacy Framework, soweit
         der Anbieter zertifiziert ist, sonst auf Grundlage von Standardvertragsklauseln.
       </p>
 
       <h2>5. Cookies und lokaler Speicher</h2>
       <p>
-        Wir verwenden nur technisch notwendige Cookies: das Sitzungs-Cookie von Clerk für die Anmeldung und ein Cookie
+        Wir verwenden nur technisch notwendige Cookies (§ 25 Abs. 2 TDDDG): das Sitzungs-Cookie von Clerk für die Anmeldung und ein Cookie
         zur Zählung kostenloser Suchen und Renders. Im lokalen Speicher deines Browsers merken wir uns dieselbe
         Zählung sowie Favoriten und Projekte, solange du nicht angemeldet bist. Tracking- oder Werbe-Cookies setzen
         wir nicht ein.
@@ -69,10 +69,10 @@ export default function Datenschutz() {
 
       <h2>7. Deine Rechte</h2>
       <p>
-        Du kannst jederzeit Auskunft, Berichtigung, Löschung oder Herausgabe deiner Daten verlangen und eine
-        Einwilligung widerrufen. Schreib uns dazu an die oben genannte E-Mail-Adresse. Du hast zudem das Recht,
-        dich beim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) oder, in der EU, bei der
-        zuständigen Aufsichtsbehörde zu beschweren.
+        Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Bearbeitung, Datenübertragbarkeit
+        und Widerspruch sowie das Recht, eine Einwilligung jederzeit zu widerrufen. Schreib uns dazu an die oben
+        genannte E-Mail-Adresse. Du kannst dich ausserdem bei einer Datenschutz-Aufsichtsbehörde beschweren, in der
+        Schweiz beim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB).
       </p>
 
       <h2>8. Änderungen</h2>
