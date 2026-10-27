@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { UserButton } from '@clerk/nextjs';
 import { PartnerNav } from './nav';
 import { ladeKontext, CLERK_AKTIV } from './_kontext';
+import { RechtLinks } from '../../lib/rechtlich';
 import './partner.css';
 
 export const metadata: Metadata = {
@@ -45,6 +46,7 @@ export default async function PartnerLayout({ children }: { children: ReactNode 
         )}
         <main className="pa-inhalt">{children}</main>
       </div>
+      <footer className="pa-fuss"><RechtLinks /></footer>
     </div>
   );
 }
