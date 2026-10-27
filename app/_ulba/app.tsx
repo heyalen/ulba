@@ -2985,7 +2985,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
           ))}
       </div>
       <NavKonto onKonto={oeffneKonto} />
-      <div className="nav-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></div>
+      <div className="nav-recht"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a> · <a href="/agb">AGB</a></div>
     </aside>
   );
 
