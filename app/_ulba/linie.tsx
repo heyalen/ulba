@@ -27,12 +27,6 @@ export type LinienKachel = {
   notiz?: string;         // z. B. «schon im Ton — unverändert»
 };
 
-// Kuratierte Startfarben (Wirkstoff-Welten aus realen Linien) + freie Wahl.
-const VORSCHLAEGE: Array<[string, string]> = [
-  ['#F5B700', 'Vitamin C'], ['#FF7F6E', 'Koralle'], ['#7BC67E', 'Grüntee'],
-  ['#9B7BD4', 'Retinol'], ['#E8C9A0', 'Nude'], ['#1F2A44', 'Nacht'],
-];
-
 const anzeigeUrl = (renderingUrl: string, cacheId: string | null) =>
   cacheId && REC_ID.test(cacheId) && AT_URL.test(renderingUrl) ? stabil(cacheId) : renderingUrl;
 
@@ -98,7 +92,7 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
     setLaeuft(true);
     const start: LinienKachel[] = [
       { key: 'quelle', titel: 'Original', url: quelle.url, cacheId: quelle.cacheId, status: 'fertig' },
-      ...farben.map(hex => ({ key: hex, titel: VORSCHLAEGE.find(v => v[0] === hex)?.[1] || hex, hex, url: null, cacheId: null, status: 'laeuft' as const })),
+      ...farben.map(hex => ({ key: hex, titel: hex, hex, url: null, cacheId: null, status: 'laeuft' as const })),
     ];
     setKacheln(start);
     const setze = (key: string, p: Partial<LinienKachel>) => setKacheln(ks => ks.map(k => k.key === key ? { ...k, ...p } : k));
@@ -126,22 +120,19 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
   return (
     <div className="li">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="li-kopf"><b>Linie in {weltName}</b><span>Gleiches Teil, gleiche Welt — nur die Akzentfarbe wechselt. Bis 4 Farben, jede zählt als Render.</span></div>
+      <div className="li-kopf"><b>Linie in {weltName}</b><span>Gleiches Teil, gleiche Welt — nur die Akzentfarbe wechselt. Wähle bis zu 4 Farben — jede zählt als ein Render.</span></div>
+      {/* v82.1 — ein Farbfeld statt Vorschlags-Chips (Alen: «verwirrend»). */}
       <div className="li-farben">
-        {VORSCHLAEGE.map(([hex, name]) => (
-          <button key={hex} type="button" className={`li-f${farben.includes(hex) ? ' an' : ''}`} onClick={() => umschalten(hex)} disabled={laeuft}>
-            <i style={{ background: hex }} />{name}
-          </button>
-        ))}
-        <label className="li-f li-eigen">
+        <label className="li-wahl">
           <input type="color" value={eigen} onChange={e => setEigen(e.target.value.toUpperCase())} disabled={laeuft} />
-          <button type="button" onClick={() => umschalten(eigen.toUpperCase())} disabled={laeuft}>+ {eigen.toUpperCase()}</button>
+          <span>{eigen.toUpperCase()}</span>
         </label>
+        <button type="button" className="knopf zweit li-dazu" onClick={() => umschalten(eigen.toUpperCase())} disabled={laeuft || farben.length >= 4 || farben.includes(eigen.toUpperCase())}>Farbe hinzufügen</button>
       </div>
-      {farben.filter(h => !VORSCHLAEGE.some(v => v[0] === h)).length > 0 && (
+      {farben.length > 0 && (
         <div className="li-farben">
-          {farben.filter(h => !VORSCHLAEGE.some(v => v[0] === h)).map(h => (
-            <button key={h} type="button" className="li-f an" onClick={() => umschalten(h)} disabled={laeuft}><i style={{ background: h }} />{h} ×</button>
+          {farben.map(h => (
+            <button key={h} type="button" className="li-f an" onClick={() => umschalten(h)} disabled={laeuft} title="Entfernen"><i style={{ background: h }} />{h} ×</button>
           ))}
         </div>
       )}
@@ -248,9 +239,9 @@ const CSS = `
 .li-f{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--linie);border-radius:999px;padding:6px 12px 6px 7px;font-size:12.5px;background:#fff;cursor:pointer}
 .li-f.an{border-color:var(--tinte);box-shadow:inset 0 0 0 1px var(--tinte)}
 .li-f i{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.12);display:inline-block}
-.li-eigen{padding:3px 10px 3px 4px}
-.li-eigen input{width:24px;height:24px;border:none;padding:0;background:none;cursor:pointer}
-.li-eigen button{font-size:12.5px;font-family:var(--mono)}
+.li-wahl{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--linie);border-radius:999px;padding:4px 14px 4px 5px;background:#fff;cursor:pointer;font-family:var(--mono);font-size:13px}
+.li-wahl input{width:30px;height:30px;border:none;padding:0;background:none;cursor:pointer;border-radius:50%}
+.li-dazu{padding:8px 16px}
 .li-los{width:100%;margin:4px 0 2px}
 .rb{margin-top:14px}
 .rb-raster{display:grid;gap:10px}
