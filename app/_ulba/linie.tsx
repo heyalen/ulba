@@ -53,7 +53,6 @@ export function RangeBoard({ kacheln, konstant, variabel, onBild }: {
 }) {
   return (
     <div className="rb">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="rb-raster" style={{ gridTemplateColumns: `repeat(${Math.min(kacheln.length, 4)}, minmax(0, 1fr))` }}>
         {kacheln.map(k => (
           <button key={k.key} type="button" className="rb-k" disabled={k.status !== 'fertig' || !onBild} onClick={() => onBild?.(k)}>
@@ -127,7 +126,6 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest, onNeu }: 
   }
   return (
     <div className="li">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="li-kopf"><b>Farbvarianten</b><span>Form, Verschluss und Design bleiben gleich — nur die Akzentfarbe wechselt. Bis zu 4 Farben, jede zählt als ein Render.</span><button type="button" className="li-zu" onClick={() => setOffen(false)} disabled={laeuft} aria-label="Schliessen">×</button></div>
       {/* v82.1 — ein Farbfeld statt Vorschlags-Chips (Alen: «verwirrend»). */}
       <div className="li-farben">
@@ -233,7 +231,6 @@ export function VertikaleLinie({ teile, projektName, waehleWelt, onClose, onDesi
 
   return (
     <div className="vl-ebene" onClick={onClose}>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="vl-karte" onClick={e => e.stopPropagation()}>
         <div className="vl-kopf">
           <div><h3 className="serif">{projektName}</h3><p>Linie · {auswahl.length} Teile in {welt?.name}{teile.length > 6 ? ` (die ersten 6 von ${teile.length})` : ''}</p></div>
@@ -253,7 +250,8 @@ export function VertikaleLinie({ teile, projektName, waehleWelt, onClose, onDesi
   );
 }
 
-const CSS = `
+/* v83.1 — global in app.tsx-STYLES eingebunden (vorher nur im offenen Zustand → Knopf ungestylt). */
+export const LINIE_CSS = `
 .li-start{display:flex;align-items:center;gap:12px;width:100%;margin-top:10px;padding:12px 14px;border:1px dashed var(--linie);border-radius:14px;text-align:left;transition:border-color .15s,background .15s}
 .li-start:hover{border-color:#c9c9c4;background:var(--nische)}
 .li-start b{display:block;font-size:14px;font-weight:600}

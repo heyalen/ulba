@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
-import { LinieWeiterfuehren, VertikaleLinie, type LinienTeil } from './linie';
+import { LinieWeiterfuehren, VertikaleLinie, LINIE_CSS, type LinienTeil } from './linie';
 import { kontoFetch, NavKonto, AnmeldeWand, oeffneKonto, type AnmeldeGrund } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
@@ -1472,6 +1472,7 @@ const STYLES = `
 .pj-linie div{display:flex;flex-direction:column;gap:3px;font-size:14px}
 .pj-linie span{color:var(--grau);font-size:13px;line-height:1.45;max-width:52ch}
 .pj-linie .knopf{flex:none}
+.pj-linie .knopf:disabled{opacity:.35;cursor:not-allowed}
 .pj-gruppe{margin-bottom:30px}
 .pj-g-kopf{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;font-size:15px}
 .pj-g-kopf span{color:var(--hell);font-size:13px}
@@ -1500,6 +1501,8 @@ const STYLES = `
 @keyframes toastein{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
 .pn-look-knopf{width:100%}
 @media (max-width:640px){.pj-linie{flex-direction:column;align-items:stretch}.pj-g-raster{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+${LINIE_CSS}
 `;
 
 /* ── Helpers ── */
@@ -2523,14 +2526,14 @@ function ProjektSammlung({ p, reiter, anfragen, isFav, quickFav, selectedId, onO
     return (
       <div className="pj-bereich">
         {p.board.length === 0
-          ? <div className="pj-leer"><Icon n="herz" /><b>Noch nichts gemerkt</b><span>Tippe auf das Herz an einem Teil — es landet hier.</span>{p.blocks.length > 0 && <button className="knopf zweit" onClick={() => onReiter('suche')}>Zur Suche</button>}</div>
+          ? <div className="pj-leer"><Icon n="herz" /><b>Noch nichts gemerkt</b><span>Tippe auf das Herz an einem Teil — es landet hier. Ab zwei Teilen kannst du sie als Linie in einem Design zeigen.</span>{p.blocks.length > 0 && <button className="knopf zweit" onClick={() => onReiter('suche')}>Zur Suche</button>}</div>
           : <>
-            {p.board.length >= 2 && (
-              <div className="pj-linie">
-                <div><b>Als Linie gestalten</b><span>Alle {p.board.length} Teile in einer Designwelt — mit abgestimmter Akzentfarbe, damit sie wie eine Marke wirken.</span></div>
-                <button className="knopf haupt" onClick={onLinie}><Icon n="raum" />Alle in einem Design zeigen</button>
-              </div>
-            )}
+            <div className="pj-linie">
+              <div><b>Als Linie gestalten</b><span>{p.board.length >= 2
+                ? `Alle ${p.board.length} Teile in einer Designwelt — mit abgestimmter Akzentfarbe, damit sie wie eine Marke wirken.`
+                : 'Merke ein zweites Teil (z. B. Tiegel oder Pipette) — dann zeigt ulba alle zusammen in einem Design, wie eine Marke.'}</span></div>
+              <button className="knopf haupt" onClick={onLinie} disabled={p.board.length < 2}><Icon n="raum" />Alle in einem Design zeigen</button>
+            </div>
             <div className={`eb-grid${selectedId ? ' schmal' : ''}`}>
               {p.board.map(r => <Karte key={r.id} r={r} selected={selectedId === r.id} isFav={isFav(r.id)} onOpen={() => onOpen(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
             </div>
