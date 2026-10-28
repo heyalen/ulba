@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { teilSlug, slugify } from '@/lib/slug';
 import { TYP_KURZ } from '@/lib/typen';
 import { merkmalZeilen, passtZuWahl, type Merkmal } from '@/lib/merkmale';
+import { LinieWeiterfuehren, VertikaleLinie, type LinienTeil } from './linie';
 import { kontoFetch, NavKonto, AnmeldeWand, oeffneKonto, type AnmeldeGrund } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
@@ -2135,6 +2136,14 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       {rstatus !== 'error' && rendersRest !== null && (
         <p className="pn-rest">{rendersRest === 0 ? 'Das war dein letzter Render fürs Erste.' : `Noch ${rendersRest} ${rendersRest === 1 ? 'Render' : 'Renders'} übrig.`}</p>
       )}
+      {/* v82 — horizontale Linie: gleiches Teil, Akzentfarbe variiert. */}
+      {zeigtRender && render?.cacheId && (
+        <LinieWeiterfuehren key={`${product.id}|${render.codeId}`}
+          quelle={{ cacheId: render.cacheId, url: render.url }}
+          weltName={render.weltName || lookCode?.name || 'dieser Welt'}
+          onRest={setRendersRest}
+          onBild={(url, cid) => setRender(r => r ? { ...r, url, cacheId: cid || r.cacheId, bodyUrl: null, capUrl: null, montiert: true, konfidenz: null } : r)} />
+      )}
     </div>
   );
 
@@ -2955,6 +2964,8 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
 
   const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
   const boardTotal = projects.reduce((n, p) => n + p.board.length, 0);
+  // v82 — vertikale Linie (mehrere Teile, eine Welt) aus «Meine Linien».
+  const [vertikal, setVertikal] = useState<{ name: string; teile: LinienTeil[] } | null>(null);
   const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
 
   const nav = (
@@ -3222,6 +3233,10 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
             <div className="bereich"><div className="leer"><div className="gr">Kein Projekt offen.</div>Wähle links ein Projekt oder starte ein neues.</div></div>
           )}
 
+          {vertikal && (
+            <VertikaleLinie teile={vertikal.teile} projektName={vertikal.name} onClose={() => setVertikal(null)}
+              waehleWelt={(onWahl, onAbbruch) => <DesignWand onWahl={c => onWahl({ id: c.id, name: c.name })} onClose={onAbbruch} />} />
+          )}
           {view === 'linien' && (
             <div className="bereich">
               <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Deine Musterpakete — pro Projekt getrennt. Tippe eine Verpackung an, um Details zu sehen.</p></div>
@@ -3233,6 +3248,11 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                       <div className="lk-reihe">{p.board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
                       <div className="lk-info"><span className="lk-t">{p.name}</span><span className="lk-s">{p.board.length} Teile · zum Ansehen antippen</span></div>
                     </div>
+                    {p.board.length >= 2 && (
+                      <button type="button" className="knopf zweit lin-aktion" onClick={() => setVertikal({ name: p.name, teile: p.board.map(r => ({ id: r.id, name: r.name, imageUrl: r.imageUrl })) })}>
+                        Als Linie in einem Design rendern
+                      </button>
+                    )}
                     <div className="eb-grid" style={{ marginTop: 16 }}>
                       {p.board.map(r => (
                         <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}

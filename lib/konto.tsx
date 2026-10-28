@@ -90,7 +90,7 @@ export async function kontoFetch(url: string, init: RequestInit = {}): Promise<R
   const istNeueSuche = url.includes('/api/search') && !!body
     && !body.ids && !body.active_filters && !body.removed_filters && !body.bildlesart;
   const istRender = url.includes('/api/render') && !url.includes('/api/renders')
-    && !!body && body.codes !== true;
+    && !!body && body.codes !== true && !body.farbe;
 
   // Lokale Anmelde-Wand: greift VOR der Anfrage, auch wo das Server-Cookie
   // geblockt wird (Safari/iOS). Angemeldete laufen frei durch.
@@ -121,7 +121,7 @@ export async function kontoFetch(url: string, init: RequestInit = {}): Promise<R
         freiLokalSetzen({ ...f, s: f.s + 1 });
       } else if (istRender) {
         const d = await res.clone().json();
-        if (d && d.cached !== true) {
+        if (d && d.cached !== true && d.unveraendert !== true) {
           const f = freiLokal();
           freiLokalSetzen({ ...f, r: f.r + 1 });
         }
