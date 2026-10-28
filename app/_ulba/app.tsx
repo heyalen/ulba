@@ -439,8 +439,21 @@ interface Project {
   createdAt: number;
   rootQuery: string;
   blocks: Block[];
-  board: Result[];
+  board: Result[];      // v83: «Teile» — alles, was im Projekt gemerkt ist
   blockSeq: number;
+  designs?: Design[];   // v83: alle Designs (Renders + Farbvarianten) dieses Projekts
+}
+
+/* v83 — ein Design im Projekt (lokal, privat; das Bild liegt im Rendering_Cache). */
+interface Design {
+  id: string;            // cacheId (oder URL, falls keine)
+  url: string;
+  systemId: string;
+  teilName: string;
+  weltName: string;
+  hex?: string | null;   // Akzentfarbe bei Farbvarianten / Linien
+  gruppe?: string;       // gleiche Gruppe = eine Linie
+  at: number;
 }
 
 interface FavoriteEntry { productId: string; projectId: string; savedAt: number; product: Result; }
@@ -495,7 +508,6 @@ function loadFavorites(): FavoriteEntry[] {
   try { const raw = localStorage.getItem(LS_FAVORITES); if (raw) return heile(JSON.parse(raw)); } catch {}
   return [];
 }
-function saveFavorites(f: FavoriteEntry[]) { try { localStorage.setItem(LS_FAVORITES, JSON.stringify(f)); } catch {} }
 
 /* Private Render-Historie pro Packmittel — client-seitig, kein Leak, überlebt Sessions. */
 const LS_RENDERS = 'ulba_renders_v1';
@@ -517,6 +529,7 @@ const LS_REQUESTS = 'ulba_requests_v1';
 interface SentRequest {
   id: string; productName: string; supplier: string; konzeptName: string;
   renderUrl: string; sentAt: number; status?: string;
+  projectId?: string; // v83: Anfrage gehört zu einem Projekt
 }
 function loadRequests(): SentRequest[] {
   try { const raw = localStorage.getItem(LS_REQUESTS); if (raw) return JSON.parse(raw); } catch {}
@@ -1441,6 +1454,52 @@ const STYLES = `
 .pn-lade{display:flex;flex-direction:column;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--grau)}
 .pn-lade-sp{width:26px;height:26px;border:2px solid var(--linie);border-top-color:var(--rouge);border-radius:50%;animation:pnspin .8s linear infinite}
 @keyframes pnspin{to{transform:rotate(360deg)}}
+
+/* v83 — Projekt-Reiter, Sammlungen, Lightbox, Toast */
+.pj-reiter{flex:none;display:flex;gap:4px;padding:10px clamp(16px,4vw,32px) 0;border-bottom:1px solid var(--linie);overflow-x:auto;scrollbar-width:none;background:var(--panel)}
+.pj-reiter::-webkit-scrollbar{display:none}
+.pj-reiter button{position:relative;display:inline-flex;align-items:center;gap:7px;padding:10px 14px 12px;font-size:14px;color:var(--grau);white-space:nowrap;border-radius:10px 10px 0 0}
+.pj-reiter button:hover{color:var(--tinte)}
+.pj-reiter button.an{color:var(--tinte);font-weight:600}
+.pj-reiter button.an::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--tinte)}
+.pj-reiter span{font-family:var(--mono);font-size:11.5px;color:var(--hell);background:var(--nische);border-radius:999px;padding:1px 7px}
+.pj-bereich{flex:1;min-height:0;overflow-y:auto;padding:24px clamp(16px,4vw,32px) 60px}
+.pj-leer{max-width:380px;margin:9vh auto 0;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;color:var(--grau);font-size:14px;line-height:1.5}
+.pj-leer svg{width:28px;height:28px;color:var(--hell);margin-bottom:4px}
+.pj-leer b{color:var(--tinte);font-size:16px}
+.pj-leer .knopf{margin-top:10px}
+.pj-linie{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--linie);border-radius:16px;background:var(--panel);padding:16px 18px;margin-bottom:20px}
+.pj-linie div{display:flex;flex-direction:column;gap:3px;font-size:14px}
+.pj-linie span{color:var(--grau);font-size:13px;line-height:1.45;max-width:52ch}
+.pj-linie .knopf{flex:none}
+.pj-gruppe{margin-bottom:30px}
+.pj-g-kopf{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;font-size:15px}
+.pj-g-kopf span{color:var(--hell);font-size:13px}
+.pj-g-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.pj-d{display:flex;flex-direction:column;gap:6px;text-align:left;min-width:0}
+.pj-d-bild{aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--linie);border-radius:13px;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.pj-d:hover .pj-d-bild{border-color:#cfcfca;box-shadow:0 4px 14px rgba(20,24,26,.06)}
+.pj-d-bild img{width:100%;height:100%;object-fit:contain}
+.pj-d-nm{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-d-nm i,.dl-s i{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.12);flex:none;vertical-align:-1px;margin-right:5px}
+.dl-ov{position:fixed;inset:0;z-index:70;background:rgba(20,24,26,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.dl-box{position:relative;background:var(--panel);border-radius:20px;width:min(560px,100%);max-height:94vh;display:flex;flex-direction:column;overflow:hidden}
+.dl-zu{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);border:1px solid var(--linie);display:flex;align-items:center;justify-content:center;z-index:2}
+.dl-bild{flex:1;min-height:0;background:#fff;display:flex;align-items:center;justify-content:center}
+.dl-bild img{max-width:100%;max-height:62vh;object-fit:contain}
+.dl-info{display:flex;flex-direction:column;gap:3px;padding:16px 20px 4px}
+.dl-t{font-weight:700;font-size:16px}
+.dl-s{color:var(--grau);font-size:13px;font-family:var(--sans)}
+.dl-aktion{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 20px 18px}
+.dl-weg{margin-left:auto;font-size:13px;color:var(--hell)}
+.dl-weg:hover{color:var(--rouge)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;align-items:center;gap:14px;background:var(--tinte);color:#fff;border-radius:999px;padding:11px 12px 11px 20px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.18);animation:toastein .2s ease-out;max-width:calc(100vw - 32px)}
+.toast span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast button{flex:none;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:500}
+.toast button:hover{background:rgba(255,255,255,.24)}
+@keyframes toastein{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+.pn-look-knopf{width:100%}
+@media (max-width:640px){.pj-linie{flex-direction:column;align-items:stretch}.pj-g-raster{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `;
 
 /* ── Helpers ── */
@@ -1455,11 +1514,6 @@ function cloneFilters(f: ParsedFilters): ParsedFilters {
   return { sizes: [...f.sizes], materials: [...f.materials], types: [...f.types], closures: [...f.closures] };
 }
 function hasDim(f: ParsedFilters, d: keyof ParsedFilters): boolean { return (f[d] || []).length > 0; }
-function gruppiereNachProjekt<T>(items: T[], label: (x: T) => string): [string, T[]][] {
-  const map = new Map<string, T[]>();
-  for (const it of items) { const k = label(it) || 'Ohne Projekt'; if (!map.has(k)) map.set(k, []); map.get(k)!.push(it); }
-  return Array.from(map.entries());
-}
 
 /* ── Caps für ein Teil inkl. Cap-Wand (aus /api/search): offener Pipetten-Cap wird
    bei oxidationsempfindlicher Formel ans Ende sortiert — NIE entfernt, nur depriorisiert. ── */
@@ -1726,116 +1780,16 @@ function DesignWand({ suche, register, onWahl, onClose }: {
 /* ── v69 — Die Render-Galerie: jeder Lauf, reload-fest archiviert. Die
    Lauf-Blöcke im Chat bleiben flüchtig (fal-URLs verfallen); hier ist die
    Wahrheit — Kartengrid, Detail-Overlay, Erneut-Rendern aus dem Archiv. ── */
-function RenderGalerie() {
-  const [laden, setLaden] = useState(true);
-  const [liste, setListe] = useState<RenderEintrag[]>([]);
-  const [offen, setOffen] = useState<RenderEintrag | null>(null);
-  const [neuLauf, setNeuLauf] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [neuBild, setNeuBild] = useState<string | null>(null);
-  const lade = useCallback(() => {
-    fetch(RENDERS_API)
-      .then(r => r.json())
-      .then(d => setListe(Array.isArray(d?.renders) ? d.renders : []))
-      .catch(() => setListe([]))
-      .finally(() => setLaden(false));
-  }, []);
-  useEffect(() => { lade(); }, [lade]);
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOffen(null); };
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, []);
-  const datum = (iso: string) => { const d = new Date(iso); return isNaN(+d) ? '' : d.toLocaleDateString('de-CH'); };
-  const erneut = async (e: RenderEintrag) => {
-    if (!e.systemId || !e.codeId) return;
-    setNeuLauf('loading'); setNeuBild(null);
-    try {
-      const res = await kontoFetch(RENDER_API, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemId: e.systemId, query: e.weltName || e.konzeptName, tier: 'lite', forceCodeId: e.codeId }),
-      });
-      const d = await res.json();
-      if (!res.ok || d.error || !d.renderingUrl) throw new Error(d.error || 'Render fehlgeschlagen');
-      setNeuBild(d.renderingUrl); setNeuLauf('idle');
-      setTimeout(lade, 5000); // Archiv zieht nach, sobald der Upload durch ist
-    } catch { setNeuLauf('error'); }
-  };
-  return (
-    <div className="bereich">
-      <div className="ber-kopf"><h2 className="serif">Renders</h2><p>Jede Welt auf jedem Teil — reload-fest archiviert, neueste zuerst.</p></div>
-      {laden && <div className="leer">Lade …</div>}
-      {!laden && liste.length === 0 && <div className="leer"><div className="gr">Noch keine Renders.</div>Zeig ein Teil in einem Design — der Lauf landet automatisch hier.</div>}
-      {!laden && liste.length > 0 && (
-        <div className="rg-grid">
-          {liste.map(e => (
-            <button key={e.id} className="rg-karte" onClick={() => { setOffen(e); setNeuBild(null); setNeuLauf('idle'); }}>
-              <div className="rg-bild">
-                {e.konfidenz === 'pruefen' && <i className="rg-punkt" title="Proportionen prüfen" />}
-                {e.capBildUrl && !e.montiert
-                  ? <StapelBild klasse="mini-stapel" bodyUrl={e.bildUrl} capUrl={e.capBildUrl} scale={e.capScale ?? 0.3} alt={`${e.teilName} im Design ${e.weltName}`} />
-                  : <img src={e.bildUrl} alt={`${e.teilName} im Design ${e.weltName}`} loading="lazy" />}
-              </div>
-              <div className="rg-text">
-                <span className="rg-t">{e.weltName || 'Render'}</span>
-                <span className="rg-s">{[e.teilName, datum(e.erstellt)].filter(Boolean).join(' · ')}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-      {offen && (
-        <div className="rg-ov" role="dialog" aria-label={offen.weltName || 'Render'} onClick={() => setOffen(null)}>
-          <div className="rg-box" onClick={ev => ev.stopPropagation()}>
-            <button className="pn-zu rg-zu" onClick={() => setOffen(null)} aria-label="schließen">×</button>
-            <div className="rg-gross">
-              {offen.capBildUrl && !offen.montiert && !neuBild
-                /* v53: gleicher Stapel wie in der Bühne; v56 massstabsgetreu. */
-                ? <StapelBild
-                    klasse="rg-stapel"
-                    bodyUrl={offen.bildUrl}
-                    capUrl={offen.capBildUrl}
-                    scale={offen.capScale ?? 0.3}
-                    alt={offen.weltName}
-                  />
-                : <img src={neuBild || offen.bildUrl} alt={offen.weltName} />}
-              {neuLauf === 'loading' && <div className="pn-lade"><span className="pn-lade-sp" /><span>Rendert erneut …</span></div>}
-            </div>
-            <div className="rg-detail">
-              <h3 className="serif">{offen.konzeptName || offen.weltName || 'Render'}</h3>
-              <p className="rg-meta">{[offen.teilName, datum(offen.erstellt), offen.engine].filter(Boolean).join(' · ')}</p>
-              {offen.story && <p className="rg-story">{offen.story}</p>}
-              {!!offen.umsetzung?.length && (
-                <ul className="rg-umsetzung">
-                  {offen.umsetzung.slice(0, 6).map((u, i) => <li key={i}>{u}</li>)}
-                </ul>
-              )}
-              {offen.warnungen.length > 0 && <p className="rg-warn">{offen.warnungen.join(' · ')}</p>}
-              {neuLauf === 'error' && <p className="pn-fehler">Erneut rendern hat nicht geklappt — kurz warten und noch einmal.</p>}
-              <div className="rg-aktionen">
-                <a className="wz" href={neuBild || offen.bildUrl} download={`ulba_${(offen.weltName || 'render').replace(/\W+/g, '_')}.jpg`}><Icon n="bild" /><span>Download</span></a>
-                {offen.systemId && offen.codeId && (
-                  <button className="wz" onClick={() => erneut(offen)} disabled={neuLauf === 'loading'}><Icon n="raum" /><span>Erneut rendern</span></button>
-                )}
-                {offen.systemId && offen.teilName && (
-                  <Link className="wz" href={`/teil/${teilSlug(offen.teilName, offen.systemId)}`}><Icon n="gross" /><span>Zum Teil</span></Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ── Detail-Panel rechts: Inspektor UND Bühne. Teil ansehen, Verschluss wählen,
    Specs — und mit einem Klick das Teil in einem kuratierten Design sehen.
    Der Render passiert hier, nicht mehr im Chat: ein Design, ein Bild, eine
    Wächterzeile. Der gewählte Look gilt für die Sitzung (lookCode), so lassen
    sich mehrere Teile im selben Design vergleichen. ── */
-function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBoard, onClose, sucheQuery, lookCode, onLook, onSample, onTeil, seite, zurueckLabel, onSeite }: {
+function DetailPanel({ product, capWall, cap, onCap, isFav, onFav, onClose, sucheQuery, lookCode, onLook, onSample, onTeil, seite, zurueckLabel, onSeite, onDesign }: {
   product: Result; capWall?: CapWall; cap: number; onCap: (i: number) => void;
-  isFav: boolean; inBoard: boolean; onFav: () => void; onBoard?: () => void; onClose: () => void;
+  isFav: boolean; onFav: () => void; onClose: () => void;
+  onDesign?: (d: Omit<Design, 'at'>) => void; // v83: jedes neue Design landet im Projekt
   sucheQuery?: string; lookCode: DesignCodeKarte | null; onLook: (c: DesignCodeKarte | null) => void;
   onSample: (ctx: SampleContext) => void;
   onTeil?: (r: Result) => void;
@@ -1928,6 +1882,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
       });
       if (typeof data.rendersRest === 'number') setRendersRest(data.rendersRest);
       setRstatus('idle');
+      onDesign?.({ id: cid || rUrl, url: rUrl, systemId: product.id, teilName: product.name, weltName: data.concept?.konzept_name || code.name || '' });
       try { const h = loadRenderHist(product.id); saveRenderHist(product.id, [rUrl, ...h.filter(u => u !== rUrl)].slice(0, 12)); } catch { /* Verlauf ist Kür */ }
     } catch (e) {
       setRstatus('error');
@@ -2129,8 +2084,8 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   const look = (
     <div className="pn-look">
-      <button className="knopf zweit" onClick={() => setWandOffen(true)}>
-        <Icon n="raum" />{zeigtRender ? 'Anderes Design' : lookCode ? `In ${lookCode.name} zeigen` : 'In einem Design zeigen'}
+      <button className={`knopf ${zeigtRender || rstatus === 'loading' ? 'zweit' : 'haupt'} pn-look-knopf`} onClick={() => setWandOffen(true)}>
+        <Icon n="raum" />{zeigtRender ? 'Anderes Design' : 'In einem Design zeigen'}
       </button>
       {rstatus === 'error' && <p className="pn-fehler">{rerror || 'Das Rendern hat nicht geklappt. Versuch es noch einmal.'}</p>}
       {rstatus !== 'error' && rendersRest !== null && (
@@ -2142,6 +2097,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
           quelle={{ cacheId: render.cacheId, url: render.url }}
           weltName={render.weltName || lookCode?.name || 'dieser Welt'}
           onRest={setRendersRest}
+          onNeu={k => onDesign?.({ id: k.cacheId || k.url, url: k.url, systemId: product.id, teilName: product.name, weltName: render.weltName || lookCode?.name || '', hex: k.hex || null, gruppe: `fv_${render.cacheId}` })}
           onBild={(url, cid) => setRender(r => r ? { ...r, url, cacheId: cid || r.cacheId, bodyUrl: null, capUrl: null, montiert: true, konfidenz: null } : r)} />
       )}
     </div>
@@ -2151,7 +2107,7 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
   // in die Bühne (stabile /api/bild-Adresse, kein neuer fal-Lauf).
   const rendersReihe = teilRenders.length > 0 && (
     <div className="pn-renders">
-      <div className="pn-caps-kopf"><span>Renders dieses Teils</span><span className="leise">{teilRenders.length}</span></div>
+      <div className="pn-caps-kopf"><span>Frühere Designs dieses Teils</span><span className="leise">{teilRenders.length}</span></div>
       <div className="pn-renders-reihe">
         {teilRenders.map(e => (
           <button key={e.id} type="button" title={e.weltName}
@@ -2215,14 +2171,13 @@ function DetailPanel({ product, capWall, cap, onCap, isFav, inBoard, onFav, onBo
 
   const aktion = (
     <div className="pn-aktion">
-      <button className="knopf haupt" onClick={() => onSample({
+      <button className={`knopf ${zeigtRender ? 'haupt' : 'zweit'}`} onClick={() => onSample({
         product,
         renderUrl: render?.url || '',
         wishValues: render?.concept ? produzierbarText(render.concept.produzierbar) : '',
         capLabel: caps[capIdx]?.name || '',
         konzept: render?.concept || null,
       })}>Muster anfragen</button>
-      {onBoard && <button className={`knopf zweit${inBoard ? ' an' : ''}`} onClick={onBoard}>{inBoard ? <><Icon n="haken" />Im Paket</> : 'Ins Paket'}</button>}
     </div>
   );
 
@@ -2503,7 +2458,7 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
 }) {
   return (
     <div className={`ek${selected ? ' an' : ''}${isLead ? ' lead' : ''}`}>
-      <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label={isFav ? 'Aus Favoriten entfernen' : 'Merken'}><Icon n={isFav ? 'herzVoll' : 'herz'} /></button>
+      <button className={`favherz${isFav ? ' an' : ''}`} onClick={onFav} aria-label={isFav ? 'Aus dem Projekt entfernen' : 'Im Projekt merken'}><Icon n={isFav ? 'herzVoll' : 'herz'} /></button>
       <button className="ek-klick" onClick={onOpen}>
         <div className="ek-bild">{r.imageUrl ? <img src={r.imageUrl} alt={r.name} onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} /> : <span className="ek-ph">◇</span>}</div>
         <div className="ek-info">
@@ -2525,17 +2480,124 @@ function Karte({ r, selected, isFav, isLead, onOpen, onFav }: {
    Leben. Was offen ist, steht IMMER in der URL — sie ist die einzige Quelle:
      /                     Start
      /?s=<projekt>         eine Suche (Chat)
-     /?v=favoriten|linien|anfragen
      /teil/<slug>          das Teil als volle Seite (Server-Seite, SEO)
      /teil/<slug>?s=<id>   das Teil als Panel neben SEINER Suche
    Zurück/Vor, Reload und geteilte Links zeigen damit genau das, was man sah.
    Suchen liegen im Browser: ?s= öffnet nur, was dieser Browser kennt —
    fremde Links fallen auf die volle Teil-Seite zurück. */
-type Ansicht = 'start' | 'chat' | 'linien' | 'favoriten' | 'anfragen' | 'renders' | 'seite';
+type Ansicht = 'start' | 'chat' | 'seite';
+type Reiter = 'suche' | 'teile' | 'designs' | 'anfragen';
+
+
+/* ── v83 — Projekt = ein Behälter: Suche · Teile · Designs · Anfragen ── */
+function projektZeile(p: Project): string {
+  const t = p.board.length, d = (p.designs || []).length;
+  if (t || d) return [t ? `${t} ${t === 1 ? 'Teil' : 'Teile'}` : '', d ? `${d} ${d === 1 ? 'Design' : 'Designs'}` : ''].filter(Boolean).join(' · ');
+  return `${p.blocks.length} Suche${p.blocks.length === 1 ? '' : 'n'}`;
+}
+
+function ProjektReiter({ p, reiter, anfragen, onReiter }: { p: Project; reiter: Reiter; anfragen: number; onReiter: (r: Reiter) => void }) {
+  const liste: Array<[Reiter, string, number | null]> = [
+    ...(p.blocks.length ? [['suche', 'Suche', null] as [Reiter, string, null]] : []),
+    ['teile', 'Teile', p.board.length],
+    ['designs', 'Designs', (p.designs || []).length],
+    ['anfragen', 'Anfragen', anfragen],
+  ];
+  return (
+    <nav className="pj-reiter" aria-label="Projekt">
+      {liste.map(([r, t, n]) => (
+        <button key={r} className={reiter === r ? 'an' : ''} aria-current={reiter === r ? 'page' : undefined} onClick={() => onReiter(r)}>
+          {t}{n ? <span>{n}</span> : null}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function ProjektSammlung({ p, reiter, anfragen, isFav, quickFav, selectedId, onOpen, onLinie, onDesign, onReiter }: {
+  p: Project; reiter: Reiter; anfragen: SentRequest[];
+  isFav: (id: string) => boolean; quickFav: (r: Result) => void; selectedId: string | null;
+  onOpen: (r: Result) => void; onLinie: () => void; onDesign: (d: Design) => void; onReiter: (r: Reiter) => void;
+}) {
+  if (reiter === 'teile') {
+    return (
+      <div className="pj-bereich">
+        {p.board.length === 0
+          ? <div className="pj-leer"><Icon n="herz" /><b>Noch nichts gemerkt</b><span>Tippe auf das Herz an einem Teil — es landet hier.</span>{p.blocks.length > 0 && <button className="knopf zweit" onClick={() => onReiter('suche')}>Zur Suche</button>}</div>
+          : <>
+            {p.board.length >= 2 && (
+              <div className="pj-linie">
+                <div><b>Als Linie gestalten</b><span>Alle {p.board.length} Teile in einer Designwelt — mit abgestimmter Akzentfarbe, damit sie wie eine Marke wirken.</span></div>
+                <button className="knopf haupt" onClick={onLinie}><Icon n="raum" />Alle in einem Design zeigen</button>
+              </div>
+            )}
+            <div className={`eb-grid${selectedId ? ' schmal' : ''}`}>
+              {p.board.map(r => <Karte key={r.id} r={r} selected={selectedId === r.id} isFav={isFav(r.id)} onOpen={() => onOpen(r)} onFav={e => { e.stopPropagation(); quickFav(r); }} />)}
+            </div>
+          </>}
+      </div>
+    );
+  }
+  if (reiter === 'designs') {
+    const ds = p.designs || [];
+    const gruppen: Array<[string, Design[]]> = [];
+    for (const d of ds) {
+      // Farbvarianten (fv_<quelle>) stehen in einer Reihe mit ihrem Original.
+      const g = d.gruppe?.startsWith('fv_') ? d.gruppe.slice(3) : (d.gruppe || d.id);
+      const vorh = gruppen.find(x => x[0] === g);
+      if (vorh) vorh[1].push(d); else gruppen.push([g, [d]]);
+    }
+    return (
+      <div className="pj-bereich">
+        {ds.length === 0
+          ? <div className="pj-leer"><Icon n="raum" /><b>Noch keine Designs</b><span>Öffne ein Teil und wähle «In einem Design zeigen». Jedes Design landet hier.</span></div>
+          : gruppen.map(([g, items]) => {
+            const linie = items.length > 1;
+            const vertikal = linie && new Set(items.map(x => x.systemId)).size > 1;
+            return (
+              <section key={g} className="pj-gruppe">
+                <div className="pj-g-kopf">
+                  <b>{items[0].weltName || 'Design'}</b>
+                  <span>{linie ? (vertikal ? `Linie · ${items.length} Teile` : `${items[0].teilName} · ${items.length} Farben`) : items[0].teilName}</span>
+                </div>
+                <div className="pj-g-raster">
+                  {[...items].sort((x, y) => (x.hex ? 1 : 0) - (y.hex ? 1 : 0) || x.at - y.at).map(d => (
+                    <button key={d.id} className="pj-d" onClick={() => onDesign(d)}>
+                      <span className="pj-d-bild"><img src={d.url} alt={`${d.teilName} in ${d.weltName}`} loading="lazy" /></span>
+                      <span className="pj-d-nm">{d.hex && <i style={{ background: d.hex }} />}{vertikal ? d.teilName : (d.hex || (linie ? 'Original' : d.weltName))}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+      </div>
+    );
+  }
+  return (
+    <div className="pj-bereich">
+      {anfragen.length === 0
+        ? <div className="pj-leer"><Icon n="anfragen" /><b>Noch keine Anfrage</b><span>Öffne ein Teil und tippe «Muster anfragen». Den Status siehst du hier.</span></div>
+        : <div className="anfr-liste">
+          {anfragen.map(r => (
+            <div key={r.id} className="anfr-row">
+              <div className="anfr-bild">{r.renderUrl ? <img src={r.renderUrl} alt={r.konzeptName || r.productName} /> : <span className="ph">◇</span>}</div>
+              <div className="anfr-info">
+                <span className="anfr-t">{r.konzeptName || r.productName}</span>
+                <span className="anfr-s">{r.productName}{r.supplier ? ` · ${r.supplier}` : ''} · {new Date(r.sentAt).toLocaleDateString('de-CH')}</span>
+              </div>
+              <span className={`anfr-status s-${(r.status || 'Neu').toLowerCase()}`}>{r.status || 'Neu'}</span>
+            </div>
+          ))}
+        </div>}
+    </div>
+  );
+}
 
 interface UlbaKontextWert {
   isFav: (id: string) => boolean;
   quickFav: (r: Result) => void;
+  onDesign: (d: Omit<Design, 'at'>) => void;
   lookCode: DesignCodeKarte | null;
   setLookCode: (c: DesignCodeKarte | null) => void;
   setSampleCtx: (c: SampleContext) => void;
@@ -2568,8 +2630,9 @@ export function TeilSeite({ teil, slug, children }: { teil: Result; slug: string
   return (
     <div className="tp-seite">
       <DetailPanel seite product={teil} cap={cap} onCap={setCap}
-        isFav={k ? k.isFav(teil.id) : false} inBoard={false}
+        isFav={k ? k.isFav(teil.id) : false}
         onFav={() => k?.quickFav(teil)}
+        onDesign={d => k?.onDesign(d)}
         onClose={() => k?.zurueck()} zurueckLabel={k?.zurueckLabel}
         lookCode={k?.lookCode || null} onLook={c => k?.setLookCode(c)}
         onSample={c => k?.setSampleCtx(c)}
@@ -2607,7 +2670,16 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   const [sampleCtx, setSampleCtx] = useState<SampleContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
+  const [reiter, setReiter] = useState<Reiter>('suche');
+  const naechsterReiter = useRef<Reiter | null>(null);
+  const [toast, setToast] = useState<{ text: string; pid: string | null; reiter: Reiter } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const zeigeToast = (text: string, pid: string | null, r: Reiter = 'teile') => {
+    setToast({ text, pid, reiter: r });
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+  };
+  const [lightbox, setLightbox] = useState<Design | null>(null);
   const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
   // v78 — Anmelde-Wand: kontoFetch meldet per Event, wenn der Server die
@@ -2622,10 +2694,29 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const gel = loadProjects().map(p => p.name === 'Referenzbild' ? { ...p, name: projektName(p.blocks[0]?.lesart) || p.name } : p);
+    // v83 — Favoriten gibt es nicht mehr: jedes Herz gehört in ein Projekt.
     const fav = loadFavorites();
+    if (fav.length) {
+      const rest: Result[] = [];
+      for (const f of fav) {
+        const ziel = gel.find(p => p.rootQuery.trim() === f.projectId || p.name === f.projectId);
+        if (ziel) { if (!ziel.board.some(x => x.id === f.productId)) ziel.board = [...ziel.board, f.product]; }
+        else if (!rest.some(x => x.id === f.productId)) rest.push(f.product);
+      }
+      if (rest.length) gel.unshift({ id: neueProjektId(), name: 'Gemerkt', createdAt: Date.now(), rootQuery: '', blocks: [], board: rest, blockSeq: 0 });
+      try { localStorage.setItem('ulba_favorites_backup_v83', localStorage.getItem(LS_FAVORITES) || '[]'); localStorage.removeItem(LS_FAVORITES); } catch {}
+    }
+    const anfr = loadRequests();
+    if (anfr.some(r => !r.projectId) && gel.length) {
+      for (const r of anfr) {
+        if (r.projectId) continue;
+        const ziel = gel.find(p => p.board.some(x => x.name === r.productName) || p.blocks.some(b => b.results?.some(x => x.name === r.productName))) || gel[0];
+        r.projectId = ziel.id;
+      }
+      saveRequests(anfr);
+    }
     setProjects(gel);
-    setFavorites(fav);
-    setSentRequests(loadRequests());
+    setSentRequests(anfr);
     // v60 — Altbestand: grosse Vorschauen (Vollbilder aus frueheren Versionen) verkleinern.
     const gross = gel.flatMap(p => p.blocks.filter(b => (b.bild?.length || 0) > 90000).map(b => ({ pid: p.id, bid: b.id, bild: b.bild as string })));
     if (gross.length) {
@@ -2648,7 +2739,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
         if (!Array.isArray(d?.frisch) || !d.frisch.length) return;
         const map = new Map<string, Partial<Result>>(heile(d.frisch as Partial<Result>[]).map(f => [f.id as string, f]));
         const auf = <T extends Result>(r: T): T => { const f = map.get(r.id); return f ? { ...r, ...f } : r; };
-        setFavorites(prev => { const n = prev.map(f => ({ ...f, product: auf(f.product) })); saveFavorites(n); return n; });
         setProjects(prev => prev.map(p => ({ ...p, board: p.board.map(auf), blocks: p.blocks.map(b => ({ ...b, results: b.results.map(auf) })) })));
         setSelected(prev => prev ? auf(prev) : prev);
       })
@@ -2738,11 +2828,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       return;
     }
     if (proj) { setActiveId(proj.id); setView('chat'); ortLabel.current = proj.name; return; }
-    const v = q.get('v');
-    if (v === 'favoriten' || v === 'linien' || v === 'anfragen' || v === 'renders') {
-      setView(v); ortLabel.current = v === 'favoriten' ? 'Favoriten' : v === 'linien' ? 'Meine Linien' : v === 'renders' ? 'Renders' : 'Musteranfragen';
-      return;
-    }
     setActiveId(null); setView('start'); ortLabel.current = 'Start';
     // Alte Links /?teil=<recId> (Katalog vor v62) → auf die Teil-Seite umleiten.
     const alt = q.get('teil');
@@ -2760,13 +2845,15 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
 
   useEffect(() => { setSelectedCap(0); }, [selected?.id]);
 
-  const handleSent = (r: SentRequest) => {
+  const handleSent = (r0: SentRequest) => {
+    const r = { ...r0, projectId: r0.projectId || activeId || projects[0]?.id };
     setSentRequests(prev => { const next = [r, ...prev.filter(x => x.id !== r.id)]; saveRequests(next); return next; });
+    zeigeToast('Anfrage gesendet', r.projectId || null, 'anfragen');
   };
 
   // Live-Status der eigenen Anfragen holen, sobald der Tab geöffnet wird.
   useEffect(() => {
-    if (view !== 'anfragen' || sentRequests.length === 0) return;
+    if (view !== 'chat' || reiter !== 'anfragen' || sentRequests.length === 0) return;
     const ids = sentRequests.map(r => r.id).join(',');
     fetch(`/api/sample-request?ids=${encodeURIComponent(ids)}`)
       .then(r => r.json())
@@ -2780,13 +2867,12 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, reiter, activeId]);
 
   useEffect(() => { if (mounted) saveProjects(projects); }, [projects, mounted]);
 
   const active = projects.find(p => p.id === activeId) || null;
   const blocks = active ? active.blocks : [];
-  const board = active ? active.board : [];
   const rootQuery = active ? active.rootQuery : '';
 
   // Ein Teil öffnet sich entweder neben SEINER Suche (Panel) oder als eigene Seite.
@@ -2821,26 +2907,45 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     setProjects(prev => prev.map(p => p.id === id ? patch(p) : p));
   }, []);
 
-  const isFav = (id: string) => favorites.some(f => f.productId === id);
-
+  /* v83 — EIN Behälter: das Projekt. Herz = im Projekt merken. Ohne offenes
+     Projekt (Teil-Seite aus Google) landet es in «Gemerkt». */
+  const zielProjekt = (): { pid: string; name: string; neu: Project | null } => {
+    if (active) return { pid: active.id, name: active.name, neu: null };
+    const vorh = projects.find(p => p.name === 'Gemerkt' && p.blocks.length === 0);
+    if (vorh) return { pid: vorh.id, name: vorh.name, neu: null };
+    const neu: Project = { id: neueProjektId(), name: 'Gemerkt', createdAt: Date.now(), rootQuery: '', blocks: [], board: [], blockSeq: 0 };
+    return { pid: neu.id, name: neu.name, neu };
+  };
+  const isFav = (id: string) => active ? active.board.some(x => x.id === id) : projects.some(p => p.board.some(x => x.id === id));
   const quickFav = (product: Result) => {
-    const proj = rootQuery.trim() || 'Ohne Projekt';
-    const saved = favorites.some(f => f.productId === product.id);
-    const upd = saved ? favorites.filter(f => f.productId !== product.id)
-      : [...favorites, { productId: product.id, projectId: proj, savedAt: Date.now(), product: { ...product, projekt: proj } }];
-    setFavorites(upd); saveFavorites(upd);
-  };
-
-  const toggleBoard = (product: Result) => {
-    if (!active) return;
-    const proj = rootQuery.trim() || 'Ohne Projekt';
-    patchProject(active.id, p => ({
-      ...p,
-      board: p.board.some(x => x.id === product.id)
-        ? p.board.filter(x => x.id !== product.id)
-        : [...p.board, { ...product, projekt: proj }],
+    const z = zielProjekt();
+    const drin = (z.neu ? [] : (projects.find(p => p.id === z.pid)?.board || [])).some(x => x.id === product.id)
+      || (!active && projects.some(p => p.board.some(x => x.id === product.id)));
+    setProjects(prev => (z.neu ? [z.neu, ...prev] : prev).map(p => {
+      if (drin) return p.board.some(x => x.id === product.id) && (active ? p.id === z.pid : true) ? { ...p, board: p.board.filter(x => x.id !== product.id) } : p;
+      return p.id === z.pid ? { ...p, board: [...p.board, { ...product, projekt: p.name }] } : p;
     }));
+    zeigeToast(drin ? 'Aus dem Projekt entfernt' : `Gemerkt in «${z.name}»`, drin ? null : z.pid, 'teile');
   };
+  const addDesign = (d: Omit<Design, 'at'>) => {
+    const z = zielProjekt();
+    setProjects(prev => (z.neu ? [z.neu, ...prev] : prev).map(p => p.id === z.pid
+      ? { ...p, designs: [{ ...d, at: Date.now() }, ...(p.designs || []).filter(x => x.id !== d.id)].slice(0, 200) }
+      : p));
+  };
+  const entferneDesign = (pid: string, id: string) =>
+    setProjects(prev => prev.map(p => p.id === pid ? { ...p, designs: (p.designs || []).filter(x => x.id !== id) } : p));
+  const zeigeProjekt = (pid: string, r: Reiter) => {
+    if (pid === activeId && view === 'chat') { setReiter(r); return; }
+    naechsterReiter.current = r; oeffneProjekt(pid);
+  };
+  // Reiter beim Projektwechsel: Suche, wenn es eine gibt, sonst Teile.
+  useEffect(() => {
+    if (!active) return;
+    const r = naechsterReiter.current; naechsterReiter.current = null;
+    setReiter(r || (active.blocks.length ? 'suche' : 'teile'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
 
   const runSearch = useCallback(async (projectId: string, query: string, filters: ParsedFilters, intro: string, removed?: ParsedFilters, bild?: { data?: string; lesart?: Bildlesart | null; vorschau?: string }) => {
     const rem = removed || emptyFilters();
@@ -2962,10 +3067,8 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
     if (activeId === id) zuUrl('/', true);
   };
 
-  const favCount = favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i).length;
-  const boardTotal = projects.reduce((n, p) => n + p.board.length, 0);
-  // v82 — vertikale Linie (mehrere Teile, eine Welt) aus «Meine Linien».
-  const [vertikal, setVertikal] = useState<{ name: string; teile: LinienTeil[] } | null>(null);
+  // v82/v83 — Linie: mehrere Teile, eine Welt (Reiter «Teile»).
+  const [vertikal, setVertikal] = useState<{ pid: string; name: string; teile: LinienTeil[] } | null>(null);
   const lastId = blocks.length ? blocks[blocks.length - 1].id : -1;
 
   const nav = (
@@ -2976,13 +3079,6 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
         </svg>
       </button>
       <button className="nav-neu" onClick={neuesProjekt}><Icon n="plus" />Neues Projekt</button>
-      <div>
-        {([['favoriten', 'herz', 'Favoriten', favCount], ['linien', 'linien', 'Meine Linien', boardTotal], ['renders', 'bild', 'Renders', 0], ['anfragen', 'anfragen', 'Musteranfragen', 0]] as const).map(([v, ic, t, badge]) => (
-          <button key={v} className={`nav-item${view === v ? ' an' : ''}`} onClick={() => zuUrl(`/?v=${v}`)}>
-            <span className="ni-ic"><Icon n={ic} /></span><span className="ni-t">{t}</span>{badge ? <span className="ni-b">{badge}</span> : null}
-          </button>
-        ))}
-      </div>
       <div className="nav-lbl">Projekte</div>
       <div className="nav-chats">
         {projects.length === 0
@@ -2990,7 +3086,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
           : projects.map(p => (
             <button key={p.id} className={`nav-chat${view === 'chat' && activeId === p.id ? ' an' : ''}`} onClick={() => oeffneProjekt(p.id)}>
               <span className="nc-t">{p.name}</span>
-              <span className="nc-s">{p.board.length ? `${p.board.length} im Paket` : `${p.blocks.length} Suche${p.blocks.length === 1 ? '' : 'n'}`}</span>
+              <span className="nc-s">{projektZeile(p)}</span>
               <span className="nc-x" onClick={e => loescheProjekt(p.id, e)} aria-label="Projekt löschen">×</span>
             </button>
           ))}
@@ -3001,7 +3097,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
   );
 
   const kontext: UlbaKontextWert = {
-    isFav, quickFav, lookCode, setLookCode, setSampleCtx: c => setSampleCtx(c),
+    isFav, quickFav, onDesign: addDesign, lookCode, setLookCode, setSampleCtx: c => setSampleCtx(c),
     oeffneVoll, registriere, zurueck, zurueckLabel,
   };
 
@@ -3031,7 +3127,7 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
       <div className="main">
         <header className="topbar">
           <button className="burger" onClick={() => setNavOffen(true)} aria-label="Menü öffnen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg></button><button className="tb-marke" onClick={neuesProjekt} aria-label="ulba – Start"><svg className="tb-logo" viewBox="0 0 200 78" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ulba"><text x="0" y="62" fontFamily="Archivo, system-ui, sans-serif" fontWeight="800" fontSize="80" letterSpacing="-4" fill="var(--tinte)">ulba</text></svg></button>
-          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : view === 'chat' ? (rootQuery.slice(0, 48) || 'Projekt') : view === 'linien' ? 'Meine Linien' : view === 'favoriten' ? 'Favoriten' : view === 'renders' ? 'Renders' : 'Musteranfragen'}</span>
+          <span className="spur">{view === 'start' ? 'Generatives Sourcing' : view === 'seite' ? seitenTitel(pfad) : (active?.name || 'Projekt')}</span>
         </header>
 
         <div className={`content${view === 'chat' ? ' content-chat' : ''}`}>
@@ -3090,6 +3186,15 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
           {view === 'chat' && active && (
             <div className={`chat${selected ? ' split' : ''}`}>
               <main className="cs-main">
+                <ProjektReiter p={active} reiter={reiter} anfragen={sentRequests.filter(r => r.projectId === active.id).length} onReiter={setReiter} />
+                {reiter !== 'suche' && (
+                  <ProjektSammlung p={active} reiter={reiter} anfragen={sentRequests.filter(r => r.projectId === active.id)}
+                    isFav={isFav} quickFav={quickFav} selectedId={selected?.id || null}
+                    onOpen={r => oeffneImChat(r, active.id)}
+                    onLinie={() => setVertikal({ pid: active.id, name: active.name, teile: active.board.map(r => ({ id: r.id, name: r.name, imageUrl: r.imageUrl })) })}
+                    onDesign={setLightbox} onReiter={setReiter} />
+                )}
+                {reiter === 'suche' && <>
                 <div className="thread" ref={threadRef}>
                   <div className="thread-inner">
                     {blocks.map(b => {
@@ -3215,12 +3320,13 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
                     <button className="go" onClick={leisteSenden} aria-label="senden">↑</button>
                   </div>
                 </div>
+                </>}
               </main>
               {selected && (
                 <DetailPanel product={selected} capWall={blocks.find(b => b.results.some(r => r.id === selected.id))?.capWall}
                   cap={selectedCap} onCap={setSelectedCap}
-                  isFav={isFav(selected.id)} inBoard={board.some(x => x.id === selected.id)}
-                  onFav={() => quickFav(selected)} onBoard={() => toggleBoard(selected)}
+                  isFav={isFav(selected.id)}
+                  onFav={() => quickFav(selected)} onDesign={addDesign}
                   sucheQuery={blocks.find(b => b.results.some(r => r.id === selected.id))?.query}
                   lookCode={lookCode} onLook={setLookCode} onSample={setSampleCtx}
                   onTeil={oeffneVoll} onSeite={() => oeffneVoll(selected)}
@@ -3234,81 +3340,40 @@ export function UlbaShell({ children }: { children?: ReactNode }) {
           )}
 
           {vertikal && (
-            <VertikaleLinie teile={vertikal.teile} projektName={vertikal.name} onClose={() => setVertikal(null)}
+            <VertikaleLinie teile={vertikal.teile} projektName={vertikal.name}
+              onClose={() => { const pid = vertikal.pid; setVertikal(null); zeigeProjekt(pid, 'designs'); }}
+              onDesign={d => setProjects(prev => prev.map(p => p.id === vertikal.pid ? { ...p, designs: [{ ...d, at: Date.now() }, ...(p.designs || []).filter(x => x.id !== d.id)] } : p))}
               waehleWelt={(onWahl, onAbbruch) => <DesignWand onWahl={c => onWahl({ id: c.id, name: c.name })} onClose={onAbbruch} />} />
-          )}
-          {view === 'linien' && (
-            <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Meine Linien</h2><p>Deine Musterpakete — pro Projekt getrennt. Tippe eine Verpackung an, um Details zu sehen.</p></div>
-              {boardTotal === 0
-                ? <div className="leer"><div className="gr">Noch leer.</div>Leg im Detail ein Packmittel ins Paket.</div>
-                : projects.filter(p => p.board.length > 0).map(p => (
-                  <div key={p.id} style={{ marginBottom: 34 }}>
-                    <div className="lin-kopf" onClick={() => oeffneProjekt(p.id)} style={{ cursor: 'pointer' }}>
-                      <div className="lk-reihe">{p.board.slice(0, 4).map(r => r.imageUrl ? <img key={r.id} src={r.imageUrl} alt={r.name} /> : <span key={r.id} style={{ fontSize: 30, color: '#d8d8d6' }}>◇</span>)}</div>
-                      <div className="lk-info"><span className="lk-t">{p.name}</span><span className="lk-s">{p.board.length} Teile · zum Ansehen antippen</span></div>
-                    </div>
-                    {p.board.length >= 2 && (
-                      <button type="button" className="knopf zweit lin-aktion" onClick={() => setVertikal({ name: p.name, teile: p.board.map(r => ({ id: r.id, name: r.name, imageUrl: r.imageUrl })) })}>
-                        Als Linie in einem Design rendern
-                      </button>
-                    )}
-                    <div className="eb-grid" style={{ marginTop: 16 }}>
-                      {p.board.map(r => (
-                        <Karte key={r.id} r={r} selected={false} isFav={isFav(r.id)}
-                          onOpen={() => oeffneImChat(r, p.id)}
-                          onFav={e => { e.stopPropagation(); quickFav(r); }} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          {view === 'favoriten' && (
-            <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Favoriten</h2><p>Gemerkte Packmittel — nach Projekt gruppiert.</p></div>
-              {favCount === 0
-                ? <div className="leer"><div className="gr">Noch leer.</div>Tippe auf das Herz an einem Packmittel.</div>
-                : gruppiereNachProjekt(
-                  favorites.filter((f, i, a) => a.findIndex(x => x.productId === f.productId) === i),
-                  f => f.projectId || 'Ohne Projekt'
-                ).map(([proj, items]) => (
-                  <div key={proj} style={{ marginBottom: 30 }}>
-                    <div className="grp-titel">{proj.slice(0, 44)} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: 'var(--hell)' }}>· {items.length}</span></div>
-                    <div className="eb-grid">
-                      {items.map(f => (
-                        <Karte key={f.productId} r={f.product} selected={false} isFav onOpen={() => oeffneVoll(f.product)} onFav={e => { e.stopPropagation(); quickFav(f.product); }} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          {view === 'renders' && <RenderGalerie />}
-
-          {view === 'anfragen' && (
-            <div className="bereich">
-              <div className="ber-kopf"><h2 className="serif">Musteranfragen</h2><p>Was du angefragt hast — und wo es steht. Status wird live aus Airtable geladen.</p></div>
-              {sentRequests.length === 0
-                ? <div className="leer"><div className="gr">Noch keine Anfrage.</div>Sende im Detail eine Musteranfrage.</div>
-                : <div className="anfr-liste">
-                  {sentRequests.map(r => (
-                    <div key={r.id} className="anfr-row">
-                      <div className="anfr-bild">{r.renderUrl ? <img src={r.renderUrl} alt={r.konzeptName || r.productName} /> : <span className="ph">◇</span>}</div>
-                      <div className="anfr-info">
-                        <span className="anfr-t">{r.konzeptName || r.productName}</span>
-                        <span className="anfr-s">{r.productName}{r.supplier ? ` · ${r.supplier}` : ''} · {new Date(r.sentAt).toLocaleDateString('de-CH')}</span>
-                      </div>
-                      <span className={`anfr-status s-${(r.status || 'Neu').toLowerCase()}`}>{r.status || 'Neu'}</span>
-                    </div>
-                  ))}
-                </div>}
-            </div>
           )}
         </div>
       </div>
+      {lightbox && (() => {
+        const d = lightbox;
+        const teil = projects.flatMap(p => [...p.board, ...p.blocks.flatMap(b => b.results || [])]).find(r => r.id === d.systemId) || null;
+        return (
+          <div className="dl-ov" onClick={() => setLightbox(null)} role="dialog" aria-label={d.weltName}>
+            <div className="dl-box" onClick={e => e.stopPropagation()}>
+              <button className="dl-zu" onClick={() => setLightbox(null)} aria-label="Schliessen"><Icon n="x" /></button>
+              <div className="dl-bild"><img src={d.url} alt={`${d.teilName} in ${d.weltName}`} /></div>
+              <div className="dl-info">
+                <span className="dl-t">{d.weltName || 'Design'}</span>
+                <span className="dl-s">{d.teilName}{d.hex ? <> · <i style={{ background: d.hex }} />{d.hex}</> : null}</span>
+              </div>
+              <div className="dl-aktion">
+                {teil && <button className="knopf haupt" onClick={() => { setLightbox(null); setSampleCtx({ product: teil, renderUrl: d.url, wishValues: '', capLabel: '', konzept: null }); }}>Muster anfragen</button>}
+                {teil && active && <button className="knopf zweit" onClick={() => { setLightbox(null); oeffneImChat(teil, active.id); }}>Teil öffnen</button>}
+                {active && <button className="dl-weg" onClick={() => { entferneDesign(active.id, d.id); setLightbox(null); }}>Entfernen</button>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {toast && (
+        <div className="toast" role="status">
+          <span>{toast.text}</span>
+          {toast.pid && <button onClick={() => { const t = toast; setToast(null); zeigeProjekt(t.pid!, t.reiter); }}>Ansehen</button>}
+        </div>
+      )}
       {sampleCtx && <SampleModal ctx={sampleCtx} onClose={() => setSampleCtx(null)} onSent={handleSent} />}
       {anmeldeGrund && <AnmeldeWand grund={anmeldeGrund} onClose={() => setAnmeldeGrund(null)} />}
     </div>

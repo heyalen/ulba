@@ -8,7 +8,7 @@
      die gemessene Akzentfarbe des ersten Teils (Angleichen nur bei Abweichung).
    Server: /api/render mit { variante } bzw. { farbe } (render.ts v82). */
 
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { kontoFetch } from '@/lib/konto';
 
 const RENDER_API = 'https://ulba-vision-renderer.vercel.app/api/render';
@@ -67,17 +67,18 @@ export function RangeBoard({ kacheln, konstant, variabel, onBild }: {
           </button>
         ))}
       </div>
-      <p className="rb-weil"><b>Konstant:</b> {konstant}<br /><b>Variabel:</b> {variabel}</p>
+      <p className="rb-weil"><b>Gleich:</b> {konstant}<br /><b>Anders:</b> {variabel}</p>
     </div>
   );
 }
 
 /* ── Horizontal: im Detail-Panel unter einem fertigen Render ── */
-export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
+export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest, onNeu }: {
   quelle: { cacheId: string; url: string };
   weltName: string;
   onBild: (url: string, cacheId: string | null) => void;
   onRest?: (n: number) => void;
+  onNeu?: (k: { url: string; cacheId: string | null; hex: string }) => void; // v83: neue Variante → Projekt
 }) {
   const [offen, setOffen] = useState(false);
   const [farben, setFarben] = useState<string[]>([]);
@@ -100,7 +101,9 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
     for (const hex of farben) {
       try {
         const d = await mitGeduld(() => postJson({ variante: { quelleCacheId: quelle.cacheId, zielHex: hex, art: 'variante', quelleUrl: /^https:/.test(quelle.url) ? quelle.url : undefined } }));
-        setze(hex, { status: 'fertig', url: anzeigeUrl(d.renderingUrl, d.cacheId), cacheId: d.cacheId || null, notiz: d.unveraendert ? 'schon in diesem Ton' : undefined });
+        const vUrl = anzeigeUrl(d.renderingUrl, d.cacheId);
+        setze(hex, { status: 'fertig', url: vUrl, cacheId: d.cacheId || null, notiz: d.unveraendert ? 'schon in diesem Ton' : undefined });
+        if (!d.unveraendert) onNeu?.({ url: vUrl, cacheId: d.cacheId || null, hex });
         if (typeof d.rendersRest === 'number') onRest?.(d.rendersRest);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Fehlgeschlagen';
@@ -115,12 +118,17 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
   };
 
   if (!offen) {
-    return <button type="button" className="knopf zweit li-start" onClick={() => setOffen(true)}>Als Linie weiterführen</button>;
+    return (
+      <button type="button" className="li-start" onClick={() => setOffen(true)}>
+        <span className="li-punkte" aria-hidden><i /><i /><i /></span>
+        <span><b>Farbvarianten</b><small>Gleiches Design, andere Akzentfarbe — z. B. für mehrere Sorten</small></span>
+      </button>
+    );
   }
   return (
     <div className="li">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="li-kopf"><b>Linie in {weltName}</b><span>Gleiches Teil, gleiche Welt — nur die Akzentfarbe wechselt. Wähle bis zu 4 Farben — jede zählt als ein Render.</span></div>
+      <div className="li-kopf"><b>Farbvarianten</b><span>Form, Verschluss und Design bleiben gleich — nur die Akzentfarbe wechselt. Bis zu 4 Farben, jede zählt als ein Render.</span><button type="button" className="li-zu" onClick={() => setOffen(false)} disabled={laeuft} aria-label="Schliessen">×</button></div>
       {/* v82.1 — ein Farbfeld statt Vorschlags-Chips (Alen: «verwirrend»). */}
       <div className="li-farben">
         <label className="li-wahl">
@@ -141,8 +149,8 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
       </button>
       {kacheln.length > 0 && (
         <RangeBoard kacheln={kacheln}
-          konstant={`Teil, Verschluss, Form und Finish · Welt ${weltName}`}
-          variabel="Akzentfarbe pro Sorte"
+          konstant={`Teil, Verschluss, Form und Design (${weltName})`}
+          variabel="Akzentfarbe"
           onBild={k => k.url && onBild(k.url, k.cacheId)} />
       )}
     </div>
@@ -152,13 +160,17 @@ export function LinieWeiterfuehren({ quelle, weltName, onBild, onRest }: {
 /* ── Vertikal: mehrere Teile, eine Welt (aus «Meine Linien») ── */
 export type LinienTeil = { id: string; name: string; imageUrl?: string | null };
 
-export function VertikaleLinie({ teile, projektName, waehleWelt, onClose }: {
+export function VertikaleLinie({ teile, projektName, waehleWelt, onClose, onDesign }: {
   teile: LinienTeil[];
   projektName: string;
   /* Rendert die Design-Wand; ruft onWahl mit der gewaehlten Welt. */
   waehleWelt: (onWahl: (w: { id: string; name: string }) => void, onAbbruch: () => void) => ReactNode;
   onClose: () => void;
+  /* v83: jedes fertige Teil der Linie landet im Projekt (eine Gruppe). */
+  onDesign?: (d: { id: string; url: string; systemId: string; teilName: string; weltName: string; hex?: string | null; gruppe: string }) => void;
 }) {
+  const [gruppe] = useState(() => 'ln_' + Date.now().toString(36));
+  const [gemeldet, setGemeldet] = useState(false);
   const [welt, setWelt] = useState<{ id: string; name: string } | null>(null);
   const [kacheln, setKacheln] = useState<LinienKachel[]>([]);
   const [lockHex, setLockHex] = useState<string | null>(null);
@@ -193,12 +205,12 @@ export function VertikaleLinie({ teile, projektName, waehleWelt, onClose }: {
     try { hex = (await mitGeduld(() => postJson({ farbe: { cacheId: ok[0].cid } }))).hex || null; } catch { hex = null; }
     setLockHex(hex);
     if (!hex) { setPhase('fertig'); return; }
-    setze(ok[0].t.id, { hex, notiz: 'Anker der Linie' });
+    setze(ok[0].t.id, { hex, notiz: 'gibt die Farbe vor' });
     for (const x of ok.slice(1)) {
       setze(x.t.id, { status: 'laeuft' });
       try {
         const d = await mitGeduld(() => postJson({ variante: { quelleCacheId: x.cid, zielHex: hex, art: 'angleichen', quelleUrl: x.falUrl } }));
-        setze(x.t.id, { status: 'fertig', url: anzeigeUrl(d.renderingUrl, d.cacheId), cacheId: d.cacheId || x.cid, hex, notiz: d.unveraendert ? 'passte schon' : 'angeglichen' });
+        setze(x.t.id, { status: 'fertig', url: anzeigeUrl(d.renderingUrl, d.cacheId), cacheId: d.cacheId || x.cid, hex, notiz: d.unveraendert ? 'passte schon' : 'Farbe abgestimmt' });
       } catch (e) {
         // Angleichen gescheitert: der normale Render bleibt stehen.
         setze(x.t.id, { status: 'fertig', notiz: `nicht angeglichen — ${e instanceof Error ? e.message : 'Fehler'}` });
@@ -207,6 +219,16 @@ export function VertikaleLinie({ teile, projektName, waehleWelt, onClose }: {
     setPhase('fertig');
   };
 
+  // Am Ende einmal alle fertigen Teile ins Projekt (auch ohne Angleichen).
+  useEffect(() => {
+    if (phase !== 'fertig' || gemeldet || !welt) return;
+    setGemeldet(true);
+    for (const k of kacheln) {
+      if (k.status === 'fertig' && k.url) onDesign?.({ id: k.cacheId || k.url, url: k.url, systemId: k.key, teilName: k.titel, weltName: welt.name, hex: k.hex || lockHex, gruppe });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   if (phase === 'wahl') return <>{waehleWelt(starten, onClose)}</>;
 
   return (
@@ -214,24 +236,34 @@ export function VertikaleLinie({ teile, projektName, waehleWelt, onClose }: {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="vl-karte" onClick={e => e.stopPropagation()}>
         <div className="vl-kopf">
-          <div><h3 className="serif">{projektName}</h3><p>{auswahl.length} Teile in {welt?.name}{teile.length > 6 ? ` (die ersten 6 von ${teile.length})` : ''}</p></div>
+          <div><h3 className="serif">{projektName}</h3><p>Linie · {auswahl.length} Teile in {welt?.name}{teile.length > 6 ? ` (die ersten 6 von ${teile.length})` : ''}</p></div>
           <button type="button" className="vl-zu" onClick={onClose} aria-label="Schliessen">×</button>
         </div>
         <p className="vl-status">
-          {phase === 'rendern' && 'Teile werden in der Welt gerendert …'}
-          {phase === 'angleichen' && 'Range-Lock: Farben werden auf eine Linie gezogen …'}
-          {phase === 'fertig' && 'Fertig — alle Renders liegen auch unter «Renders».'}
+          {phase === 'rendern' && 'Alle Teile werden im Design gezeigt …'}
+          {phase === 'angleichen' && 'Farben werden aufeinander abgestimmt …'}
+          {phase === 'fertig' && 'Fertig — gespeichert im Projekt unter «Designs».'}
         </p>
         <RangeBoard kacheln={kacheln}
-          konstant={`Welt ${welt?.name || ''}${lockHex ? ` · Akzentfarbe ${lockHex}` : ''} · Verschluss- und Deko-Regeln`}
+          konstant={`Design ${welt?.name || ''}${lockHex ? ` · Akzentfarbe ${lockHex}` : ''}`}
           variabel="Packmittel (Form, Grösse, Funktion)" />
+        {phase === 'fertig' && <button type="button" className="knopf haupt vl-fertig" onClick={onClose}>Zu den Designs</button>}
       </div>
     </div>
   );
 }
 
 const CSS = `
-.li-start{margin-top:10px}
+.li-start{display:flex;align-items:center;gap:12px;width:100%;margin-top:10px;padding:12px 14px;border:1px dashed var(--linie);border-radius:14px;text-align:left;transition:border-color .15s,background .15s}
+.li-start:hover{border-color:#c9c9c4;background:var(--nische)}
+.li-start b{display:block;font-size:14px;font-weight:600}
+.li-start small{display:block;color:var(--grau);font-size:12.5px;margin-top:1px}
+.li-punkte{display:flex;flex:none}
+.li-punkte i{width:16px;height:16px;border-radius:50%;border:2px solid var(--panel);margin-left:-5px}
+.li-punkte i:nth-child(1){background:#00AEEF;margin-left:0}.li-punkte i:nth-child(2){background:#F5B700}.li-punkte i:nth-child(3){background:#FF7F6E}
+.li-kopf{position:relative;padding-right:30px}
+.li-zu{position:absolute;top:-4px;right:-4px;width:28px;height:28px;border-radius:50%;font-size:18px;color:var(--hell)}
+.vl-fertig{margin-top:14px;width:100%}
 .li{margin-top:14px;border:1px solid var(--linie);border-radius:14px;padding:16px;background:var(--panel)}
 .li-kopf{display:flex;flex-direction:column;gap:3px;margin-bottom:12px;font-size:13.5px}
 .li-kopf span{color:var(--grau);font-size:12.5px;line-height:1.45}
