@@ -62,7 +62,9 @@ export type AnmeldeGrund = { scope: string; text: string };
    die Anfrage rausgeht. Der Server bleibt zweiter Riegel, wo sein
    Cookie greift. Bewusst unsigniert: eine freundliche Wand, kein Tresor. */
 const FREI_SUCHEN = 3;
-const FREI_RENDERS = 2;
+// ⚠️ TESTPHASE (28.10.2026): 500 — VOR GO-LIVE ZURUECK auf FREI_RENDERS 2 · RENDERS_PRO_MONAT 5
+const FREI_RENDERS = 500;
+const RENDERS_PRO_MONAT = 500;
 const FREI_KEY = 'ulba_frei';
 
 function freiLokal(): { s: number; r: number } {
@@ -103,7 +105,7 @@ export async function kontoFetch(url: string, init: RequestInit = {}): Promise<R
         { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
     if (istRender && f.r >= FREI_RENDERS) {
-      const text = `Deine ${FREI_RENDERS} kostenlosen Renders sind aufgebraucht — mit einem kostenlosen Konto hast du 5 Renders pro Monat.`;
+      const text = `Deine ${FREI_RENDERS} kostenlosen Renders sind aufgebraucht — mit einem kostenlosen Konto hast du ${RENDERS_PRO_MONAT} Renders pro Monat.`;
       zeigeWand('render', text);
       return new Response(JSON.stringify({ error: text, code: 'login_required', scope: 'render' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -233,7 +235,7 @@ function NavKontoClerk({ onKonto }: { onKonto?: (ziel: KontoZiel) => void }) {
   return (
     <div className="nav-konto">
       <div className="nk-t serif">Hol dir mehr aus ulba</div>
-      <p className="nk-s">Mit einem kostenlosen Konto behältst du Favoriten, Linien und Renders — und bekommst 5 Renders im Monat.</p>
+      <p className="nk-s">Mit einem kostenlosen Konto behältst du deine Projekte, Designs und Anfragen — und bekommst {RENDERS_PRO_MONAT} Renders im Monat.</p>
       {onKonto
         ? <>
             <button className="nk-haupt" onClick={e => { e.stopPropagation(); onKonto('registrieren'); }}>Kostenlos registrieren</button>
@@ -292,7 +294,7 @@ export function AnmeldeWand({ grund, onClose }: { grund: AnmeldeGrund; onClose: 
             <p className="konto-sub">{sub}</p>
             <ul className="konto-liste">
               <li>Unbegrenzt suchen</li>
-              <li>5 Renders pro Monat</li>
+              <li>{RENDERS_PRO_MONAT} Renders pro Monat</li>
               <li>Favoriten &amp; Projekte</li>
             </ul>
             <SignUp routing="virtual" />
