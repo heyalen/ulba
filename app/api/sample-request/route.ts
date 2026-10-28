@@ -28,6 +28,8 @@ async function airtableFetch(table: string, recordId: string): Promise<any> {
    endlos. Pro-Instanz-Zaehler reicht (kappt Dauerbeschuss, mehr nicht). */
 const OK_ORIGINS = new Set<string>([
   'https://ulba.vercel.app',
+  'https://ulba.ai',
+  'https://www.ulba.ai',
   'http://localhost:3000',
   ...String(process.env.ULBA_ORIGINS || '').split(',').map(o => o.trim()).filter(o => /^https?:\/\//.test(o)),
 ]);
