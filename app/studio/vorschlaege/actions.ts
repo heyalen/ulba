@@ -103,3 +103,19 @@ export async function rendernStarten(f: FormData) {
   await new Promise((z) => setTimeout(z, 1500));
   revalidatePath(pfad(id));
 }
+
+export async function teilen(f: FormData) {
+  const id = s(f, 'id');
+  const email = s(f, 'email').toLowerCase();
+  const sb = supabaseServer();
+  await sb.from('empfaenger').insert({ vorschlag_id: id, name: s(f, 'name').slice(0, 120) || null,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null, nachricht: s(f, 'nachricht').slice(0, 1000) || null });
+  await sb.from('vorschlaege').update({ status: 'geteilt' }).eq('id', id);
+  revalidatePath(pfad(id));
+}
+
+export async function widerrufen(f: FormData) {
+  const id = s(f, 'id'), e = s(f, 'empfaenger');
+  await supabaseServer().from('empfaenger').update({ widerrufen_am: new Date().toISOString() }).eq('id', e);
+  revalidatePath(pfad(id));
+}
