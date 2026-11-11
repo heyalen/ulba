@@ -33,7 +33,17 @@ export function supabaseAdmin() {
   });
 }
 
-export type Firma = { id: string; name: string; typ: string; domain: string | null; plan: string };
+/* Zeitlich begrenzte Bild-Links aus dem privaten Speicher (Bucket teile). */
+export async function bildLinks(pfade: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const liste = Array.from(new Set(pfade.filter((p): p is string => !!p)));
+  const out = new Map<string, string>();
+  if (!liste.length) return out;
+  const { data } = await supabaseServer().storage.from('teile').createSignedUrls(liste, 3600);
+  (data ?? []).forEach((d) => { if (d.path && d.signedUrl) out.set(d.path, d.signedUrl); });
+  return out;
+}
+
+export type Firma ={ id: string; name: string; typ: string; domain: string | null; plan: string };
 export type Kontext = { userId: string; email: string; firma: Firma | null; rolle: string | null };
 
 /* Wer ist angemeldet und zu welcher Firma gehört er? null = nicht angemeldet. */
