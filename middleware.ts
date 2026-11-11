@@ -18,7 +18,7 @@ const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 const TEASER_HOSTS = ['ulba.ai', 'www.ulba.ai'];
-const OFFEN = ['/bald', '/impressum', '/datenschutz', '/agb', '/api', '/auth'];
+const OFFEN = ['/bald', '/impressum', '/datenschutz', '/agb', '/api', '/auth', '/v'];  // /v = Vorschlagsseite für Marken (per Token)
 const NEU = ['/login', '/auth', '/start', '/studio'];
 const COOKIE = 'ulba_vorschau';
 
