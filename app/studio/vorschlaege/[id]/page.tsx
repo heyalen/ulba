@@ -1,9 +1,10 @@
 /* ulba · Design-Maske: Marke → Teile → Looks → Rendern (→ Teilen). */
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { bildLinks, supabaseServer } from '../../../../lib/supabase/server';
 import { Auffrischen } from '../../datenbank/auffrischen';
 import { MarkeFormular } from '../marke-formular';
-import { briefingSpeichern, capSetzen, lookUmschalten, rendernStarten, teilUmschalten, weltHinzufuegen } from '../actions';
+import { briefingSpeichern, capSetzen, lookUmschalten, rendernStarten, teilen, teilUmschalten, weltHinzufuegen, widerrufen } from '../actions';
 
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,13 @@ export default async function DesignMaske({ params }: { params: { id: string } }
     sb.from('renders').select('position_id, richtung_id, status, bild_pfad, log').eq('vorschlag_id', vor.id),
     sb.from('teil_verschluesse').select('teil_id, verschluss_id, teile:verschluss_id ( id, name )'),
   ]);
+  const { data: empf } = await sb.from('empfaenger').select('id, name, email, token, widerrufen_am, laeuft_ab_am, erstellt_am').eq('vorschlag_id', vor.id).order('erstellt_am', { ascending: false });
+  const empfIds = ((empf ?? []) as any[]).map((x) => x.id);
+  const { data: ev } = empfIds.length ? await sb.from('ereignisse').select('empfaenger_id, art').in('empfaenger_id', empfIds) : { data: [] as any[] };
+  const zaehl = (eid: string, art: string) => ((ev ?? []) as any[]).filter((x) => x.empfaenger_id === eid && x.art === art).length;
+  const h = headers();
+  const origin = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  const fertigeRenders = ((rend ?? []) as any[]).filter((r) => r.status === 'fertig').length;
   const T = (teile ?? []) as Teil[];
   const P = (pos ?? []) as any[];
   const R = (ri ?? []) as any[];
@@ -187,6 +195,35 @@ export default async function DesignMaske({ params }: { params: { id: string } }
               </div>
             );
           })}
+
+          <section className="st-box" style={{ maxWidth: 'none' }} aria-labelledby="teilen-titel">
+            <h2 id="teilen-titel" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Teilen</h2>
+            {fertigeRenders === 0 ? <p className="st-hilfe">Sobald Renders da sind, kannst du den Vorschlag hier als Link teilen.</p> : (
+              <>
+                <p className="st-hilfe">Jede Person bekommt einen eigenen Link — so siehst du, wer geöffnet und angefragt hat. Nur mit Link erreichbar, 90 Tage gültig, jederzeit widerrufbar.</p>
+                <form action={teilen} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                  <input type="hidden" name="id" value={vor.id} />
+                  <input name="name" placeholder="Name" aria-label="Name" style={{ minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 }} />
+                  <input name="email" type="email" placeholder="E-Mail (optional)" aria-label="E-Mail" style={{ minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 }} />
+                  <textarea name="nachricht" rows={2} placeholder="Persönliche Nachricht (erscheint oben im Vorschlag)" aria-label="Persönliche Nachricht" style={{ gridColumn: '1 / -1', padding: 12, border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                  <button className="st-btn" type="submit" style={{ justifySelf: 'start' }}>Link erstellen</button>
+                </form>
+                {((empf ?? []) as any[]).map((x) => (
+                  <div key={x.id} className="st-zeile" style={{ flexWrap: 'wrap', opacity: x.widerrufen_am ? 0.5 : 1 }}>
+                    <b style={{ fontWeight: 500 }}>{x.name || x.email || 'Empfänger'}</b>
+                    <span className="st-hilfe">{x.widerrufen_am ? 'widerrufen' : `${zaehl(x.id, 'geoeffnet')}× geöffnet · ${zaehl(x.id, 'muster_angefragt')} Muster angefragt`}</span>
+                    {!x.widerrufen_am && (
+                      <>
+                        <input readOnly value={`${origin}/v/${x.token}`} aria-label="Link" style={{ flexBasis: '100%', minHeight: 40, padding: '0 10px', border: '1px solid #DAD7D0', borderRadius: 9, fontSize: 13, background: '#F7F6F3' }} />
+                        <a href={`/v/${x.token}`} target="_blank" rel="noopener" style={{ fontSize: 13 }}>Ansehen ↗</a>
+                        <form action={widerrufen}><input type="hidden" name="id" value={vor.id} /><input type="hidden" name="empfaenger" value={x.id} /><button type="submit" className="st-abmelden" style={{ minHeight: 32 }}>Widerrufen</button></form>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
         </div>
       </div>
     </>
