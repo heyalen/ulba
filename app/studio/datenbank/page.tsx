@@ -28,6 +28,12 @@ export default async function Datenbank({ searchParams }: { searchParams: { ansi
   const status = ansicht === 'aktiv' ? 'aktiv' : 'in_pruefung';
   const teile = alle.filter((x) => x.status === status);
   const links = await bildLinks(teile.map((x) => x.bild_pfad ?? x.bild_roh_pfad));
+  const { data: tv } = await sb.from('teil_verschluesse').select('teil_id, verschluss_id');
+  const anzahl = new Map<string, number>();
+  ((tv ?? []) as { teil_id: string; verschluss_id: string }[]).forEach((p) => {
+    anzahl.set(p.teil_id, (anzahl.get(p.teil_id) ?? 0) + 1);
+    anzahl.set(p.verschluss_id, (anzahl.get(p.verschluss_id) ?? 0) + 1);
+  });
   const laeuft = quellen.some((x) => x.status === 'laeuft') || alle.some((x) => x.pipeline === 'neu' || x.pipeline === 'freigestellt');
 
   return (
@@ -87,6 +93,7 @@ export default async function Datenbank({ searchParams }: { searchParams: { ansi
                     <div className="st-karte-text">
                       <b>{x.name}</b>
                       <span className="st-hilfe">{[ROLLE[x.rolle], x.material, x.volumen_ml ? `${x.volumen_ml} ml` : null].filter(Boolean).join(' · ')}</span>
+                      {(anzahl.get(x.id) ?? 0) > 0 && <span className="st-hilfe">{x.rolle === 'verschluss' ? `passt auf ${anzahl.get(x.id)} Behälter` : `${anzahl.get(x.id)} passende Verschlüsse`}</span>}
                       {inArbeit && <span className="st-hilfe">Foto und Daten werden aufbereitet …</span>}
                       {x.pipeline === 'fehler' && <span className="st-warnung">{x.pipeline_log ?? 'Konnte nicht aufbereitet werden'}</span>}
                     </div>
