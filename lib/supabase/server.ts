@@ -34,11 +34,11 @@ export function supabaseAdmin() {
 }
 
 /* Zeitlich begrenzte Bild-Links aus dem privaten Speicher (Bucket teile). */
-export async function bildLinks(pfade: (string | null | undefined)[]): Promise<Map<string, string>> {
+export async function bildLinks(pfade: (string | null | undefined)[], bucket: 'teile' | 'renders' = 'teile'): Promise<Map<string, string>> {
   const liste = Array.from(new Set(pfade.filter((p): p is string => !!p)));
   const out = new Map<string, string>();
   if (!liste.length) return out;
-  const { data } = await supabaseServer().storage.from('teile').createSignedUrls(liste, 3600);
+  const { data } = await supabaseServer().storage.from(bucket).createSignedUrls(liste, 3600);
   (data ?? []).forEach((d) => { if (d.path && d.signedUrl) out.set(d.path, d.signedUrl); });
   return out;
 }
