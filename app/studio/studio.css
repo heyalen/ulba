@@ -1,0 +1,55 @@
+/* ulba · Studio (neues ulba) — ruhig, weiss, eine Akzentfarbe (Tinte). */
+.st { --tinte: #1A1A1A; --text2: #4A4A4A; --text3: #6B6B6B; --linie: #E7E5E0; --flaeche: #F7F6F3; --boden: #FBFAF8;
+  min-height: 100dvh; background: #FFFFFF; color: var(--tinte); }
+.st a { color: var(--tinte); }
+
+/* Knöpfe & Felder */
+.st-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border-radius: 10px; border: 1px solid var(--tinte); background: var(--tinte); color: #FFFFFF; font-size: 15px; font-weight: 500;
+  text-decoration: none; cursor: pointer; }
+.st-btn:disabled { background: #9C978E; border-color: #9C978E; cursor: not-allowed; }
+.st-btn--hell { background: #FFFFFF; color: var(--tinte); }
+.st-btn--voll { width: 100%; }
+.st-feld { display: flex; flex-direction: column; gap: 6px; }
+.st-feld label { font-size: 14px; font-weight: 500; }
+.st-feld input, .st-feld select { min-height: 46px; padding: 0 12px; font-size: 15px; border: 1px solid #DAD7D0; border-radius: 10px;
+  background: #FFFFFF; color: var(--tinte); }
+.st-feld input:focus, .st-feld select:focus { outline: 2px solid var(--tinte); outline-offset: 1px; }
+.st-hilfe { font-size: 13px; color: var(--text3); }
+.st-fehler { font-size: 14px; color: #A3261B; background: #FCEEEC; border-radius: 10px; padding: 10px 12px; }
+
+/* Eingangsseiten (Login, Firma anlegen) */
+.st-eingang { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 88px 16px 40px; position: relative; }
+.st-marke { position: absolute; top: 22px; left: 24px; font-weight: 800; font-size: 26px; letter-spacing: -.045em; text-decoration: none; line-height: 1; }
+.st-karte { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 18px; }
+.st-karte h1 { font-size: clamp(28px, 4vw, 36px); font-weight: 700; letter-spacing: -.03em; line-height: 1.12; }
+.st-karte p.st-sub { font-size: 16px; color: var(--text2); margin-top: -8px; }
+.st-recht { margin-top: 28px; font-size: 12.5px; color: var(--text3); }
+.st-recht a { color: inherit; }
+
+/* Arbeitsbereich */
+.st-kopf { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--linie); }
+.st-kopf .st-marke { position: static; font-size: 22px; }
+.st-firma { font-size: 14px; color: var(--text2); flex: 1 1 auto; }
+.st-abmelden { background: none; border: 0; font-size: 14px; color: var(--text2); min-height: 44px; padding: 0 10px; cursor: pointer; text-decoration: underline; }
+.st-koerper { display: flex; flex-wrap: wrap; min-height: calc(100dvh - 69px); }
+.st-nav { flex: 1 1 220px; max-width: 240px; border-right: 1px solid var(--linie); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+.st-nav a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 10px; text-decoration: none; font-size: 15px; color: var(--text2); }
+.st-nav a:hover { background: var(--flaeche); color: var(--tinte); }
+.st-nav a[aria-current='page'] { background: var(--flaeche); color: var(--tinte); font-weight: 600; }
+.st-inhalt { flex: 999 1 560px; min-width: 0; padding: 28px clamp(16px, 3vw, 40px) 48px; background: var(--boden); }
+.st-titelzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
+.st-titelzeile h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; flex: 1 1 auto; }
+.st-leer { border: 1px dashed #CFCBC3; border-radius: 16px; background: #FFFFFF; padding: 40px 24px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.st-leer h2 { font-size: 18px; font-weight: 600; }
+.st-leer p { font-size: 15px; color: var(--text2); max-width: 46ch; }
+.st-liste { display: flex; flex-direction: column; gap: 10px; }
+.st-zeile { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #FFFFFF; border: 1px solid var(--linie); border-radius: 12px; }
+.st-zeile b { font-weight: 600; flex: 1 1 auto; }
+.st-status { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #F2F1ED; color: var(--text2); }
+.st-box { background: #FFFFFF; border: 1px solid var(--linie); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+@media (max-width: 720px) {
+  .st-nav { max-width: none; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--linie); padding: 8px; }
+  .st-nav a { white-space: nowrap; }
+}
