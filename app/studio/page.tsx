@@ -1,4 +1,5 @@
 import { supabaseServer } from '../../lib/supabase/server';
+import { neuerVorschlag } from './vorschlaege/actions';
 
 type Zeile = { id: string; titel: string; status: string; aktualisiert_am: string; marken: { name: string } | null };
 const STATUS: Record<string, string> = { entwurf: 'Entwurf', geteilt: 'Geteilt', archiviert: 'Archiviert' };
@@ -15,7 +16,7 @@ export default async function Vorschlaege() {
     <>
       <div className="st-titelzeile">
         <h1>Vorschläge</h1>
-        <button className="st-btn" type="button" disabled title="Kommt im nächsten Schritt">Neuer Vorschlag</button>
+        <form action={neuerVorschlag}><button className="st-btn" type="submit">Neuer Vorschlag</button></form>
       </div>
       {liste.length === 0 ? (
         <div className="st-leer">
@@ -25,10 +26,10 @@ export default async function Vorschlaege() {
       ) : (
         <div className="st-liste">
           {liste.map((v) => (
-            <div className="st-zeile" key={v.id}>
-              <b>{v.titel}{v.marken ? ` · ${v.marken.name}` : ''}</b>
+            <a className="st-zeile" key={v.id} href={`/studio/vorschlaege/${v.id}`} style={{ textDecoration: 'none' }}>
+              <b>{v.titel}</b>
               <span className="st-status">{STATUS[v.status] ?? v.status}</span>
-            </div>
+            </a>
           ))}
         </div>
       )}
