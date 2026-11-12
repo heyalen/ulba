@@ -2,6 +2,7 @@
    oder Anlass: Teile, Designs, Link, Anfragen. Das offene Projekt steht im
    Cookie, damit Katalog und Projekt zusammenarbeiten. Nur Server-Code. */
 import 'server-only';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseServer } from './supabase/server';
@@ -10,10 +11,10 @@ export const PROJEKT_COOKIE = 'ulba_projekt';
 export const STANDARD_TITEL = 'Unbenanntes Projekt';
 export type ProjektKurz = { id: string; titel: string; marke: string | null };
 
-export async function ladeProjekte(): Promise<ProjektKurz[]> {
+export const ladeProjekte = cache(async (): Promise<ProjektKurz[]> => {
   const { data } = await supabaseServer().from('vorschlaege').select('id, titel, marken ( name )').neq('status', 'archiviert').order('aktualisiert_am', { ascending: false });
   return ((data ?? []) as unknown as { id: string; titel: string; marken: { name: string } | null }[]).map((p) => ({ id: p.id, titel: p.titel, marke: p.marken?.name ?? null }));
-}
+});
 
 export function aktivesProjektId(liste: ProjektKurz[]): string | null {
   const id = cookies().get(PROJEKT_COOKIE)?.value;
