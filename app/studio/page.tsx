@@ -1,63 +1,59 @@
-/* ulba · Studio — Start mit der Suche über die eigenen Teile.
-   Teil wählen → Verschluss oben wählen → im Design-Raum eine Welt setzen → rendern. */
+/* ulba · Studio-Start: alle Vorschläge. Ein Vorschlag = Raster aus Teilen × Design-Richtungen. */
+import Link from 'next/link';
 import { supabaseServer, bildLinks } from '../../lib/supabase/server';
-import { Werkbank, type WbTeil, type WbWelt } from './werkbank/werkbank';
-import { ladeProjekte, aktivesProjektId } from '../../lib/projekt';
-import './werkbank/werkbank.css';
-
-export const maxDuration = 60;
-
-type TeilZeile = { id: string; name: string; rolle: string; typ: string | null; material: string | null; volumen_ml: number | null; hals: string | null;
-  verschluss_art: string | null; kollektion: string | null; kurzbeschreibung: string | null; artikelnummer: string | null; mindestmenge: number | null;
-  deko_faehigkeiten: unknown; einfaerbbar: boolean | null; bild_pfad: string | null };
-
-const zahl = (v: unknown): number | null => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v));
+import { ladeProjekte } from '../../lib/projekt';
+import { neuesProjekt } from './projekte/actions';
 
 export default async function Studio() {
   const sb = supabaseServer();
-  const [projekte, { data: t }, { data: tv }, { data: w }] = await Promise.all([
-    ladeProjekte(),
-    sb.from('teile').select('id, name, rolle, typ, material, volumen_ml, hals, verschluss_art, kollektion, kurzbeschreibung, artikelnummer, mindestmenge, deko_faehigkeiten, einfaerbbar, bild_pfad')
-      .eq('status', 'aktiv').order('name'),
-    sb.from('teil_verschluesse').select('teil_id, verschluss_id'),
-    sb.from('design_welten').select('id, name, felder, bild_pfad').eq('aktiv', true),
-  ]);
-  const projektId = aktivesProjektId(projekte);
-  const zeilen = (t ?? []) as TeilZeile[];
-  const welten = (w ?? []) as { id: string; name: string; felder: Record<string, unknown>; bild_pfad: string | null }[];
-  // zweite und letzte Runde: alles Abhängige gleichzeitig
-  const [teilBilder, weltBilder, { data: pt }, { data: looks }] = await Promise.all([
-    bildLinks(zeilen.map((z) => z.bild_pfad)),
-    bildLinks(welten.map((x) => x.bild_pfad), 'welten'),
-    projektId ? sb.from('vorschlag_positionen').select('teil_id').eq('vorschlag_id', projektId).order('reihenfolge') : Promise.resolve({ data: [] }),
-    projektId ? sb.from('marken_looks').select('id, linie_name, design_komponenten, marken!inner ( name, vorschlaege!inner ( id ) )').eq('marken.vorschlaege.id', projektId) : Promise.resolve({ data: [] }),
-  ]);
+  const projekte = await ladeProjekte();
+  const ids = projekte.map((p) => p.id);
+  const [{ data: d }, { data: pos }] = ids.length ? await Promise.all([
+    sb.from('studio_renders').select('projekt_id, bild_pfad').in('projekt_id', ids).eq('status', 'fertig').order('erstellt_am', { ascending: false }).limit(400),
+    sb.from('vorschlag_positionen').select('vorschlag_id').in('vorschlag_id', ids),
+  ]) : [{ data: [] }, { data: [] }];
+  const bilder = new Map<string, string[]>();
+  for (const r of (d ?? []) as { projekt_id: string; bild_pfad: string }[]) { const l = bilder.get(r.projekt_id) ?? []; if (l.length < 3) bilder.set(r.projekt_id, [...l, r.bild_pfad]); }
+  const n = new Map<string, number>();
+  for (const r of (d ?? []) as { projekt_id: string }[]) n.set(r.projekt_id, (n.get(r.projekt_id) ?? 0) + 1);
+  const teile = new Map<string, number>();
+  for (const r of (pos ?? []) as { vorschlag_id: string }[]) teile.set(r.vorschlag_id, (teile.get(r.vorschlag_id) ?? 0) + 1);
+  const links = await bildLinks(Array.from(bilder.values()).flat(), 'renders');
 
-  const caps = new Map<string, string[]>();
-  for (const r of (tv ?? []) as { teil_id: string; verschluss_id: string }[]) caps.set(r.teil_id, [...(caps.get(r.teil_id) ?? []), r.verschluss_id]);
-
-  const teile: WbTeil[] = zeilen.map((z) => ({
-    id: z.id, name: z.name, rolle: z.rolle, typ: z.typ, material: z.material, volumen: z.volumen_ml, hals: z.hals, verschluss: z.verschluss_art,
-    kollektion: z.kollektion, beschreibung: z.kurzbeschreibung, artikelnummer: z.artikelnummer, mindestmenge: z.mindestmenge,
-    deko: Array.isArray(z.deko_faehigkeiten) ? (z.deko_faehigkeiten as unknown[]).map(String) : [], einfaerbbar: z.einfaerbbar,
-    bild: z.bild_pfad ? teilBilder.get(z.bild_pfad) ?? null : null, caps: caps.get(z.id) ?? [],
-  }));
-
-  const wl: WbWelt[] = [
-    ...welten.map((x) => ({
-      id: x.id, art: 'welt' as const, name: x.name, brand: String(x.felder.Brand ?? ''), bild: x.bild_pfad ? weltBilder.get(x.bild_pfad) ?? null : null,
-      register: x.felder.Register ? String(x.felder.Register) : null, laut: zahl(x.felder.Temp_Laut), farbtemp: zahl(x.felder.Farbtemp),
-      bodyHex: x.felder.Body_Hex ? String(x.felder.Body_Hex) : null, capHex: x.felder.Cap_Hex ? String(x.felder.Cap_Hex) : null,
-      wirkung: String(x.felder.Wirkung_Keywords ?? ''),
-    })),
-    ...((looks ?? []) as unknown as { id: string; linie_name: string; design_komponenten: Record<string, unknown>; marken: { name: string } | null }[]).map((l) => ({
-      id: l.id, art: 'look' as const, name: l.linie_name, brand: l.marken?.name ?? '', bild: null, register: null, laut: null, farbtemp: null,
-      bodyHex: l.design_komponenten?.Body_Hex ? String(l.design_komponenten.Body_Hex) : null,
-      capHex: l.design_komponenten?.Cap_Hex ? String(l.design_komponenten.Cap_Hex) : null,
-      wirkung: String(l.design_komponenten?.beschreibung ?? l.design_komponenten?.Wirkung_Keywords ?? ''),
-    })),
-  ];
-
-  const projektTeile = Array.from(new Set(((pt ?? []) as { teil_id: string }[]).map((x) => x.teil_id)));
-  return <Werkbank teile={teile} welten={wl} projekte={projekte.map((p) => ({ id: p.id, titel: p.titel }))} projektId={projektId} projektTeile={projektTeile} />;
+  return (
+    <>
+      <div className="st-titelzeile">
+        <h1>Vorschläge</h1>
+        <form action={neuesProjekt}><button className="st-btn" type="submit">+ Neuer Vorschlag</button></form>
+      </div>
+      {projekte.length === 0 ? (
+        <div className="pj-leer">
+          <h2>Dein erster Vorschlag</h2>
+          <p>Wähl Teile aus deinem Katalog und eine oder mehrere Design-Richtungen — zum Beispiel «K-Beauty pastell» oder «Männer minimal». ulba rendert jede Kombination und du teilst alles mit einem Link.</p>
+          <form action={neuesProjekt}><button className="st-btn" type="submit">Vorschlag starten</button></form>
+        </div>
+      ) : (
+        <div className="pj-raster" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+          {projekte.map((p) => {
+            const b = (bilder.get(p.id) ?? []).map((x) => links.get(x)).filter(Boolean) as string[];
+            return (
+              <Link key={p.id} href={`/studio/p/${p.id}`} className="pj-karte" style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div className="pj-bild" style={{ aspectRatio: '4 / 3', display: 'grid', gridTemplateColumns: b.length > 1 ? '2fr 1fr' : '1fr', gap: 4, padding: b.length ? 6 : 10 }}>
+                  {b.length === 0 ? <span className="st-hilfe" style={{ alignSelf: 'center', justifySelf: 'center' }}>Noch keine Designs</span> : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={b[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', gridRow: b.length > 1 ? 'span 2' : undefined }} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {b.slice(1).map((x, i) => <img key={i} src={x} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />)}
+                    </>
+                  )}
+                </div>
+                <figcaption><b>{p.titel}</b><span>{teile.get(p.id) ?? 0} Teile · {n.get(p.id) ?? 0} Designs</span></figcaption>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
 }
