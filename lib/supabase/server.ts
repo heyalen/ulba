@@ -55,8 +55,11 @@ export type Kontext = { userId: string; email: string; firma: Firma | null; roll
 /* Wer ist angemeldet und zu welcher Firma gehört er? null = nicht angemeldet. */
 export const ladeKontext = cache(async (): Promise<Kontext | null> => {
   const sb = supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
+  // Token lokal prüfen (Middleware hat es bereits aufgefrischt) — kein Extra-Aufruf an Supabase Auth
+  const { data: c } = await sb.auth.getClaims();
+  const claims = c?.claims as { sub?: string; email?: string } | undefined;
+  if (!claims?.sub) return null;
+  const user = { id: claims.sub, email: claims.email };
   const { data } = await sb
     .from('mitglieder')
     .select('rolle, firmen ( id, name, typ, domain, plan )')
