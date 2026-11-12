@@ -9,11 +9,12 @@ import { supabaseServer } from './supabase/server';
 
 export const PROJEKT_COOKIE = 'ulba_projekt';
 export const STANDARD_TITEL = 'Neuer Vorschlag';
-export type ProjektKurz = { id: string; titel: string; marke: string | null };
+export type ProjektKurz = { id: string; titel: string; marke: string | null; teile: number };
 
 export const ladeProjekte = cache(async (): Promise<ProjektKurz[]> => {
-  const { data } = await supabaseServer().from('vorschlaege').select('id, titel, marken ( name )').neq('status', 'archiviert').order('aktualisiert_am', { ascending: false });
-  return ((data ?? []) as unknown as { id: string; titel: string; marken: { name: string } | null }[]).map((p) => ({ id: p.id, titel: p.titel, marke: p.marken?.name ?? null }));
+  const { data } = await supabaseServer().from('vorschlaege').select('id, titel, marken ( name ), vorschlag_positionen ( count )').neq('status', 'archiviert').order('aktualisiert_am', { ascending: false });
+  return ((data ?? []) as unknown as { id: string; titel: string; marken: { name: string } | null; vorschlag_positionen: { count: number }[] }[])
+    .map((p) => ({ id: p.id, titel: p.titel, marke: p.marken?.name ?? null, teile: p.vorschlag_positionen?.[0]?.count ?? 0 }));
 });
 
 export function aktivesProjektId(liste: ProjektKurz[]): string | null {
