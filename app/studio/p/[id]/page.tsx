@@ -8,7 +8,7 @@ import { linkErstellen, linkWiderrufen, archivieren } from '../../projekte/actio
 import { RasterDaten, type SpalteRoh } from './raster-daten';
 import { AktivSetzen, TitelFeld, KopierFeld } from './felder';
 
-export const maxDuration = 90;
+export const maxDuration = 150;
 
 const REITER = [['raster', 'Designs'], ['teilen', 'Teilen'], ['anfragen', 'Anfragen']] as const;
 const feld = { minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 } as const;
