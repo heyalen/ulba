@@ -129,3 +129,42 @@
   .rz-zk-weg{opacity:1}
   .rz-gross-box{max-width:100vw;max-height:100dvh;border-radius:0;height:100dvh}
 }
+
+/* ── v2: feste Spalten, klarer Verschluss, sichtbares Entfernen ── */
+.rz-kopf-weg{position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%!important;background:rgba(255,255,255,.92)!important;color:var(--grau)!important;font-size:15px!important;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.rz-kopf-weg:hover{color:var(--tinte)!important}
+.rz-zeilenkopf{flex-direction:column;align-items:stretch;gap:10px}
+.rz-zk-oben{display:flex;gap:10px;align-items:flex-start;position:relative;padding-right:22px}
+.rz-zk-weg{opacity:1!important;top:-2px;right:-4px;color:var(--hell)!important}
+.rz-zk-weg:hover{color:#9A3B2E!important;background:var(--nische)!important}
+.rz-cap-knopf{display:flex!important;align-items:center;gap:9px;width:100%;margin:0!important;padding:6px 10px 6px 6px!important;border-radius:11px!important;text-align:left;background:var(--buehne)!important;border:1px solid transparent!important}
+.rz-cap-knopf:hover{border-color:var(--linie)!important;background:#fff!important}
+.rz-cap-bild{width:40px;height:40px;flex:none;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.rz-cap-bild img{width:auto!important;height:auto!important;max-width:90%;max-height:90%;object-fit:contain;mix-blend-mode:multiply;background:none!important}
+.rz-cap-bild i{font-style:normal;color:var(--hell)}
+.rz-cap-text{display:flex;flex-direction:column;min-width:0;flex:1}
+.rz-cap-text small{font-size:10.5px;color:var(--hell)}
+.rz-cap-text span{font-size:12.5px;color:var(--tinte);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rz-cap-pfeil{color:var(--hell);font-size:11px}
+.rz-cap-keine{font-size:11.5px;color:var(--hell)}
+.rz-cap-menue{width:380px;padding:14px}
+.rz-cap-menue-kopf{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.rz-cap-menue-kopf b{font-size:14px}
+.rz-cap-raster{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:360px;overflow-y:auto}
+.rz-cap-karte{display:flex!important;flex-direction:column;align-items:stretch;text-align:left;gap:2px;border:1.5px solid var(--linie)!important;border-radius:11px!important;padding:6px!important;background:#fff!important}
+.rz-cap-karte:hover{border-color:var(--hell)!important}
+.rz-cap-karte.an{border-color:var(--tinte)!important}
+.rz-ck-bild{height:70px;border-radius:8px;background:var(--buehne);display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.rz-ck-bild img{max-width:80%;max-height:88%;object-fit:contain;mix-blend-mode:multiply}
+.rz-ck-bild i{font-style:normal;font-size:12px;color:var(--hell)}
+.rz-cap-karte b{font-size:11.5px;font-weight:600;line-height:1.25}
+.rz-cap-karte span:last-child{font-size:10.5px;color:var(--hell);line-height:1.3}
+/* Vorschau: Verschluss oben, Tönung nur auf dem Körper */
+.rz-vorschau{inset:14px 14px 52px!important;flex-direction:column;opacity:.6}
+.rz-v-cap{height:22%;width:auto;max-width:60%;object-fit:contain;mix-blend-mode:multiply;margin-bottom:-2%}
+.rz-v-body{position:relative;display:inline-block;height:74%;isolation:isolate}
+.rz-v-body img{height:100%;width:auto;max-width:none;display:block;mix-blend-mode:multiply}
+.rz-v-body i{position:absolute;inset:0;mix-blend-mode:color;pointer-events:none}
+.rz-vorschau>i{display:none}
+.rz-zelle.vorschau{background:var(--buehne)}
+@media(max-width:820px){.rz-cap-menue{width:min(380px,calc(100vw - 40px))}}
