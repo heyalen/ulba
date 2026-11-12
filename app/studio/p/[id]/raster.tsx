@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DesignWand } from '../../werkbank/designwand';
+import { Kalibrierung } from './kalibrier';
 import type { WbWelt } from '../../werkbank/werkbank';
 import { CHIPS, type Chip } from '../../../../lib/richtung';
 import {
@@ -206,6 +207,8 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
   const [richtungOffen, setRichtungOffen] = useState(false);
   const [wandOffen, setWandOffen] = useState(false);
   const [capOffen, setCapOffen] = useState<string | null>(null);
+  const [sitz, setSitz] = useState<{ teilId: string; capId: string } | null>(null);
+  const [meldung, setMeldung] = useState('');
   const [gross, setGross] = useState<string | null>(null);
   const [fehler, setFehler] = useState('');
   const [startet, setStartet] = useState(false);
@@ -294,6 +297,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
                         <span aria-hidden className="rz-cap-pfeil">▾</span>
                       </button>
                     ) : <span className="rz-cap-keine">Kein passender Verschluss hinterlegt</span>}
+                    {cap?.bild && t?.bild && <button className="rz-sitz" onClick={() => setSitz({ teilId: z.teilId, capId: cap.id })}>Sitz des Verschlusses anpassen</button>}
                     {capOffen === z.id && (
                       <div className="rz-cap-menue" role="dialog" aria-label="Verschluss wählen">
                         <div className="rz-cap-menue-kopf"><b>Verschluss für {t?.name}</b><button className="pn-zu" onClick={() => setCapOffen(null)} aria-label="Schliessen">×</button></div>
@@ -354,6 +358,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
               <div><b>{teilVon.get(grossX.z.teilId)?.name}</b><span>{grossX.s.richtung.name}</span></div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="knopf zweit wb-klein" onClick={() => { const x = grossX; setGross(null); rendern([{ z: x.z, s: x.s }]); }}>Neu rendern</button>
+                {grossX.z.capId && teilVon.get(grossX.z.capId)?.bild && <button className="knopf zweit wb-klein" onClick={() => { setSitz({ teilId: grossX.z.teilId, capId: grossX.z.capId! }); setGross(null); }}>Verschluss anpassen</button>}
                 <button className="knopf zweit wb-klein" onClick={async () => { const id = grossX.c!.id; setGross(null); await zelleEntfernen(vid, id); router.refresh(); }}>Entfernen</button>
                 <a className="knopf zweit wb-klein wb-a" href={grossX.c!.bild!} download target="_blank" rel="noopener">Herunterladen</a>
               </div>
@@ -369,6 +374,12 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
         </div>
       )}
 
+      {sitz && teilVon.get(sitz.teilId)?.bild && teilVon.get(sitz.capId)?.bild && (
+        <Kalibrierung vid={vid} teilId={sitz.teilId} capId={sitz.capId} bodyUrl={teilVon.get(sitz.teilId)!.bild!} capUrl={teilVon.get(sitz.capId)!.bild!}
+          titel={`${teilVon.get(sitz.teilId)!.name} + ${teilVon.get(sitz.capId)!.name}`} onZu={() => setSitz(null)}
+          onGespeichert={(n) => { setSitz(null); setMeldung(n ? `Gespeichert · ${n} ${n === 1 ? 'Design' : 'Designs'} neu zusammengesetzt` : 'Gespeichert · gilt für alle neuen Designs'); setTimeout(() => setMeldung(''), 5000); router.refresh(); }} />
+      )}
+      {meldung && <div className="rz-toast" role="status">{meldung}</div>}
       {teilOffen && <TeilSchublade teile={teile} imRaster={new Set(zeilen.map((z) => z.teilId))} onClose={() => setTeilOffen(false)}
         onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); router.refresh(); }} />}
       {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} onClose={() => setRichtungOffen(false)}
