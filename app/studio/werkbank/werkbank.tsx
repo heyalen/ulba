@@ -6,7 +6,11 @@
    mit einem Klick als Vorschlag teilen. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DesignWand } from './designwand';
-import { rendernStarten, renderStand, teilDesigns, alsVorschlag, type RenderStand } from './actions';
+import { useRouter } from 'next/navigation';
+import { rendernStarten, renderStand, teilDesigns, type RenderStand } from './actions';
+import { teilUmschalten, projektWaehlen, projektAnlegen } from '../projekte/actions';
+
+export type WbProjekt = { id: string; titel: string };
 
 export type WbTeil = {
   id: string; name: string; rolle: string; typ: string | null; material: string | null; volumen: number | null; hals: string | null;
@@ -79,9 +83,10 @@ function useRenders() {
   return { stand, merken };
 }
 
-function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onClose, renders }: {
+function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onClose, renders, projektId, onProjekt }: {
   teil: WbTeil; alle: Map<string, WbTeil>; welten: WbWelt[]; capWahl: number; onCap: (i: number) => void;
   inLinie: boolean; onLinie: () => void; onClose: () => void; renders: ReturnType<typeof useRenders>;
+  projektId: string | null; onProjekt: (id: string) => void;
 }) {
   const caps = teil.caps.map((id) => alle.get(id)).filter((c): c is WbTeil => !!c);
   const capIdx = Math.min(capWahl, Math.max(0, caps.length - 1));
@@ -92,7 +97,6 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
   const [frueher, setFrueher] = useState<RenderStand[]>([]);
   const [farben, setFarben] = useState<string[]>([]);
   const [varIds, setVarIds] = useState<string[]>([]);
-  const [teilenLaeuft, setTeilenLaeuft] = useState(false);
 
   useEffect(() => { setAktivId(null); setFehler(''); setFarben([]); setVarIds([]); }, [teil.id]);
   useEffect(() => { let tot = false; teilDesigns(teil.id).then((d) => { if (!tot) setFrueher(d); }).catch(() => {}); return () => { tot = true; }; }, [teil.id]);
@@ -105,8 +109,9 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
 
   const rendern = async (w: WbWelt) => {
     setWandOffen(false); setFehler(''); setFarben([]); setVarIds([]);
-    const r = await rendernStarten([{ teilId: teil.id, capId: cap?.id ?? null, weltArt: w.art, weltId: w.id, weltName: w.name }]);
+    const r = await rendernStarten([{ teilId: teil.id, capId: cap?.id ?? null, weltArt: w.art, weltId: w.id, weltName: w.name }], null, projektId);
     if (r.fehler || !r.ids) { setFehler(r.fehler || 'Das Rendern konnte nicht gestartet werden.'); return; }
+    if (r.projektId && r.projektId !== projektId) onProjekt(r.projektId);
     renders.merken([{ id: r.ids[0], teilId: teil.id, capId: cap?.id ?? null, weltArt: w.art, weltId: w.id, weltName: w.name, hex: null, gruppe: null, status: 'laeuft', log: null, bild: null }]);
     setAktivId(r.ids[0]);
   };
@@ -114,19 +119,12 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
   const variantenRendern = async () => {
     if (!aktiv || !farben.length) return;
     const gruppe = `fv_${aktiv.id}`;
-    const r = await rendernStarten(farben.map((hex) => ({ teilId: teil.id, capId: aktiv.capId, weltArt: aktiv.weltArt, weltId: aktiv.weltId, weltName: aktiv.weltName, hex })), gruppe);
+    const r = await rendernStarten(farben.map((hex) => ({ teilId: teil.id, capId: aktiv.capId, weltArt: aktiv.weltArt, weltId: aktiv.weltId, weltName: aktiv.weltName, hex })), gruppe, projektId);
     if (r.fehler || !r.ids) { setFehler(r.fehler || 'Die Varianten konnten nicht gestartet werden.'); return; }
     renders.merken(r.ids.map((id, i) => ({ id, teilId: teil.id, capId: aktiv.capId, weltArt: aktiv.weltArt, weltId: aktiv.weltId, weltName: aktiv.weltName, hex: farben[i], gruppe, status: 'laeuft', log: null, bild: null })));
     setVarIds(r.ids); setFarben([]);
   };
   const varianten = varIds.map((id) => renders.stand[id]).filter(Boolean);
-
-  const teilen = async () => {
-    if (!aktiv) return;
-    setTeilenLaeuft(true);
-    await alsVorschlag([aktiv.id, ...varianten.filter((v) => v.status === 'fertig').map((v) => v.id)], `${teil.name} · ${aktiv.weltName}`);
-    setTeilenLaeuft(false);
-  };
 
   const zeilen = ([
     ['Typ', teil.typ], ['Material', teil.material], ['Volumen', teil.volumen ? `${teil.volumen} ml` : null], ['Halsmaß', teil.hals],
@@ -140,7 +138,7 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
         <div className="pn-werkzeuge">
           {!istVerschluss(teil) && (
             <button className={`wz${inLinie ? ' an' : ''}`} onClick={onLinie} aria-pressed={inLinie}>
-              <span aria-hidden>{inLinie ? '✓' : '+'}</span><span>{inLinie ? 'In der Linie' : 'Zur Linie'}</span>
+              <span aria-hidden>{inLinie ? '✓' : '+'}</span><span>{inLinie ? 'Im Projekt' : 'Ins Projekt'}</span>
             </button>
           )}
           <button className="wz wz-rund" onClick={onClose} aria-label="Schließen">×</button>
@@ -229,9 +227,10 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
         {zeilen.length > 0 && <dl className="pn-fakten">{zeilen.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>}
       </div>
       <div className="pn-aktion">
-        <button className={`knopf ${zeigt ? 'haupt' : 'zweit'}`} disabled={!zeigt || teilenLaeuft} onClick={teilen}>
-          {teilenLaeuft ? 'Vorschlag wird erstellt …' : 'Als Vorschlag teilen'}
-        </button>
+        {projektId && zeigt
+          ? <a className="knopf haupt wb-a" href={`/studio/p/${projektId}?tab=teilen`}>Teilen</a>
+          : <button className="knopf zweit" disabled>Teilen</button>}
+        {projektId && zeigt && <a className="wb-projekt-link" href={`/studio/p/${projektId}`}>Im Projekt ansehen</a>}
       </div>
       {wandOffen && <DesignWand welten={welten} onWahl={rendern} onClose={() => setWandOffen(false)} />}
     </aside>
@@ -239,11 +238,10 @@ function DetailPanel({ teil, alle, welten, capWahl, onCap, inLinie, onLinie, onC
 }
 
 /* Vertikale Linie: mehrere Teile, eine Welt. */
-function LinieErgebnis({ ids, renders, alle, onClose }: { ids: string[]; renders: ReturnType<typeof useRenders>; alle: Map<string, WbTeil>; onClose: () => void }) {
+function LinieErgebnis({ ids, renders, alle, projektId, onClose }: { ids: string[]; renders: ReturnType<typeof useRenders>; alle: Map<string, WbTeil>; projektId: string | null; onClose: () => void }) {
   const liste = ids.map((id) => renders.stand[id]).filter(Boolean);
   const welt = liste[0]?.weltName || '';
   const fertig = liste.filter((r) => r.status === 'fertig');
-  const [laeuft, setLaeuft] = useState(false);
   return (
     <div className="dw-ov" role="dialog" aria-label="Linie" onClick={onClose}>
       <div className="dw-box wb-linie-box" onClick={(e) => e.stopPropagation()}>
@@ -262,22 +260,26 @@ function LinieErgebnis({ ids, renders, alle, onClose }: { ids: string[]; renders
           </div>
         </div>
         <div className="pn-aktion">
-          <button className="knopf haupt" disabled={!fertig.length || laeuft} onClick={async () => { setLaeuft(true); await alsVorschlag(fertig.map((r) => r.id), `Linie · ${welt}`); setLaeuft(false); }}>
-            {laeuft ? 'Vorschlag wird erstellt …' : 'Als Vorschlag teilen'}
-          </button>
+          {projektId && <a className="knopf zweit wb-a" href={`/studio/p/${projektId}`}>Im Projekt ansehen</a>}
+          {projektId && fertig.length > 0 && <a className="knopf haupt wb-a" href={`/studio/p/${projektId}?tab=teilen`}>Teilen</a>}
         </div>
       </div>
     </div>
   );
 }
 
-export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] }) {
+export function Werkbank({ teile, welten, projekte, projektId: startProjekt, projektTeile }: { teile: WbTeil[]; welten: WbWelt[]; projekte: WbProjekt[]; projektId: string | null; projektTeile: string[] }) {
+  const router = useRouter();
   const alle = useMemo(() => new Map(teile.map((t) => [t.id, t])), [teile]);
+  const [projektId, setProjektId] = useState<string | null>(startProjekt);
+  useEffect(() => { setProjektId(startProjekt); }, [startProjekt]);
+  const projekt = projekte.find((p) => p.id === projektId) || null;
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<string>('alle');
   const [selId, setSelId] = useState<string | null>(null);
   const [capWahl, setCapWahl] = useState<Record<string, number>>({});
-  const [linie, setLinie] = useState<string[]>([]);
+  const [linie, setLinie] = useState<string[]>(projektTeile);
+  useEffect(() => { setLinie(projektTeile); }, [projektTeile]);
   const [linieWand, setLinieWand] = useState(false);
   const [linieIds, setLinieIds] = useState<string[] | null>(null);
   const [linieFehler, setLinieFehler] = useState('');
@@ -296,7 +298,18 @@ export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] 
   }, [teile, q, filter]);
   const sel = selId ? alle.get(selId) || null : null;
 
-  const linieUmschalten = (id: string) => setLinie((l) => (l.includes(id) ? l.filter((x) => x !== id) : l.length >= 8 ? l : [...l, id]));
+  const projektNeu = (id: string) => { setProjektId(id); router.refresh(); };
+  const linieUmschalten = async (id: string) => {
+    setLinie((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
+    let pid = projektId;
+    if (!pid) { pid = await projektAnlegen(); if (!pid) return; setProjektId(pid); }
+    await teilUmschalten(pid, id);
+    router.refresh();
+  };
+  const projektWechsel = async (wert: string) => {
+    if (wert === '__neu') { const id = await projektAnlegen(); if (id) projektNeu(id); return; }
+    setProjektId(wert); await projektWaehlen(wert); router.refresh();
+  };
   const linieRendern = async (w: WbWelt) => {
     setLinieWand(false); setLinieFehler('');
     const gruppe = `vl_${neueId()}`;
@@ -305,8 +318,9 @@ export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] 
       const capId = t.caps[Math.min(capWahl[id] ?? 0, Math.max(0, t.caps.length - 1))] ?? null;
       return { teilId: id, capId, weltArt: w.art, weltId: w.id, weltName: w.name };
     });
-    const r = await rendernStarten(auftraege, gruppe);
+    const r = await rendernStarten(auftraege.slice(0, 12), gruppe, projektId);
     if (r.fehler || !r.ids) { setLinieFehler(r.fehler || 'Die Linie konnte nicht gestartet werden.'); return; }
+    if (r.projektId && r.projektId !== projektId) projektNeu(r.projektId);
     renders.merken(r.ids.map((id, i) => ({ id, teilId: auftraege[i].teilId, capId: auftraege[i].capId, weltArt: w.art, weltId: w.id, weltName: w.name, hex: null, gruppe, status: 'laeuft', log: null, bild: null })));
     setLinieIds(r.ids);
   };
@@ -314,6 +328,15 @@ export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] 
   return (
     <div className={`wb${sel ? ' mit-panel' : ''}`}>
       <section className="wb-suche">
+        <div className="wb-projektzeile">
+          <span className="wb-projekt-lbl">Projekt</span>
+          <select value={projektId ?? ''} onChange={(e) => projektWechsel(e.target.value)} aria-label="Offenes Projekt">
+            {!projektId && <option value="">— noch keins, entsteht beim ersten Design —</option>}
+            {projekte.map((p) => <option key={p.id} value={p.id}>{p.titel}</option>)}
+            <option value="__neu">+ Neues Projekt</option>
+          </select>
+          {projekt && <a className="wb-projekt-link" href={`/studio/p/${projekt.id}`}>Öffnen →</a>}
+        </div>
         <div className="wb-suchzeile">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suche in deinen Teilen — Name, Typ, Material, Volumen …" aria-label="Teile suchen" autoFocus />
         </div>
@@ -334,7 +357,7 @@ export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] 
               return (
                 <div key={t.id} className={`ek${selId === t.id ? ' an' : ''}`}>
                   {!istVerschluss(t) && (
-                    <button className={`favherz${inL ? ' an' : ''}`} onClick={() => linieUmschalten(t.id)} aria-label={inL ? 'Aus der Linie entfernen' : 'Zur Linie hinzufügen'} title={inL ? 'In der Linie' : 'Zur Linie'}>{inL ? '✓' : '+'}</button>
+                    <button className={`favherz${inL ? ' an' : ''}`} onClick={() => linieUmschalten(t.id)} aria-label={inL ? 'Aus dem Projekt nehmen' : 'Ins Projekt legen'} title={inL ? 'Im Projekt' : 'Ins Projekt'}>{inL ? '✓' : '+'}</button>
                   )}
                   <button className="ek-klick" onClick={() => setSelId(t.id)}>
                     <div className="ek-bild">{t.bild ? <img src={t.bild} alt={t.name} loading="lazy" /> : <span className="ek-ph">◇</span>}</div>
@@ -354,24 +377,24 @@ export function Werkbank({ teile, welten }: { teile: WbTeil[]; welten: WbWelt[] 
       {sel && (
         <DetailPanel key={sel.id} teil={sel} alle={alle} welten={welten} capWahl={capWahl[sel.id] ?? 0}
           onCap={(i) => setCapWahl((c) => ({ ...c, [sel.id]: i }))} inLinie={linie.includes(sel.id)} onLinie={() => linieUmschalten(sel.id)}
-          onClose={() => setSelId(null)} renders={renders} />
+          onClose={() => setSelId(null)} renders={renders} projektId={projektId} onProjekt={projektNeu} />
       )}
 
       {linie.length > 0 && (
         <div className="wb-linie" role="region" aria-label="Linie">
-          <span className="wb-linie-lbl">Linie</span>
+          <span className="wb-linie-lbl">{projekt ? projekt.titel : 'Projekt'}</span>
           <div className="wb-linie-teile">
             {linie.map((id) => { const t = alle.get(id); return t ? (
               <button key={id} className="wb-linie-t" onClick={() => linieUmschalten(id)} title={`${t.name} entfernen`}>{t.bild ? <img src={t.bild} alt={t.name} /> : t.name.slice(0, 2)}<i>×</i></button>
             ) : null; })}
           </div>
           {linieFehler && <span className="pn-fehler">{linieFehler}</span>}
-          <button className="knopf haupt" onClick={() => setLinieWand(true)} disabled={linie.length < 2}>{linie.length < 2 ? 'Mindestens 2 Teile' : `${linie.length} Teile in einer Welt rendern`}</button>
-          <button className="wb-linie-leeren" onClick={() => setLinie([])}>Leeren</button>
+          <button className="knopf haupt" onClick={() => setLinieWand(true)} disabled={linie.length < 2} title={linie.length < 2 ? 'Leg mindestens 2 Teile ins Projekt' : undefined}>{linie.length < 2 ? 'Linie: ab 2 Teilen' : `Als Linie rendern · ${Math.min(linie.length, 12)} Teile`}</button>
+          {projekt && <a className="wb-linie-leeren" href={`/studio/p/${projekt.id}`}>Projekt öffnen</a>}
         </div>
       )}
       {linieWand && <DesignWand welten={welten} titel="In welcher Welt soll die Linie stehen?" onWahl={linieRendern} onClose={() => setLinieWand(false)} />}
-      {linieIds && <LinieErgebnis ids={linieIds} renders={renders} alle={alle} onClose={() => setLinieIds(null)} />}
+      {linieIds && <LinieErgebnis ids={linieIds} renders={renders} alle={alle} projektId={projektId} onClose={() => setLinieIds(null)} />}
     </div>
   );
 }
