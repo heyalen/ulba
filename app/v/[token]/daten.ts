@@ -27,7 +27,7 @@ export async function ladeAnsicht(e: { id: string; vorschlag_id: string; name: s
   const { data: v } = await sb.from('vorschlaege').select('id, titel, firma_id, firmen ( name ), marken ( name )').eq('id', e.vorschlag_id).single();
   if (!v) return null;
   const [{ data: ri }, { data: pos }, { data: rend }] = await Promise.all([
-    sb.from('vorschlag_richtungen').select('id, reihenfolge, marken_looks ( linie_name, design_komponenten )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
+    sb.from('vorschlag_richtungen').select('id, reihenfolge, marken_looks ( linie_name, design_komponenten ), design_welten ( name, felder )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
     sb.from('vorschlag_positionen').select('id, reihenfolge, teil_id, teile:teil_id ( name, material, volumen_ml, mindestmenge, deko_faehigkeiten )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
     sb.from('renders').select('position_id, richtung_id, bild_pfad').eq('vorschlag_id', e.vorschlag_id).eq('status', 'fertig'),
   ]);
@@ -40,7 +40,7 @@ export async function ladeAnsicht(e: { id: string; vorschlag_id: string; name: s
   const vv = v as any;
   return {
     lieferant: vv.firmen?.name ?? 'Lieferant', marke: vv.marken?.name ?? null, titel: vv.titel, nachricht: e.nachricht, empfaengerName: e.name,
-    looks: ((ri ?? []) as any[]).map((r) => ({ id: r.id, name: r.marken_looks?.linie_name ?? 'Look', beschreibung: r.marken_looks?.design_komponenten?.beschreibung ?? '' })),
+    looks: ((ri ?? []) as any[]).map((r) => ({ id: r.id, name: r.marken_looks?.linie_name ?? r.design_welten?.name ?? 'Look', beschreibung: r.marken_looks?.design_komponenten?.beschreibung ?? r.design_welten?.felder?.Wirkung_Keywords ?? '' })),
     teile: ((pos ?? []) as any[]).map((p) => ({
       posId: p.id, teilId: p.teil_id, name: p.teile?.name ?? 'Teil', material: p.teile?.material ?? null, volumen: p.teile?.volumen_ml ?? null,
       mindestmenge: p.teile?.mindestmenge ?? null,
