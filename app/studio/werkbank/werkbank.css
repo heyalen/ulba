@@ -323,3 +323,39 @@
 .wb-projekt-link{font-size:13px;color:var(--grau);text-decoration:underline;text-underline-offset:2px}
 .wb-a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .pn-aktion .wb-projekt-link{display:block;text-align:center;margin-top:8px}
+/* ── Mobil ── */
+@media(max-width:820px){
+  .wb{margin:0;min-height:0}
+  .wb-suche{padding:0 0 120px!important}
+  .wb-suchzeile input{font-size:16px;padding:12px 14px}
+  .wb-projektzeile select{max-width:100%;flex:1;min-width:0;font-size:14px}
+  .wb-filter{flex-wrap:nowrap;overflow-x:auto;margin:12px -14px 14px;padding:0 14px;scrollbar-width:none}
+  .wb-filter::-webkit-scrollbar{display:none}
+  .wb-filter .dw-pill{flex:none}
+  .wb-zahl{flex:none;padding-left:6px}
+  .wb-raster{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ek-bild{height:140px}
+  .ek-nm{font-size:13.5px}
+  .wb-panel{position:fixed;inset:0;z-index:70;height:100dvh;border-left:0}
+  .wb-linie{left:10px;right:10px;bottom:10px;transform:none;max-width:none;flex-wrap:wrap;padding:10px 12px;gap:8px}
+  .wb-linie-teile{flex:1 1 100%;order:2}
+  .wb-linie .knopf{flex:1;order:3}
+  .wb-linie-leeren{order:4}
+  .dw-ov{padding:0;align-items:stretch}
+  .dw-box,.dr-box{max-width:none;height:100dvh;max-height:none;border-radius:0}
+  .dw-kopf{padding:16px 16px 10px}
+  .dw-kopf h3{font-size:20px}
+  .dr-leiste{padding:0 16px 12px}
+  .dr-eingabe{flex:1 1 100%;min-width:0}
+  .dr-eingabe input{font-size:16px}
+  .dr-ws{flex-wrap:nowrap;overflow-x:auto}
+  .dr-ws .dw-pill{flex:none}
+  .dr-body{display:block;overflow-y:auto}
+  .dr-feld-rahmen{border-right:0;border-bottom:1px solid var(--linie);padding:26px 30px 30px;height:auto}
+  .dr-feld{width:100%;max-height:none}
+  .dr-welten{overflow:visible;padding:16px}
+  .dr-k.erste .dr-k-bild{height:180px}
+  .wb-linie-raster{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wb-linie-bild{height:200px}
+  .pn-aktion{position:sticky;bottom:0;background:#fff}
+}
