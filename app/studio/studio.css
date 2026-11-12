@@ -123,3 +123,25 @@
 .pj-gruppe-titel:first-child { margin-top: 0; }
 .pj-marke { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pj-marke input { min-height: 40px; padding: 0 12px; border: 1px solid #DAD7D0; border-radius: 10px; font-size: 14px; min-width: 220px; }
+/* ── Menü: Desktop Seitenleiste, Mobil Schublade ── */
+.st-nav-inhalt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0; }
+.st-nav-mobil, .st-nav-zu { display: none; }
+@media (max-width: 820px) {
+  .st-koerper { display: block; min-height: 0; }
+  .st-nav { position: sticky; top: 0; z-index: 30; height: auto; max-width: none; border-right: 0; border-bottom: 1px solid var(--linie); padding: 6px 12px; background: #fff; }
+  .st-nav-mobil { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; background: none; font: inherit; font-size: 15px; font-weight: 600; color: var(--tinte); cursor: pointer; padding: 0 4px; max-width: 100%; }
+  .st-nav-mobil span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-nav-inhalt { display: none; }
+  .st-nav.offen .st-nav-inhalt { display: flex; position: fixed; inset: 0; z-index: 90; background: #fff; padding: 56px 18px 24px; overflow-y: auto; }
+  .st-nav-zu { display: block; position: absolute; top: 10px; right: 12px; width: 44px; height: 44px; border: 0; background: none; font-size: 28px; line-height: 1; cursor: pointer; color: var(--tinte); }
+  .st-nav a { min-height: 46px; font-size: 16px; }
+  .st-inhalt { padding: 16px 14px 120px; }
+  .st-kopf { padding: 10px 14px; }
+  .st-firma { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .pj-titel input { font-size: 22px; min-width: 0; width: 100%; }
+  .pj-kopf > div:last-child { width: 100%; }
+  .pj-kopf .st-btn { flex: 1; }
+  .pj-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .pj-karte form { opacity: 1; }
+  .pj-marke input { min-width: 0; flex: 1 1 100%; font-size: 16px; }
+}
