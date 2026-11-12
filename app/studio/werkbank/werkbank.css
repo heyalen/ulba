@@ -317,3 +317,9 @@
 .wb *{box-sizing:border-box}
 .wb input{font:inherit}
 .wb :focus-visible{outline:1.5px solid var(--tinte);outline-offset:2px}
+.wb-projektzeile{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.wb-projekt-lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--hell)}
+.wb-projektzeile select{appearance:none;border:1px solid var(--linie);border-radius:999px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235E5D59' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;padding:7px 32px 7px 14px;font:inherit;font-size:13.5px;font-weight:600;color:var(--tinte);cursor:pointer;max-width:320px}
+.wb-projekt-link{font-size:13px;color:var(--grau);text-decoration:underline;text-underline-offset:2px}
+.wb-a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.pn-aktion .wb-projekt-link{display:block;text-align:center;margin-top:8px}
