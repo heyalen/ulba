@@ -13,7 +13,7 @@ import {
   richtungAusReferenz, richtungAusMarke, spalteVerfeinern, richtungUmbenennen, zellenRendern, zellenStand, zelleEntfernen, type Entwurf,
 } from './raster-actions';
 
-export type RTeil = { id: string; name: string; rolle: string; typ: string | null; material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; kollektion: string | null; artikelnummer: string | null; bild: string | null; caps: string[] };
+export type RTeil = { id: string; aktiv: boolean; name: string; rolle: string; typ: string | null; material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; kollektion: string | null; artikelnummer: string | null; bild: string | null; caps: string[] };
 export type RRichtung = { id: string; name: string; beschreibung: string; quelle: string; bild: string | null; bodyHex: string | null; capHex: string | null; akzentHex: string | null; finish: string | null };
 export type RSpalte = { id: string; richtung: RRichtung };
 export type RZeile = { id: string; teilId: string; capId: string | null };
@@ -50,7 +50,7 @@ function Fortschritt() {
 function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; imRaster: Set<string>; onWahl: (t: RTeil) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
   const [typ, setTyp] = useState('alle');
-  const behaelter = useMemo(() => teile.filter((t) => t.rolle !== 'verschluss'), [teile]);
+  const behaelter = useMemo(() => teile.filter((t) => t.aktiv && t.rolle !== 'verschluss'), [teile]);
   const typen = useMemo(() => Array.from(new Set(behaelter.map((t) => t.typ).filter((x): x is string => !!x))).sort(), [behaelter]);
   const liste = useMemo(() => {
     const w = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -182,7 +182,8 @@ function SpaltenKopf({ vid, s, onVerfeinert, onWeg }: { vid: string; s: RSpalte;
           {QUELLE[r.quelle] ?? r.quelle}
         </span>
       </div>
-      <button className="rz-menue-knopf" onClick={() => setMenue((m) => !m)} aria-expanded={menue} aria-label="Richtung verfeinern">{laeuft ? '…' : 'Verfeinern'}</button>
+      <button className="rz-kopf-weg" onClick={onWeg} aria-label="Richtung entfernen" title="Richtung entfernen">×</button>
+      <button className="rz-menue-knopf" onClick={() => setMenue((m) => !m)} aria-expanded={menue} aria-label="Richtung verfeinern">{laeuft ? 'wird verfeinert …' : 'Verfeinern ▾'}</button>
       {menue && (
         <div className="rz-menue" role="menu">
           <div className="rz-chips">{CHIPS.map(([k, t]) => <button key={k} className="dw-pill" onClick={() => fein(k)}>{t}</button>)}</div>
@@ -263,7 +264,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
         </div>
       ) : (
         <div className="rz-scroll">
-          <div className="rz-grid" style={{ gridTemplateColumns: `minmax(170px, 210px) repeat(${spalten.length}, minmax(190px, 1fr)) 120px` }}>
+          <div className="rz-grid" style={{ gridTemplateColumns: `230px repeat(${spalten.length}, 220px) 150px` }}>
             <div className="rz-ecke" />
             {spalten.map((s) => (
               <SpaltenKopf key={s.id} vid={vid} s={s}
@@ -279,26 +280,32 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
               return (
                 <div key={z.id} className="rz-reihe" style={{ display: 'contents' }}>
                   <div className="rz-zeilenkopf">
-                    <div className="rz-zk-bild">{t?.bild && <img src={t.bild} alt="" />}</div>
-                    <div className="rz-zk-text">
-                      <b>{t?.name ?? 'Teil'}</b><span>{t ? spec(t) : ''}</span>
-                      {caps.length > 0 && (
-                        <button className="rz-cap-knopf" onClick={() => setCapOffen(capOffen === z.id ? null : z.id)} aria-expanded={capOffen === z.id}>
-                          {cap?.bild && <img src={cap.bild} alt="" />}<span>{cap ? cap.name : 'Verschluss wählen'}</span>
-                        </button>
-                      )}
+                    <div className="rz-zk-oben">
+                      <div className="rz-zk-bild">{t?.bild && <img src={t.bild} alt="" />}</div>
+                      <div className="rz-zk-text"><b>{t?.name ?? 'Teil'}</b><span>{t ? spec(t) : ''}</span></div>
+                      <button className="rz-zk-weg" onClick={async () => { await zeileEntfernen(vid, z.id); router.refresh(); }} aria-label="Teil entfernen" title="Teil entfernen">×</button>
                     </div>
-                    <button className="rz-zk-weg" onClick={async () => { await zeileEntfernen(vid, z.id); router.refresh(); }} aria-label="Teil entfernen" title="Teil entfernen">×</button>
+                    {caps.length > 0 ? (
+                      <button className="rz-cap-knopf" onClick={() => setCapOffen(capOffen === z.id ? null : z.id)} aria-expanded={capOffen === z.id}>
+                        <span className="rz-cap-bild">{cap?.bild ? <img src={cap.bild} alt="" /> : <i>–</i>}</span>
+                        <span className="rz-cap-text"><small>Verschluss · {caps.length} passend</small><span>{cap ? cap.name : 'ohne Verschluss'}</span></span>
+                        <span aria-hidden className="rz-cap-pfeil">▾</span>
+                      </button>
+                    ) : <span className="rz-cap-keine">Kein passender Verschluss hinterlegt</span>}
                     {capOffen === z.id && (
-                      <div className="rz-cap-menue pn-caps">
-                        <div className="pn-caps-kopf"><span>Verschluss</span><span className="leise">{caps.length} passend</span></div>
-                        <div className="pn-caps-reihe" role="radiogroup">
+                      <div className="rz-cap-menue" role="dialog" aria-label="Verschluss wählen">
+                        <div className="rz-cap-menue-kopf"><b>Verschluss für {t?.name}</b><button className="pn-zu" onClick={() => setCapOffen(null)} aria-label="Schliessen">×</button></div>
+                        <div className="rz-cap-raster" role="radiogroup">
                           {caps.map((c) => (
-                            <button key={c.id} role="radio" aria-checked={z.capId === c.id} className={`pn-cap${z.capId === c.id ? ' an' : ''}`} title={c.name}
+                            <button key={c.id} role="radio" aria-checked={z.capId === c.id} className={`rz-cap-karte${z.capId === c.id ? ' an' : ''}`}
                               onClick={async () => { setCapOffen(null); await zeileCap(vid, z.id, c.id); router.refresh(); }}>
-                              {c.bild ? <img src={c.bild} alt="" /> : <span className="wb-cap-txt">{c.name.slice(0, 10)}</span>}
+                              <span className="rz-ck-bild">{c.bild ? <img src={c.bild} alt="" /> : null}</span>
+                              <b>{c.name}</b><span>{[c.verschluss || c.typ, c.material].filter(Boolean).join(' · ')}</span>
                             </button>
                           ))}
+                          <button role="radio" aria-checked={!z.capId} className={`rz-cap-karte ohne${!z.capId ? ' an' : ''}`} onClick={async () => { setCapOffen(null); await zeileCap(vid, z.id, null); router.refresh(); }}>
+                            <span className="rz-ck-bild"><i>ohne</i></span><b>Ohne Verschluss</b><span>nur der Behälter</span>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -315,8 +322,8 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
                       <div key={s.id} className={`rz-zelle vorschau${c?.status === 'laeuft' ? ' laeuft' : ''}`}>
                         {t?.bild && (
                           <span className="rz-vorschau">
-                            <img src={t.bild} alt="" />
-                            {s.richtung.bodyHex && <i style={{ background: s.richtung.bodyHex }} />}
+                            {cap?.bild && <img className="rz-v-cap" src={cap.bild} alt="" />}
+                            <span className="rz-v-body"><img src={t.bild} alt="" />{s.richtung.bodyHex && <i style={{ background: s.richtung.bodyHex }} />}</span>
                           </span>
                         )}
                         {c?.status === 'laeuft' ? <Fortschritt /> : (
@@ -361,7 +368,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
       )}
 
       {teilOffen && <TeilSchublade teile={teile} imRaster={new Set(zeilen.map((z) => z.teilId))} onClose={() => setTeilOffen(false)}
-        onWahl={async (t) => { await zeileHinzufuegen(vid, t.id, t.caps[0] ?? null); router.refresh(); }} />}
+        onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); router.refresh(); }} />}
       {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} onClose={() => setRichtungOffen(false)}
         onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); router.refresh(); }} />}
       {wandOffen && <DesignWand welten={welten} titel="Welche Welt soll eine Spalte werden?" onClose={() => setWandOffen(false)}
