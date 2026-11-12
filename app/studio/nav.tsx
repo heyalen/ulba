@@ -2,7 +2,8 @@
 import { usePathname } from 'next/navigation';
 
 const PUNKTE = [
-  { href: '/studio', text: 'Vorschläge' },
+  { href: '/studio', text: 'Studio' },
+  { href: '/studio/vorschlaege', text: 'Vorschläge' },
   { href: '/studio/datenbank', text: 'Datenbank' },
   { href: '/studio/anfragen', text: 'Anfragen' },
   { href: '/studio/marken', text: 'Marken' },
