@@ -170,3 +170,25 @@ export async function zelleEntfernen(vid: string, renderId: string) {
   await supabaseServer().from('studio_renders').update({ projekt_id: null }).eq('id', renderId);
   await beruehrt(vid);
 }
+
+/* ── Sitz des Verschlusses (Montage) ── */
+export type KalGeo = {
+  cap: { w: number; h: number; cropBox: { x: number; y: number; w: number; h: number }; cropRatio: number };
+  body: { w: number; h: number; neckTopPct: number; silhouetteBox?: { x: number; y: number; w: number; h: number } };
+  auto: { skala: number; versatzY: number };
+  gespeichert: { skala: number; versatzY: number | null } | null;
+};
+export async function geometrieLaden(teilId: string, capId: string): Promise<{ geo?: KalGeo; fehler?: string }> {
+  await firma();
+  const r = await backend('/api/vorschlag', { aufgabe: 'geometrie', teilId, capId }, 45_000);
+  if (!r.ok || !r.json?.cap) return { fehler: r.json?.error || 'Die Form konnte nicht gemessen werden.' };
+  return { geo: r.json as KalGeo };
+}
+export async function kalibrierungSpeichern(vid: string, teilId: string, capId: string, skala: number, versatzY: number): Promise<{ neu?: number; fehler?: string }> {
+  if (!(skala > 0 && skala <= 2) || !(versatzY >= -60 && versatzY <= 90)) return { fehler: 'Ungültige Werte.' };
+  const { error } = await supabaseServer().from('teil_verschluesse').update({ montage_skala: skala, montage_versatz_y: versatzY, montage_am: jetzt() }).eq('teil_id', teilId).eq('verschluss_id', capId);
+  if (error) return { fehler: 'Konnte nicht gespeichert werden.' };
+  const r = await backend('/api/vorschlag', { aufgabe: 'montieren', teilId, capId }, 120_000);
+  await beruehrt(vid);
+  return { neu: r.ok ? Number(r.json?.neu ?? 0) : 0 };
+}
