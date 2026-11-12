@@ -275,7 +275,9 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
 
             {zeilen.map((z) => {
               const t = teilVon.get(z.teilId);
-              const caps = (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c);
+              // Overcaps sind Zubehör, kein eigener Verschluss; mit Foto zuerst, dann nach Art
+              const caps = (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
+                .sort((a, b) => Number(!!b.bild) - Number(!!a.bild) || String(a.verschluss || a.typ || '').localeCompare(String(b.verschluss || b.typ || '')) || a.name.localeCompare(b.name));
               const cap = z.capId ? teilVon.get(z.capId) : null;
               return (
                 <div key={z.id} className="rz-reihe" style={{ display: 'contents' }}>
