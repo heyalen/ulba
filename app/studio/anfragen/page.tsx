@@ -15,7 +15,7 @@ export default async function Anfragen() {
       {liste.length === 0 ? (
         <div className="st-leer">
           <h2>Noch keine Musteranfragen</h2>
-          <p>Fragt eine Marke über einen deiner Vorschläge Muster an, erscheint das hier. Du bekommst zusätzlich eine E-Mail.</p>
+          <p>Fragt eine Marke über einen deiner Projekt-Links Muster an, erscheint das hier. Du bekommst zusätzlich eine E-Mail.</p>
         </div>
       ) : (
         <div className="st-liste">
