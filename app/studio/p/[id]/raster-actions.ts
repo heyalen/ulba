@@ -152,8 +152,15 @@ export async function zellenRendern(vid: string, zellen: Zelle[]): Promise<{ ids
 }
 
 export async function zellenStand(ids: string[]) {
-  const { data } = await supabaseServer().from('studio_renders').select('id, teil_id, welt_id, cap_id, status, log, bild_pfad').in('id', ids.slice(0, 60));
-  const zeilen = (data ?? []) as { id: string; teil_id: string; welt_id: string; cap_id: string | null; status: string; log: string | null; bild_pfad: string | null }[];
+  const sb = supabaseServer();
+  const { data } = await sb.from('studio_renders').select('id, teil_id, welt_id, cap_id, status, log, bild_pfad, erstellt_am').in('id', ids.slice(0, 60));
+  const zeilen = (data ?? []) as { id: string; teil_id: string; welt_id: string; cap_id: string | null; status: string; log: string | null; bild_pfad: string | null; erstellt_am: string }[];
+  // hängengebliebene Renders (> 8 Min.) ehrlich als Fehler zeigen, damit man neu starten kann
+  const alt = zeilen.filter((z) => z.status === 'laeuft' && Date.now() - new Date(z.erstellt_am).getTime() > 8 * 60_000);
+  if (alt.length) {
+    await sb.from('studio_renders').update({ status: 'fehler', log: 'Zeitüberschreitung — bitte neu rendern' }).in('id', alt.map((z) => z.id));
+    alt.forEach((z) => { z.status = 'fehler'; z.log = 'Zeitüberschreitung — bitte neu rendern'; });
+  }
   const { bildLinks } = await import('../../../../lib/supabase/server');
   const links = await bildLinks(zeilen.map((z) => z.bild_pfad), 'renders');
   return zeilen.map((z) => ({ id: z.id, teilId: z.teil_id, richtungId: z.welt_id, capId: z.cap_id, status: z.status, log: z.log, bild: z.bild_pfad ? links.get(z.bild_pfad) ?? null : null }));
