@@ -15,24 +15,23 @@ const zahl = (v: unknown): number | null => (v === null || v === undefined || v 
 
 export default async function Studio() {
   const sb = supabaseServer();
-  const projekte = await ladeProjekte();
-  const projektId = aktivesProjektId(projekte);
-  const [{ data: t }, { data: tv }, { data: w }, { data: vs }, { data: pt }] = await Promise.all([
+  const [projekte, { data: t }, { data: tv }, { data: w }] = await Promise.all([
+    ladeProjekte(),
     sb.from('teile').select('id, name, rolle, typ, material, volumen_ml, hals, verschluss_art, kollektion, kurzbeschreibung, artikelnummer, mindestmenge, deko_faehigkeiten, einfaerbbar, bild_pfad')
       .eq('status', 'aktiv').order('name'),
     sb.from('teil_verschluesse').select('teil_id, verschluss_id'),
     sb.from('design_welten').select('id, name, felder, bild_pfad').eq('aktiv', true),
-    projektId ? sb.from('vorschlaege').select('marke_id').eq('id', projektId).not('marke_id', 'is', null) : Promise.resolve({ data: [] }),
-    projektId ? sb.from('vorschlag_positionen').select('teil_id').eq('vorschlag_id', projektId).order('reihenfolge') : Promise.resolve({ data: [] }),
   ]);
+  const projektId = aktivesProjektId(projekte);
   const zeilen = (t ?? []) as TeilZeile[];
-  const markenIds = Array.from(new Set(((vs ?? []) as { marke_id: string }[]).map((v) => v.marke_id)));
-  const { data: looks } = markenIds.length
-    ? await sb.from('marken_looks').select('id, linie_name, design_komponenten, marken ( name )').in('marke_id', markenIds)
-    : { data: [] };
-
   const welten = (w ?? []) as { id: string; name: string; felder: Record<string, unknown>; bild_pfad: string | null }[];
-  const [teilBilder, weltBilder] = await Promise.all([bildLinks(zeilen.map((z) => z.bild_pfad)), bildLinks(welten.map((x) => x.bild_pfad), 'welten')]);
+  // zweite und letzte Runde: alles Abhängige gleichzeitig
+  const [teilBilder, weltBilder, { data: pt }, { data: looks }] = await Promise.all([
+    bildLinks(zeilen.map((z) => z.bild_pfad)),
+    bildLinks(welten.map((x) => x.bild_pfad), 'welten'),
+    projektId ? sb.from('vorschlag_positionen').select('teil_id').eq('vorschlag_id', projektId).order('reihenfolge') : Promise.resolve({ data: [] }),
+    projektId ? sb.from('marken_looks').select('id, linie_name, design_komponenten, marken!inner ( name, vorschlaege!inner ( id ) )').eq('marken.vorschlaege.id', projektId) : Promise.resolve({ data: [] }),
+  ]);
 
   const caps = new Map<string, string[]>();
   for (const r of (tv ?? []) as { teil_id: string; verschluss_id: string }[]) caps.set(r.teil_id, [...(caps.get(r.teil_id) ?? []), r.verschluss_id]);
