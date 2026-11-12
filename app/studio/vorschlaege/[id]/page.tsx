@@ -32,7 +32,7 @@ export default async function DesignMaske({ params }: { params: { id: string } }
   const [{ data: teile }, { data: pos }, { data: ri }, { data: looks }, { data: welten }, { data: rend }, { data: tv }] = await Promise.all([
     sb.from('teile').select('id, name, rolle, material, volumen_ml, bild_pfad').eq('status', 'aktiv').neq('rolle', 'verschluss').order('name'),
     sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge').eq('vorschlag_id', vor.id).order('reihenfolge'),
-    sb.from('vorschlag_richtungen').select('id, marken_look_id, reihenfolge').eq('vorschlag_id', vor.id).order('reihenfolge'),
+    sb.from('vorschlag_richtungen').select('id, marken_look_id, reihenfolge, design_welten ( name )').eq('vorschlag_id', vor.id).order('reihenfolge'),
     vor.marke_id ? sb.from('marken_looks').select('id, linie_name, quelle, design_komponenten').eq('marke_id', vor.marke_id).order('erstellt_am') : Promise.resolve({ data: [] as any[] }),
     sb.from('design_welten').select('id, name').order('name'),
     sb.from('renders').select('position_id, richtung_id, status, bild_pfad, log').eq('vorschlag_id', vor.id),
@@ -187,7 +187,7 @@ export default async function DesignMaske({ params }: { params: { id: string } }
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           {bild ? <img src={bild} alt="" /> : <span>{x?.status === 'laeuft' ? 'Wird gerendert …' : x?.status === 'fehler' ? `Fehler: ${x.log ?? ''}` : 'Noch nicht gerendert'}</span>}
                         </div>
-                        <figcaption className="st-hilfe">{lookVon.get(r.marken_look_id)?.linie_name}</figcaption>
+                        <figcaption className="st-hilfe">{lookVon.get(r.marken_look_id)?.linie_name ?? r.design_welten?.name}</figcaption>
                       </figure>
                     );
                   })}
