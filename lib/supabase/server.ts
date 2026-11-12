@@ -36,7 +36,7 @@ export function supabaseAdmin() {
 
 /* Zeitlich begrenzte Bild-Links aus dem privaten Speicher (Bucket teile). */
 const LINK_CACHE = new Map<string, { url: string; bis: number }>();
-export async function bildLinks(pfade: (string | null | undefined)[], bucket: 'teile' | 'renders' | 'welten' = 'teile'): Promise<Map<string, string>> {
+export async function bildLinks(pfade: (string | null | undefined)[], bucket: 'teile' | 'renders' | 'welten' | 'referenzen' = 'teile'): Promise<Map<string, string>> {
   const liste = Array.from(new Set(pfade.filter((p): p is string => !!p)));
   const out = new Map<string, string>();
   const jetzt = Date.now();
