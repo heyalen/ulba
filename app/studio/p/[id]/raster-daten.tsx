@@ -7,7 +7,7 @@ import '../../werkbank/werkbank.css';
 import './raster.css';
 
 export type SpalteRoh = { id: string; richtung_id: string; richtungen: { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null } | null };
-type TeilZeile = { id: string; name: string; rolle: string; typ: string | null; material: string | null; volumen_ml: number | null; hals: string | null; verschluss_art: string | null; kollektion: string | null; artikelnummer: string | null; bild_pfad: string | null };
+type TeilZeile = { id: string; status: string; name: string; rolle: string; typ: string | null; material: string | null; volumen_ml: number | null; hals: string | null; verschluss_art: string | null; kollektion: string | null; artikelnummer: string | null; bild_pfad: string | null };
 const zahl = (v: unknown): number | null => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v));
 const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
 
@@ -17,7 +17,7 @@ export async function RasterDaten({ vid, cols, pos, zellen }: {
 }) {
   const sb = supabaseServer();
   const [{ data: t }, { data: tv }, { data: w }, { data: bib }] = await Promise.all([
-    sb.from('teile').select('id, name, rolle, typ, material, volumen_ml, hals, verschluss_art, kollektion, artikelnummer, bild_pfad').eq('status', 'aktiv').order('name'),
+    sb.from('teile').select('id, name, rolle, typ, material, volumen_ml, hals, verschluss_art, kollektion, artikelnummer, bild_pfad, status').neq('status', 'verworfen').order('name'),
     sb.from('teil_verschluesse').select('teil_id, verschluss_id'),
     sb.from('design_welten').select('id, name, felder, bild_pfad').eq('aktiv', true),
     sb.from('richtungen').select('id, name, beschreibung, felder, quelle, bild_pfad, version_von').eq('archiviert', false).order('erstellt_am', { ascending: false }).limit(80),
@@ -36,7 +36,7 @@ export async function RasterDaten({ vid, cols, pos, zellen }: {
   const caps = new Map<string, string[]>();
   for (const r of (tv ?? []) as { teil_id: string; verschluss_id: string }[]) caps.set(r.teil_id, [...(caps.get(r.teil_id) ?? []), r.verschluss_id]);
 
-  const teile: RTeil[] = teileRoh.map((x) => ({ id: x.id, name: x.name, rolle: x.rolle, typ: x.typ, material: x.material, volumen: x.volumen_ml, hals: x.hals,
+  const teile: RTeil[] = teileRoh.map((x) => ({ id: x.id, aktiv: x.status === 'aktiv', name: x.name, rolle: x.rolle, typ: x.typ, material: x.material, volumen: x.volumen_ml, hals: x.hals,
     verschluss: x.verschluss_art, kollektion: x.kollektion, artikelnummer: x.artikelnummer, bild: x.bild_pfad ? teilBild.get(x.bild_pfad) ?? null : null, caps: caps.get(x.id) ?? [] }));
   const richtung = (r: { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null }): RRichtung => ({
     id: r.id, name: r.name, beschreibung: r.beschreibung ?? '', quelle: r.quelle, bild: r.bild_pfad ? refBild.get(r.bild_pfad) ?? null : null,
