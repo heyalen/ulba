@@ -11,7 +11,7 @@
    Clerk: bleibt nur für die alten Seiten aktiv, bis sie entfernt sind. */
 import { clerkMiddleware } from '@clerk/nextjs/server';
 import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest, type NextFetchEvent } from 'next/server';
 
 const CLERK = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !!process.env.CLERK_SECRET_KEY;
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -61,7 +61,8 @@ async function supabaseSitzung(req: NextRequest): Promise<NextResponse> {
       },
     },
   });
-  await sb.auth.getUser();
+  // getClaims prüft das Token lokal (ohne Netzwerk) und frischt es nur bei Ablauf auf
+  await sb.auth.getClaims();
   return res;
 }
 
@@ -72,9 +73,13 @@ async function ablauf(req: NextRequest): Promise<NextResponse | undefined> {
   return undefined;
 }
 
-export default CLERK
-  ? clerkMiddleware((_auth, req) => ablauf(req))
-  : async function ohneClerk(req: NextRequest) { return (await ablauf(req)) ?? NextResponse.next(); };
+const clerk = CLERK ? clerkMiddleware((_auth, req) => ablauf(req)) : null;
+
+/* Neues ulba (Studio, Login, /v) läuft ohne Clerk — spart pro Aufruf Zeit. */
+export default async function middleware(req: NextRequest, ev: NextFetchEvent) {
+  if (!clerk || passt(req.nextUrl.pathname, [...NEU, '/v'])) return (await ablauf(req)) ?? NextResponse.next();
+  return clerk(req, ev);
+}
 
 export const config = {
   matcher: [
