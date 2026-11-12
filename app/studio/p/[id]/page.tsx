@@ -1,5 +1,6 @@
 /* ulba · Projekt — ein Kunde oder Anlass. Reiter: Designs · Teile · Teilen · Anfragen.
    Designs entstehen im Katalog und landen automatisch im offenen Projekt. */
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import { supabaseServer, bildLinks } from '../../../../lib/supabase/server';
@@ -55,13 +56,13 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
           <p className="pj-meta">{fertig.length} {fertig.length === 1 ? 'Design' : 'Designs'} · {teilIds.length} {teilIds.length === 1 ? 'Teil' : 'Teile'}{p.marken ? ` · für ${p.marken.name}` : ''}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a className="st-btn st-btn--hell" href="/studio">Im Katalog weiterarbeiten</a>
-          <a className="st-btn" href={`?tab=teilen`}>Teilen</a>
+          <Link className="st-btn st-btn--hell" href="/studio">Im Katalog weiterarbeiten</Link>
+          <Link className="st-btn" href={`/studio/p/${p.id}?tab=teilen`}>Teilen</Link>
         </div>
       </div>
 
       <nav className="pj-tabs" aria-label="Projekt">
-        {REITER.map(([k, t]) => <a key={k} href={k === 'designs' ? '?' : `?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</a>)}
+        {REITER.map(([k, t]) => <Link key={k} href={k === 'designs' ? `/studio/p/${p.id}` : `/studio/p/${p.id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</Link>)}
       </nav>
 
       {tab === 'designs' && (designs.length === 0 ? (
