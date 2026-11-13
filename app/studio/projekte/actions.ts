@@ -116,13 +116,20 @@ export async function markeLesen(_v: MarkeStatus, f: FormData): Promise<MarkeSta
   return { ok: true };
 }
 
+/* Pro Person ein Link (mehrere E-Mails auf einmal möglich) oder ein Team-Link ohne feste Person. */
 export async function linkErstellen(f: FormData) {
   const id = s(f, 'id');
-  const email = s(f, 'email').toLowerCase();
   const sb = supabaseServer();
   await projektSync(sb, id);
-  await sb.from('empfaenger').insert({ vorschlag_id: id, name: s(f, 'name').slice(0, 120) || null,
-    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null, nachricht: s(f, 'nachricht').slice(0, 1000) || null });
+  const nachricht = s(f, 'nachricht').slice(0, 1000) || null;
+  if (s(f, 'art') === 'team') {
+    await sb.from('empfaenger').insert({ vorschlag_id: id, name: `Team · ${s(f, 'name').slice(0, 100) || 'Verteiler'}`, email: null, nachricht });
+  } else {
+    const mails = Array.from(new Set(s(f, 'email').toLowerCase().split(/[\s,;]+/).filter((m) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m)))).slice(0, 30);
+    const name = s(f, 'name').slice(0, 120) || null;
+    const zeilen: { vorschlag_id: string; name: string | null; email: string | null; nachricht: string | null }[] = mails.length ? mails.map((m) => ({ vorschlag_id: id, name: mails.length === 1 ? name : null, email: m, nachricht })) : [{ vorschlag_id: id, name, email: null, nachricht }];
+    await sb.from('empfaenger').insert(zeilen);
+  }
   await sb.from('vorschlaege').update({ status: 'geteilt', aktualisiert_am: new Date().toISOString() }).eq('id', id);
   revalidatePath(pfad(id));
 }
