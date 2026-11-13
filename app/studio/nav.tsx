@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ProjektKurz } from '../../lib/projekt';
-import { neuesProjekt } from './projekte/actions';
+import { NeuKnopf } from './neu-knopf';
 
 const UNTEN = [
   { href: '/studio/richtungen', text: 'Richtungen' },
@@ -14,7 +14,7 @@ const UNTEN = [
   { href: '/studio/einstellungen', text: 'Einstellungen' },
 ];
 
-export function StudioNav({ projekte, aktivId, firma }: { projekte: ProjektKurz[]; aktivId: string | null; firma: string }) {
+export function StudioNav({ projekte, firma }: { projekte: ProjektKurz[]; firma: string }) {
   const pfad = usePathname();
   const [offen, setOffen] = useState(false);
   const zu = () => setOffen(false);
@@ -29,7 +29,7 @@ export function StudioNav({ projekte, aktivId, firma }: { projekte: ProjektKurz[
       <div className="st-nav-inhalt">
         <button type="button" className="st-nav-zu" onClick={zu} aria-label="Menü schliessen">×</button>
         <Link href="/studio" onClick={zu} className="st-logo" aria-label="ulba – alle Vorschläge">ulba</Link>
-        <form action={neuesProjekt}><button type="submit" className="st-nav-neu"><span aria-hidden>+</span>Neuer Vorschlag</button></form>
+        <NeuKnopf className="st-nav-neu" onNav={zu}><span aria-hidden>+</span>Neuer Vorschlag</NeuKnopf>
         <Link href="/studio" onClick={zu} className={`st-nav-item${pfad === '/studio' ? ' an' : ''}`}>Alle Vorschläge</Link>
         <div className="st-nav-lbl">Zuletzt</div>
         <div className="st-nav-liste">
@@ -37,7 +37,7 @@ export function StudioNav({ projekte, aktivId, firma }: { projekte: ProjektKurz[
           {projekte.slice(0, 15).map((p) => (
             <Link key={p.id} href={`/studio/p/${p.id}`} onClick={zu} className={`st-nav-proj${an(`/studio/p/${p.id}`) ? ' an' : ''}`} title={p.titel}>
               <span className="st-np-t">{p.titel}</span>
-              <span className="st-np-s">{p.teile} {p.teile === 1 ? 'Teil' : 'Teile'}{p.marke ? ` · ${p.marke}` : ''}{p.id === aktivId ? ' · offen' : ''}</span>
+              <span className="st-np-s">{p.teile} {p.teile === 1 ? 'Teil' : 'Teile'}{p.marke ? ` · ${p.marke}` : ''}</span>
             </Link>
           ))}
         </div>
