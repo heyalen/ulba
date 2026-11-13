@@ -34,6 +34,22 @@ export async function neuesProjektId(): Promise<string | null> {
   return (data as { id: string } | null)?.id ?? null;
 }
 
+const START_EINLEITUNG: Record<string, string> = {
+  neuheit: 'Wir stellen Ihnen unsere Neuheit vor – hier in verschiedenen Looks, alle auf Basis echter Teile aus unserem Sortiment.',
+  marke: 'Wir haben uns gefragt, wie Ihre Marke in unseren Verpackungen aussehen könnte. Hier ein paar Ideen.',
+  trend: 'Eine Idee für eine neue Linie – umgesetzt mit lieferbaren Teilen aus unserem Sortiment.',
+};
+/* Start-Fenster: Lookbook aus Anlass (+ optional einem Satz) anlegen. */
+export async function lookbookStarten(anlass: 'neuheit' | 'marke' | 'trend', idee: string): Promise<string | null> {
+  const k = await ladeKontext();
+  if (!k?.firma || !['neuheit', 'marke', 'trend'].includes(anlass)) return null;
+  const text = idee.trim().slice(0, 300);
+  const titel = text ? (text.length > 60 ? `${text.slice(0, 57).trim()}…` : text) : STANDARD_TITEL;
+  const { data } = await supabaseServer().from('vorschlaege').insert({ firma_id: k.firma.id, erstellt_von: k.userId, titel, anlass, einleitung: START_EINLEITUNG[anlass] }).select('id').single();
+  revalidatePath('/studio', 'layout');
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function neuesProjekt() {
   const id = await projektAnlegen();
   redirect(id ? pfad(id) : '/studio');
