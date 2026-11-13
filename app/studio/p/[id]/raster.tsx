@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DesignWand } from '../../werkbank/designwand';
-import { Kalibrierung } from './kalibrier';
+import { Kalibrierung, SitzInline } from './kalibrier';
 import type { WbWelt } from '../../werkbank/werkbank';
 import { CHIPS, type Chip } from '../../../../lib/richtung';
 import {
@@ -213,6 +213,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   const [richtungStart, setRichtungStart] = useState<'beschreiben' | 'marke'>('beschreiben');
   const [akt, setAkt] = useState<string | null>(null);
   const [menueZeile, setMenueZeile] = useState<string | null>(null);
+  const [alleCaps, setAlleCaps] = useState<Set<string>>(new Set());
   const ansicht = seiteInfo.ansicht;
   const [wandOffen, setWandOffen] = useState(false);
   const [capOffen, setCapOffen] = useState<string | null>(null);
@@ -340,15 +341,24 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                       onBlur={(e) => { if (e.target.value !== (z.verkaufssatz ?? '')) verkaufssatzSpeichern(vid, z.id, e.target.value); }} />
                   </div>
                   <div className="sx-teil-unten">
-                    {caps.length > 0 && (
-                      <label className="sx-cap">
-                        <span>Verschluss</span>
-                        <select value={z.capId ?? ''} onChange={(e) => zeileCap(vid, z.id, e.target.value || null)}>
-                          {caps.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-                          <option value="">Ohne Verschluss</option>
-                        </select>
-                      </label>
-                    )}
+                    {caps.length > 0 && (() => {
+                      const zeig = alleCaps.has(z.id) ? caps : caps.slice(0, 7);
+                      return (
+                        <div className="sx-caps" role="radiogroup" aria-label={`Verschluss für ${t?.name}`}>
+                          <span className="sx-caps-lbl">Verschluss · {cap ? cap.name : 'ohne'}</span>
+                          <div className="sx-caps-reihe">
+                            {zeig.map((k) => (
+                              <button key={k.id} role="radio" aria-checked={z.capId === k.id} title={k.name} aria-label={k.name}
+                                className={`sx-cap-bild${z.capId === k.id ? ' an' : ''}`} onClick={() => z.capId !== k.id && zeileCap(vid, z.id, k.id)}>
+                                {k.bild ? <img src={k.bild} alt="" loading="lazy" /> : <i>{k.name.slice(0, 6)}</i>}
+                              </button>
+                            ))}
+                            {caps.length > 7 && !alleCaps.has(z.id) && <button className="sx-cap-bild mehr" onClick={() => setAlleCaps((a) => new Set(a).add(z.id))}>+{caps.length - 7}</button>}
+                            <button role="radio" aria-checked={!z.capId} title="Ohne Verschluss" className={`sx-cap-bild ohne${!z.capId ? ' an' : ''}`} onClick={() => z.capId && zeileCap(vid, z.id, null)}><i>ohne</i></button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="sx-mehr-wrap">
                       <button className="sx-mehr" aria-label={`Optionen für ${t?.name}`} aria-expanded={menueZeile === z.id} onClick={() => setMenueZeile(menueZeile === z.id ? null : z.id)}>···</button>
                       {menueZeile === z.id && (
@@ -368,7 +378,8 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                     </button>
                   ) : (
                     <div className="lb-buehne sx-buehne leer">
-                      {t?.bild && <span className="sx-foto">{cap?.bild && <img className="sx-foto-cap" src={cap.bild} alt="" />}<img src={t.bild} alt="" /></span>}
+                      {t?.bild && (cap?.bild ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
+                        : <span className="sx-foto"><img src={t.bild} alt="" /></span>)}
                       {!aktS ? <span className="sx-hinweis">Füg oben einen Look hinzu</span>
                         : c?.status === 'laeuft' ? <div className="sx-lauf"><Fortschritt /><span>wird gerendert · etwa 2 Minuten</span></div>
                         : <div className="sx-lauf">{c?.status === 'fehler' && <span className="pn-fehler">Das hat nicht geklappt.</span>}<button className="knopf haupt" disabled={startet} onClick={() => rendern([{ z, s: aktS }])}>{c?.status === 'fehler' ? 'Nochmal rendern' : `In «${aktS.richtung.name}» rendern`}</button></div>}
