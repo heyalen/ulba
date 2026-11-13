@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { supabaseServer, bildLinks } from '../../lib/supabase/server';
 import { ladeProjekte } from '../../lib/projekt';
-import { NeuKnopf } from './neu-knopf';
+import { StartFeld } from './start-feld';
 
 export default async function Studio() {
   const sb = supabaseServer();
@@ -22,19 +22,11 @@ export default async function Studio() {
 
   return (
     <>
-      <div className="st-titelzeile">
-        <h1>Vorschläge</h1>
-        <NeuKnopf className="st-btn">+ Neuer Vorschlag</NeuKnopf>
-      </div>
-      {projekte.length === 0 ? (
-        <div className="pj-leer">
-          <h2>Dein erster Vorschlag</h2>
-          <p>In vier Schritten: 1. Teile aus deinem Katalog wählen. 2. Design-Richtungen festlegen, zum Beispiel «K-Beauty pastell». 3. ulba rendert jede Kombination. 4. Du schickst der Marke einen Link.</p>
-          <NeuKnopf className="st-btn">Vorschlag starten</NeuKnopf>
-        </div>
-      ) : (
+      <StartFeld />
+      {projekte.length > 0 && (<>
+        <h2 className="sf-zuletzt">Zuletzt</h2>
         <div className="pj-raster" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-          {projekte.map((p) => {
+          {projekte.slice(0, 8).map((p) => {
             const b = (bilder.get(p.id) ?? []).map((x) => links.get(x)).filter(Boolean) as string[];
             return (
               <Link key={p.id} href={`/studio/p/${p.id}`} className="pj-karte" style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -48,12 +40,12 @@ export default async function Studio() {
                     </>
                   )}
                 </div>
-                <figcaption><b>{p.titel}</b><span>{teile.get(p.id) ?? 0} Teile · {n.get(p.id) ?? 0} Designs</span></figcaption>
+                <figcaption><b>{p.titel}</b><span>{teile.get(p.id) ?? 0} Cards · {n.get(p.id) ?? 0} Designs</span></figcaption>
               </Link>
             );
           })}
         </div>
-      )}
+      </>)}
     </>
   );
 }
