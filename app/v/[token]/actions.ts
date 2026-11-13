@@ -101,3 +101,22 @@ export async function weiterleiten(token: string, name: string, email: string): 
   await sb.from('ereignisse').insert({ empfaenger_id: e.id, art: 'weitergeleitet', ziel_id: (data as { id: string }).id });
   return { ok: true, token: (data as { token: string }).token };
 }
+
+/* Team-Link (ohne feste E-Mail, z. B. an einen Verteiler): wer zum ersten Mal ♥, Wunsch oder Muster nutzt,
+   nennt einmal Name und E-Mail. Daraus entsteht ein eigener Unterlink — so sieht der Lieferant jede Person einzeln. */
+export async function teamBeitreten(token: string, name: string, email: string): Promise<Status & { token?: string; email?: string }> {
+  const e = await empfaengerPruefen(token);
+  if (!e) return { ok: false, fehler: 'Dieser Link ist nicht mehr gültig.' };
+  const n = name.trim().slice(0, 120), mail = email.trim().toLowerCase();
+  if (!n) return { ok: false, fehler: 'Bitte Ihren Namen eingeben.' };
+  if (!MAIL.test(mail)) return { ok: false, fehler: 'Bitte eine gültige E-Mail-Adresse eingeben.' };
+  const sb = supabaseAdmin();
+  const { data: da } = await sb.from('empfaenger').select('token').eq('weitergeleitet_von', e.id).eq('email', mail).is('widerrufen_am', null).maybeSingle();
+  if (da) return { ok: true, token: (da as { token: string }).token, email: mail };
+  const { count } = await sb.from('empfaenger').select('id', { count: 'exact', head: true }).eq('weitergeleitet_von', e.id);
+  if ((count ?? 0) >= 200) return { ok: false, fehler: 'Über diesen Link haben sich schon sehr viele Personen angemeldet.' };
+  const { data, error } = await sb.from('empfaenger').insert({ vorschlag_id: e.vorschlag_id, name: n, email: mail, nachricht: e.nachricht, weitergeleitet_von: e.id, laeuft_ab_am: e.laeuft_ab_am }).select('token').single();
+  if (error || !data) return { ok: false, fehler: 'Das hat nicht geklappt. Bitte nochmal versuchen.' };
+  await sb.from('ereignisse').insert({ empfaenger_id: (await empfaengerPruefen((data as { token: string }).token))!.id, art: 'geoeffnet' });
+  return { ok: true, token: (data as { token: string }).token, email: mail };
+}
