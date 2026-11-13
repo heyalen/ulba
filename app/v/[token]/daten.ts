@@ -1,4 +1,4 @@
-/* ulba · Vorschlagsseite: Daten per Token laden (Server, Admin-Rechte, Token wird geprüft). */
+/* ulba · Empfängerseite (Lookbook): Daten per Token laden (Server, Admin-Rechte, Token wird geprüft). */
 import 'server-only';
 import { supabaseAdmin } from '../../../lib/supabase/server';
 import { projektSync } from '../../../lib/projekt';
@@ -8,47 +8,85 @@ export const DEKO_TEXT: Record<string, string> = {
   spruehlackierung: 'Sprühlackierung', farbe_fix: 'Materialfarbe bleibt',
 };
 
-export async function empfaengerPruefen(token: string) {
+export type Empfaenger = { id: string; vorschlag_id: string; name: string | null; nachricht: string | null; marken_konto_id: string | null; laeuft_ab_am: string; weitergeleitet_von: string | null };
+
+export async function empfaengerPruefen(token: string): Promise<Empfaenger | null> {
   if (!/^[\w-]{20,64}$/.test(token)) return null;
-  const { data } = await supabaseAdmin().from('empfaenger').select('id, vorschlag_id, name, nachricht, laeuft_ab_am, widerrufen_am, marken_konto_id').eq('token', token).maybeSingle();
-  const e = data as any;
+  const { data } = await supabaseAdmin().from('empfaenger').select('id, vorschlag_id, name, nachricht, laeuft_ab_am, widerrufen_am, marken_konto_id, weitergeleitet_von').eq('token', token).maybeSingle();
+  const e = data as (Empfaenger & { widerrufen_am: string | null }) | null;
   if (!e || e.widerrufen_am || new Date(e.laeuft_ab_am) < new Date()) return null;
-  return e as { id: string; vorschlag_id: string; name: string | null; nachricht: string | null; marken_konto_id: string | null };
+  return e;
 }
 
+export type Fakten = { material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; deko: string; pcr: number | null; moq: number | null; datenblatt: string | null; foto: string | null };
 export type Ansicht = {
-  lieferant: string; marke: string | null; titel: string; nachricht: string | null; empfaengerName: string | null;
-  looks: { id: string; name: string; beschreibung: string }[];
-  teile: { posId: string; teilId: string; name: string; material: string | null; volumen: number | null; mindestmenge: number | null;
-    deko: string; renders: Record<string, string> }[];
+  lieferant: string; logo: string | null; marke: string | null; titel: string; nachricht: string | null; empfaengerName: string | null; weitergeleitetVon: string | null;
+  absender: { name: string; titel: string | null; email: string | null; telefon: string | null; foto: string | null } | null;
+  richtungen: { id: string; name: string; beschreibung: string; hex: string | null }[];
+  teile: { posId: string; teilId: string; name: string; fakten: Fakten; renders: Record<string, string> }[];
 };
 
-export async function ladeAnsicht(e: { id: string; vorschlag_id: string; name: string | null; nachricht: string | null }): Promise<Ansicht | null> {
+const HEX = /^#[0-9a-f]{6}$/i;
+
+async function signiert(bucket: string, pfade: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const liste = Array.from(new Set(pfade.filter((p): p is string => !!p)));
+  const m = new Map<string, string>();
+  if (!liste.length) return m;
+  const { data } = await supabaseAdmin().storage.from(bucket).createSignedUrls(liste, 6 * 3600);
+  (data ?? []).forEach((x) => { if (x.path && x.signedUrl) m.set(x.path, x.signedUrl); });
+  return m;
+}
+
+export async function ladeAnsicht(e: Empfaenger): Promise<Ansicht | null> {
   const sb = supabaseAdmin();
-  const { data: v } = await sb.from('vorschlaege').select('id, titel, firma_id, firmen ( name ), marken ( name )').eq('id', e.vorschlag_id).single();
+  const { data: v } = await sb.from('vorschlaege').select('id, titel, firma_id, erstellt_von, firmen ( name, logo_pfad ), marken ( name )').eq('id', e.vorschlag_id).single();
   if (!v) return null;
-  // Links sind live: neueste Designs des Projekts übernehmen
+  const vv = v as unknown as { titel: string; firma_id: string; erstellt_von: string | null; firmen: { name: string; logo_pfad: string | null } | null; marken: { name: string } | null };
+  // Links sind live: neueste Designs des Vorschlags übernehmen
   await projektSync(sb, e.vorschlag_id).catch(() => 0);
-  const [{ data: ri }, { data: pos }, { data: rend }] = await Promise.all([
-    sb.from('vorschlag_richtungen').select('id, reihenfolge, marken_looks ( linie_name, design_komponenten ), design_welten ( name, felder ), hex, richtungen ( name, beschreibung )').eq('vorschlag_id', e.vorschlag_id).not('richtung_id', 'is', null).order('reihenfolge'),
-    sb.from('vorschlag_positionen').select('id, reihenfolge, teil_id, teile:teil_id ( name, material, volumen_ml, mindestmenge, deko_faehigkeiten )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
+  const [{ data: ri }, { data: pos }, { data: rend }, { data: mit }, { data: von }, autor] = await Promise.all([
+    sb.from('vorschlag_richtungen').select('id, reihenfolge, hex, richtungen ( name, beschreibung, felder )').eq('vorschlag_id', e.vorschlag_id).not('richtung_id', 'is', null).order('reihenfolge'),
+    sb.from('vorschlag_positionen').select('id, reihenfolge, teil_id, teile:teil_id ( name, material, volumen_ml, hals, mindestmenge, deko_faehigkeiten, pcr_prozent, quelle_url, bild_pfad ), cap:cap_id ( name )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
     sb.from('renders').select('position_id, richtung_id, bild_pfad').eq('vorschlag_id', e.vorschlag_id).eq('status', 'fertig'),
+    vv.erstellt_von ? sb.from('mitglieder').select('anzeigename, titel, telefon, foto_pfad').eq('firma_id', vv.firma_id).eq('user_id', vv.erstellt_von).maybeSingle() : Promise.resolve({ data: null }),
+    e.weitergeleitet_von ? sb.from('empfaenger').select('name').eq('id', e.weitergeleitet_von).maybeSingle() : Promise.resolve({ data: null }),
+    vv.erstellt_von ? sb.auth.admin.getUserById(vv.erstellt_von).catch(() => null) : Promise.resolve(null),
   ]);
-  const pfade = ((rend ?? []) as any[]).map((r) => r.bild_pfad).filter(Boolean);
-  const links = new Map<string, string>();
-  if (pfade.length) {
-    const { data: s } = await sb.storage.from('renders').createSignedUrls(pfade, 3600);
-    (s ?? []).forEach((x) => { if (x.path && x.signedUrl) links.set(x.path, x.signedUrl); });
-  }
-  const vv = v as any;
+  type Pos = { id: string; teil_id: string; cap: { name: string } | null; teile: { name: string; material: string | null; volumen_ml: number | null; hals: string | null; mindestmenge: number | null; deko_faehigkeiten: string[] | null; pcr_prozent: number | null; quelle_url: string | null; bild_pfad: string | null } | null };
+  const R = (rend ?? []) as { position_id: string; richtung_id: string; bild_pfad: string }[];
+  const P = (pos ?? []) as unknown as Pos[];
+  const M = mit as { anzeigename: string | null; titel: string | null; telefon: string | null; foto_pfad: string | null } | null;
+  const [renderUrl, fotoUrl, logoUrl] = await Promise.all([
+    signiert('renders', R.map((r) => r.bild_pfad)),
+    signiert('teile', P.map((p) => p.teile?.bild_pfad)),
+    signiert('logos', [vv.firmen?.logo_pfad, M?.foto_pfad]),
+  ]);
+  const mitRender = new Set(R.filter((r) => renderUrl.has(r.bild_pfad)).map((r) => r.richtung_id));
+  const email = (autor as { data?: { user?: { email?: string } | null } } | null)?.data?.user?.email ?? null;
+  const name = M?.anzeigename?.trim() || null;
+
   return {
-    lieferant: vv.firmen?.name ?? 'Lieferant', marke: vv.marken?.name ?? null, titel: vv.titel, nachricht: e.nachricht, empfaengerName: e.name,
-    looks: ((ri ?? []) as any[]).map((r) => ({ id: r.id, name: r.richtungen?.name ?? r.marken_looks?.linie_name ?? r.design_welten?.name ?? 'Richtung', beschreibung: r.richtungen?.beschreibung ?? '' })),
-    teile: ((pos ?? []) as any[]).filter((p) => ((rend ?? []) as any[]).some((r) => r.position_id === p.id)).map((p) => ({
-      posId: p.id, teilId: p.teil_id, name: p.teile?.name ?? 'Teil', material: p.teile?.material ?? null, volumen: p.teile?.volumen_ml ?? null,
-      mindestmenge: p.teile?.mindestmenge ?? null,
-      deko: ((p.teile?.deko_faehigkeiten ?? []) as string[]).map((d) => DEKO_TEXT[d] ?? d).join(', '),
-      renders: Object.fromEntries(((rend ?? []) as any[]).filter((r) => r.position_id === p.id && links.get(r.bild_pfad)).map((r) => [r.richtung_id, links.get(r.bild_pfad)!])),
-    })),
+    lieferant: vv.firmen?.name ?? 'Lieferant', logo: vv.firmen?.logo_pfad ? logoUrl.get(vv.firmen.logo_pfad) ?? null : null,
+    marke: vv.marken?.name ?? null, titel: vv.titel, nachricht: e.nachricht, empfaengerName: e.name,
+    weitergeleitetVon: (von as { name: string | null } | null)?.name ?? (e.weitergeleitet_von ? 'einer Kollegin' : null),
+    absender: name || email ? { name: name ?? email!, titel: M?.titel ?? null, email, telefon: M?.telefon ?? null, foto: M?.foto_pfad ? logoUrl.get(M.foto_pfad) ?? null : null } : null,
+    richtungen: ((ri ?? []) as unknown as { id: string; hex: string | null; richtungen: { name: string; beschreibung: string | null; felder: Record<string, unknown> } | null }[])
+      .filter((r) => mitRender.has(r.id))
+      .map((r) => {
+        const b = r.richtungen?.felder?.Body_Hex;
+        return { id: r.id, name: r.richtungen?.name ?? 'Richtung', beschreibung: r.richtungen?.beschreibung ?? '', hex: typeof b === 'string' && HEX.test(b) ? b : r.hex && HEX.test(r.hex) ? r.hex : null };
+      }),
+    teile: P.filter((p) => R.some((r) => r.position_id === p.id && renderUrl.has(r.bild_pfad))).map((p) => {
+      const t = p.teile;
+      return {
+        posId: p.id, teilId: p.teil_id, name: t?.name ?? 'Teil',
+        fakten: {
+          material: t?.material ?? null, volumen: t?.volumen_ml ?? null, hals: t?.hals ?? null, verschluss: p.cap?.name ?? null,
+          deko: (t?.deko_faehigkeiten ?? []).map((d) => DEKO_TEXT[d] ?? d).join(', '), pcr: t?.pcr_prozent ?? null, moq: t?.mindestmenge ?? null,
+          datenblatt: t?.quelle_url && /^https?:\/\//.test(t.quelle_url) ? t.quelle_url : null, foto: t?.bild_pfad ? fotoUrl.get(t.bild_pfad) ?? null : null,
+        },
+        renders: Object.fromEntries(R.filter((r) => r.position_id === p.id && renderUrl.has(r.bild_pfad)).map((r) => [r.richtung_id, renderUrl.get(r.bild_pfad)!])),
+      };
+    }),
   };
 }
