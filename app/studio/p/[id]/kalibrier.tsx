@@ -4,7 +4,7 @@
    sitzt mittig auf der Körper-Silhouette. Gespeichert wird je Teil × Verschluss;
    fertige Designs werden ohne neuen KI-Render neu montiert. */
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
-import { geometrieLaden, kalibrierungSpeichern, type KalGeo } from './raster-actions';
+import { geometrieLaden, kalibrierungSpeichern, renderRoh, type KalGeo } from './raster-actions';
 
 function CapAusschnitt({ geo, url, breite, style }: { geo: KalGeo; url: string; breite: number; style?: CSSProperties }) {
   const b = geo.cap.cropBox;
@@ -67,7 +67,10 @@ export function SitzFlaeche({ geo, bodyUrl, capUrl, skala, bottomY, onChange, ma
 }
 
 /* Direkt auf der Seite: Verschluss sitzt mit gespeicherten Werten; ziehen und speichern ohne Dialog. */
-export function SitzInline({ vid, teilId, capId, bodyUrl, capUrl }: { vid: string; teilId: string; capId: string; bodyUrl: string; capUrl: string }) {
+export function SitzInline({ vid, teilId, capId, bodyUrl: studioBody, capUrl: studioCap, renderId, onGespeichert, onAbbrechen }: {
+  vid: string; teilId: string; capId: string; bodyUrl: string; capUrl: string; renderId?: string; onGespeichert?: (neu: number) => void; onAbbrechen?: () => void;
+}) {
+  const [urls, setUrls] = useState<{ body: string; cap: string; render: boolean } | null>(renderId ? null : { body: studioBody, cap: studioCap, render: false });
   const [geo, setGeo] = useState<KalGeo | null>(null);
   const [fehler, setFehler] = useState(false);
   const [wert, setWert] = useState<{ skala: number; bottomY: number } | null>(null);
@@ -76,14 +79,22 @@ export function SitzInline({ vid, teilId, capId, bodyUrl, capUrl }: { vid: strin
   const [ok, setOk] = useState(false);
   useEffect(() => {
     let tot = false; setGeo(null); setFehler(false);
-    geometrieLaden(teilId, capId).then((r) => {
+    // Im fertigen Design: auf dem gerenderten Körper anpassen (alte Designs ohne Rohbilder → Studiofoto)
+    (renderId ? renderRoh(renderId) : Promise.resolve(null)).then((roh) => {
+      if (tot) return;
+      const u = roh ? { ...roh, render: true } : { body: studioBody, cap: studioCap, render: false };
+      setUrls(u);
+      return geometrieLaden(teilId, capId, u.render ? renderId : undefined);
+    }).then((r) => {
+      if (tot || !r) return;
       if (tot) return;
       if (!r.geo) { setFehler(true); return; }
       const w = { skala: r.geo.gespeichert?.skala ?? r.geo.auto.skala, bottomY: (r.geo.gespeichert?.versatzY ?? r.geo.auto.versatzY) / 100 };
       setGeo(r.geo); setWert(w); setBasis(w);
     });
     return () => { tot = true; };
-  }, [teilId, capId]);
+  }, [teilId, capId, renderId, studioBody, studioCap]);
+  const bodyUrl = urls?.body ?? studioBody, capUrl = urls?.cap ?? studioCap;
   if (fehler) return <span className="sx-foto"><img className="sx-foto-cap" src={capUrl} alt="" /><img src={bodyUrl} alt="" /></span>;
   if (!geo || !wert) return <span className="sx-foto laedt"><img src={bodyUrl} alt="" /></span>;
   const geaendert = !!basis && (Math.abs(wert.skala - basis.skala) > 0.0005 || Math.abs(wert.bottomY - basis.bottomY) > 0.0005);
@@ -97,13 +108,14 @@ export function SitzInline({ vid, teilId, capId, bodyUrl, capUrl }: { vid: strin
             <button className="sx-mini" disabled={laeuft} onClick={() => setWert(basis)}>Zurück</button>
             <button className="sx-mini an" disabled={laeuft} onClick={async () => {
               setLaeuft(true);
-              const r = await kalibrierungSpeichern(vid, teilId, capId, Math.round(wert.skala * 10000) / 10000, Math.round(wert.bottomY * 10000) / 100);
+              const r = await kalibrierungSpeichern(vid, teilId, capId, Math.round(wert.skala * 10000) / 10000, Math.round(wert.bottomY * 10000) / 100, geo.body);
               setLaeuft(false);
-              if (!r.fehler) { setBasis(wert); setOk(true); }
-            }}>{laeuft ? 'Speichert …' : 'Sitz speichern'}</button>
+              if (!r.fehler) { setBasis(wert); setOk(true); onGespeichert?.(r.neu ?? 0); }
+            }}>{laeuft ? (renderId ? 'Setzt Designs neu zusammen …' : 'Speichert …') : 'Sitz speichern'}</button>
           </>
         ) : <span className="sx-sitz-tipp">{ok ? 'Gespeichert ✓' : 'Verschluss ziehen · Punkt an der Ecke = Grösse'}</span>}
         <button className="sx-mini" disabled={laeuft} onClick={() => { setOk(false); setWert({ skala: geo.auto.skala, bottomY: geo.auto.versatzY / 100 }); }}>Automatisch</button>
+        {onAbbrechen && <button className="sx-mini" disabled={laeuft} onClick={onAbbrechen}>Fertig</button>}
       </div>
     </div>
   );
@@ -136,7 +148,7 @@ export function Kalibrierung({ vid, teilId, capId, bodyUrl, capUrl, titel, onZu,
           <button className="knopf zweit" onClick={onZu} disabled={laeuft}>Abbrechen</button>
           <button className="knopf haupt" disabled={laeuft || !geo} onClick={async () => {
             setLaeuft(true); setFehler('');
-            const r = await kalibrierungSpeichern(vid, teilId, capId, Math.round(skala * 10000) / 10000, Math.round(bottomY * 10000) / 100);
+            const r = await kalibrierungSpeichern(vid, teilId, capId, Math.round(skala * 10000) / 10000, Math.round(bottomY * 10000) / 100, geo!.body);
             setLaeuft(false);
             if (r.fehler) setFehler(r.fehler); else onGespeichert(r.neu ?? 0);
           }}>{laeuft ? 'Speichert und setzt neu zusammen …' : 'Speichern'}</button>
