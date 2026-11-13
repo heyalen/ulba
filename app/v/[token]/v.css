@@ -157,3 +157,4 @@
   .lb-buehne img { max-height:95mm; }
   .lb-teil .lb-fakten dt { color:inherit; }
 }
+.lb-satz { font-size:clamp(17px,1.5vw,21px); line-height:1.4; letter-spacing:-.01em; margin-top:14px; max-width:520px; }
