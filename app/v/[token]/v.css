@@ -161,3 +161,21 @@
 .lb-kartenlooks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .lb-teil .lb-chip{border-color:var(--auf);color:var(--auf)}
 .lb-teil .lb-chip.an{background:var(--auf);color:var(--farbe);border-color:var(--auf)}
+
+/* ══ Gerüst mit Kartenleiste links (Inhaltsverzeichnis wie ein Kartenstapel; aktiver Abschnitt wächst, Punkt wandert mit) ══ */
+.lb-geruest { display:grid; grid-template-columns:200px minmax(0,1fr); gap:14px; padding:12px 12px 0; }
+.lb-spalte { min-width:0; }
+.lb-spalte .lb-innen { max-width:none; padding-left:0; padding-right:0; }
+.lb-spalte .lb-haupt { padding-top:0; }
+.lb-rail { position:sticky; top:12px; height:calc(100dvh - 24px); display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+.lb-rail-k { --farbe:#fff; --auf:#0E0E0E; position:relative; flex:0 1 96px; min-height:52px; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; gap:8px; padding:14px 16px; border:0; border-radius:16px; background:var(--farbe); color:var(--auf); font:inherit; text-align:left; cursor:pointer; overflow:hidden; transition:flex-grow .45s cubic-bezier(.2,.7,.2,1), flex-basis .45s cubic-bezier(.2,.7,.2,1), transform .15s; box-shadow:inset 0 0 0 1px rgba(14,14,14,.08); }
+.lb-rail-k:hover { transform:translateX(2px); }
+.lb-rail-k.an { flex:1 1 auto; }
+.lb-rail-nr { font-size:12px; font-weight:600; letter-spacing:.02em; }
+.lb-rail-logo { max-height:44px; max-width:100%; object-fit:contain; }
+.lb-rail-txt { font-size:17px; font-weight:500; letter-spacing:-.01em; line-height:1.15; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.lb-rail-punkt { position:absolute; right:14px; width:7px; height:7px; border-radius:50%; background:var(--auf); transition:top .12s linear; }
+.lb-rail-k:focus-visible { outline:2px solid #0E0E0E; outline-offset:2px; }
+@media (max-width: 980px) { .lb-geruest { grid-template-columns:1fr; padding:0; } .lb-rail { display:none; } .lb-spalte .lb-innen { padding-left:10px; padding-right:10px; } }
+@media (prefers-reduced-motion:reduce) { .lb-rail-k, .lb-rail-punkt { transition:none; } }
+@media print { .lb-geruest { display:block; padding:0; } }
