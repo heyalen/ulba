@@ -16,7 +16,7 @@ import {
 
 export type RTeil = { id: string; aktiv: boolean; name: string; rolle: string; typ: string | null; material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; kollektion: string | null; artikelnummer: string | null; bild: string | null; caps: string[] };
 export type RRichtung = { id: string; name: string; beschreibung: string; quelle: string; bild: string | null; bodyHex: string | null; capHex: string | null; akzentHex: string | null; finish: string | null };
-export type RSpalte = { id: string; richtung: RRichtung };
+export type RSpalte = { id: string; richtung: RRichtung; wunsch?: string | null };
 export type RZeile = { id: string; teilId: string; capId: string | null };
 export type RZelle = { id: string; teilId: string; richtungId: string; capId: string | null; status: string; log: string | null; bild: string | null };
 
@@ -180,7 +180,7 @@ function SpaltenKopf({ vid, s, onVerfeinert, onWeg }: { vid: string; s: RSpalte;
         <span className="rz-kopf-meta">
           <button className="rz-farbe-knopf" onClick={() => farbRef.current?.click()} title="Hauptfarbe ändern" aria-label="Hauptfarbe ändern"><Tupfen r={r} /></button>
           <input ref={farbRef} type="color" hidden defaultValue={r.bodyHex || '#E8E4DC'} onChange={(e) => fein({ hex: e.target.value })} />
-          {QUELLE[r.quelle] ?? r.quelle}
+          {s.wunsch ? <b className="rz-wunsch" title={s.wunsch}>Wunsch · {s.wunsch}</b> : (QUELLE[r.quelle] ?? r.quelle)}
         </span>
       </div>
       <button className="rz-kopf-weg" onClick={onWeg} aria-label="Richtung entfernen" title="Richtung entfernen">×</button>
