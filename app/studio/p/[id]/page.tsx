@@ -68,8 +68,13 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
                 <p className="st-hilfe" style={{ margin: 0 }}>Die Marke sieht alle {fertig} Designs und kann Muster anfragen — ohne Konto. Jede Person bekommt einen eigenen Link: so siehst du, wer geöffnet und angefragt hat. 90 Tage gültig, jederzeit widerrufbar.</p>
                 <form action={linkErstellen} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
                   <input type="hidden" name="id" value={p.id} />
-                  <input name="name" placeholder="Name der Person" aria-label="Name" style={feld} />
-                  <input name="email" type="email" placeholder="E-Mail (optional)" aria-label="E-Mail" style={feld} />
+                  <fieldset style={{ gridColumn: '1 / -1', border: 0, padding: 0, margin: 0, display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 14 }}>
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="radio" name="art" value="person" defaultChecked /> Für Personen <span className="st-hilfe">· jede bekommt ihren eigenen Link</span></label>
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="radio" name="art" value="team" /> Team-Link <span className="st-hilfe">· für Verteiler, Messe, Newsletter</span></label>
+                  </fieldset>
+                  <input name="name" placeholder="Name (bei Team-Link: z. B. Marketing Aesop)" aria-label="Name" style={feld} />
+                  <textarea name="email" rows={2} placeholder="E-Mails – mehrere mit Komma oder Zeilenumbruch" aria-label="E-Mails" style={{ ...feld, padding: 12, fontFamily: 'inherit' }} />
+                  <p className="st-hilfe" style={{ gridColumn: '1 / -1', margin: 0 }}>Beim Team-Link nennt jede Person beim ersten Klick auf ♥, Wunsch oder Muster einmal Name und E-Mail. So siehst du trotzdem, wer was wollte.</p>
                   <textarea name="nachricht" rows={2} placeholder="Persönliche Nachricht (erscheint oben im Vorschlag)" aria-label="Persönliche Nachricht" style={{ ...feld, gridColumn: '1 / -1', padding: 12, fontFamily: 'inherit' }} />
                   <button className="st-btn" type="submit" style={{ justifySelf: 'start' }}>Link erstellen</button>
                 </form>
