@@ -158,3 +158,6 @@
   .lb-teil .lb-fakten dt { color:inherit; }
 }
 .lb-satz { font-size:clamp(17px,1.5vw,21px); line-height:1.4; letter-spacing:-.01em; margin-top:14px; max-width:520px; }
+.lb-kartenlooks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.lb-teil .lb-chip{border-color:var(--auf);color:var(--auf)}
+.lb-teil .lb-chip.an{background:var(--auf);color:var(--farbe);border-color:var(--auf)}
