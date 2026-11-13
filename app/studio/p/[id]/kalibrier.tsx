@@ -45,6 +45,17 @@ export function SitzFlaeche({ geo, bodyUrl, capUrl, skala, bottomY, onChange, ma
   return (
     <div className={`kal-rahmen${aktiv ? '' : ' still'}`} style={box ? { paddingTop: kopf } : undefined} onPointerMove={bewege} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
       <img ref={bodyRef} className="kal-body" src={bodyUrl} alt="Körper" draggable={false} style={{ maxHeight: maxH }} onLoad={(e) => messe(e.currentTarget)} />
+      {box && (() => {
+        // Teil des Verschlussbilds unterhalb des Kragens (Pipettenrohr, Steigrohr): sitzt im Behälter → durchs Glas sichtbar
+        const b = geo.cap.cropBox, imgW = capW / (b.w / 100), imgH = imgW * geo.cap.h / Math.max(1, geo.cap.w);
+        const rest = Math.max(0, (100 - b.y - b.h) / 100 * imgH);
+        const oben = kopf + bottomY * box.h, platz = Math.max(0, kopf + box.h - oben);
+        return rest > 2 && platz > 2 ? (
+          <div className="kal-rohr" aria-hidden="true" style={{ left: box.l + mitteX * box.w - capW / 2, top: oben, width: capW, height: Math.min(rest, platz) }}>
+            <img src={capUrl} alt="" draggable={false} style={{ position: 'absolute', width: imgW, height: imgH, maxWidth: 'none', maxHeight: 'none', left: -b.x / 100 * imgW, top: -(b.y + b.h) / 100 * imgH }} />
+          </div>
+        ) : null;
+      })()}
       {box && (
         <div className="kal-cap" style={{ width: capW, height: capH, left: box.l + mitteX * box.w - capW / 2, top: kopf + bottomY * box.h - capH }} onPointerDown={runter('move')}>
           <CapAusschnitt geo={geo} url={capUrl} breite={capW} />
