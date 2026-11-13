@@ -215,6 +215,8 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   const [menueZeile, setMenueZeile] = useState<string | null>(null);
   const [alleCaps, setAlleCaps] = useState<Set<string>>(new Set());
   const [sitzIn, setSitzIn] = useState<string | null>(null);
+  const [kartenLook, setKartenLook] = useState<Record<string, string>>({});
+  useEffect(() => { try { const r = localStorage.getItem(`ulba_kartenlook_${vid}`); if (r) setKartenLook(JSON.parse(r)); } catch { /* egal */ } }, [vid]);
   const ansicht = seiteInfo.ansicht;
   const [wandOffen, setWandOffen] = useState(false);
   const [capOffen, setCapOffen] = useState<string | null>(null);
@@ -260,11 +262,20 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   const aktS = spalten.find((s) => s.id === akt) ?? spalten[0] ?? null;
   const capsVon = (t: RTeil | undefined) => (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
     .sort((a, b) => Number(!!b.bild) - Number(!!a.bild) || a.name.localeCompare(b.name));
-  const offenAkt = aktS ? offen.filter((x) => x.s.id === aktS.id) : [];
-  const fertigAkt = aktS ? zeilen.filter((z) => { const c = zelleVon(z, aktS); return c?.status === 'fertig' && c.bild; }).length : 0;
-  const farbe = aktS?.richtung.bodyHex ?? '#E9E2D6';
-  const hellF = (() => { const n = parseInt(farbe.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150; })();
-  const kartenStil = { '--farbe': farbe, '--auf': hellF ? '#0E0E0E' : '#F6F1EA' } as React.CSSProperties;
+  // Jede Karte kann ihren eigenen Look haben; ohne eigene Wahl gilt der oben gewählte
+  const lookVon = (z: RZeile) => spalten.find((s) => s.id === kartenLook[z.id]) ?? aktS;
+  const offenAkt = zeilen.flatMap((z) => { const sL = lookVon(z); const c = sL ? zelleVon(z, sL) : undefined; return sL && (!c || c.status === 'fehler') ? [{ z, s: sL }] : []; });
+  const fertigAkt = zeilen.filter((z) => { const sL = lookVon(z); const c = sL ? zelleVon(z, sL) : undefined; return c?.status === 'fertig' && c.bild; }).length;
+  const stilVon = (sL: RSpalte | null | undefined) => {
+    const farbe = sL?.richtung.bodyHex ?? '#E9E2D6';
+    const n = parseInt(farbe.slice(1), 16), hellF = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150;
+    return { '--farbe': farbe, '--auf': hellF ? '#0E0E0E' : '#F6F1EA' } as React.CSSProperties;
+  };
+  const kartenLookSetzen = (zid: string, sid: string | null) => setKartenLook((m) => {
+    const n = { ...m }; if (sid) n[zid] = sid; else delete n[zid];
+    try { localStorage.setItem(`ulba_kartenlook_${vid}`, JSON.stringify(n)); } catch { /* egal */ }
+    return n;
+  });
   const anlassWahl = async (a: 'neuheit' | 'marke' | 'trend') => {
     anlassSetzen(vid, a);
     if (a === 'neuheit') setTeilOffen(true);
@@ -295,7 +306,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
         <div className="sx-looks" role="tablist" aria-label="Looks">
           {spalten.map((s) => (
             <div key={s.id} role="tab" aria-selected={aktS?.id === s.id} tabIndex={0} className={`sx-look${aktS?.id === s.id ? ' an' : ''}`}
-              onClick={(e) => { if (!(e.target as HTMLElement).closest('button,input')) setAkt(s.id); }} onKeyDown={(e) => { if (e.key === 'Enter') setAkt(s.id); }}>
+              onClick={(e) => { if (!(e.target as HTMLElement).closest('button,input')) { setAkt(s.id); setKartenLook({}); try { localStorage.removeItem(`ulba_kartenlook_${vid}`); } catch { /* egal */ } } }} onKeyDown={(e) => { if (e.key === 'Enter') { setAkt(s.id); setKartenLook({}); } }}>
               <SpaltenKopf vid={vid} s={s}
                 onVerfeinert={(_sid, rid) => { const sp = { ...s, richtung: { ...s.richtung, id: rid } }; setAkt(s.id); rendern(zeilen.map((z) => ({ z, s: sp }))); }}
                 onWeg={() => { spalteEntfernen(vid, s.id); }} />
@@ -309,7 +320,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
           <span className="sx-stand">{laufend.length ? `${laufend.length} ${laufend.length === 1 ? 'Bild wird' : 'Bilder werden'} gerendert …` : aktS && zeilen.length ? `${fertigAkt} von ${zeilen.length} Bildern fertig` : ''}</span>
           {fehler && <span className="pn-fehler">{fehler}</span>}
           {offen.length > offenAkt.length && <button className="knopf zweit" disabled={startet} onClick={() => rendern(offen)}>Alle Looks rendern · {offen.length}</button>}
-          {offenAkt.length > 0 && <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Look rendern · ${offenAkt.length}`}</button>}
+          {offenAkt.length > 0 && <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Rendern · ${offenAkt.length}`}</button>}
           {seiteInfo.vorschau && <a className="knopf zweit" href={`/v/${seiteInfo.vorschau}?vorschau=1`} target="_blank" rel="noopener">Vorschau ↗</a>}
           <Link className={`knopf ${offenAkt.length ? 'zweit' : 'haupt'}`} href={`/studio/p/${vid}?tab=teilen`}>Senden</Link>
         </div>
@@ -327,14 +338,26 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
 
           {zeilen.map((z, i) => {
             const t = teilVon.get(z.teilId), caps = capsVon(t), cap = z.capId ? teilVon.get(z.capId) : null;
-            const c = aktS ? zelleVon(z, aktS) : undefined;
+            const sL = lookVon(z);
+            const c = sL ? zelleVon(z, sL) : undefined;
             const veraltet = !!c && c.status === 'fertig' && (c.capId ?? null) !== (z.capId ?? null);
             return (
-              <article key={z.id} className="lb-box lb-teil sx-teil" style={kartenStil}>
+              <article key={z.id} className="lb-box lb-teil sx-teil" style={stilVon(sL)}>
                 <div className="lb-teil-text">
                   <div>
                     <span className="lb-nr" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="lb-klammer">({aktS?.richtung.name ?? 'noch kein Look'})</span>
+                    {spalten.length > 1 ? (
+                      <div className="sx-kartenlooks" role="radiogroup" aria-label={`Look für ${t?.name}`}>
+                        {spalten.map((s) => {
+                          const cz = zelleVon(z, s), an = sL?.id === s.id;
+                          return (
+                            <button key={s.id} role="radio" aria-checked={an} className={`sx-kl${an ? ' an' : ''}`} onClick={() => kartenLookSetzen(z.id, s.id === aktS?.id ? null : s.id)}>
+                              <i style={{ background: s.richtung.bodyHex ?? '#E9E2D6' }} />{s.richtung.name}{cz?.status === 'fertig' ? ' ✓' : cz?.status === 'laeuft' ? ' …' : ''}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : <span className="lb-klammer">({sL?.richtung.name ?? 'noch kein Look'})</span>}
                     <h2>{t?.name ?? 'Teil'}</h2>
                     <p className="lb-leise">{t ? spec(t) : ''}</p>
                     <textarea className="sx-text sx-satz" defaultValue={z.verkaufssatz ?? ''} rows={2} maxLength={300} aria-label={`Verkaufssatz für ${t?.name}`}
@@ -365,7 +388,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                       {menueZeile === z.id && (
                         <div className="sx-pop" role="menu" onMouseLeave={() => setMenueZeile(null)}>
                           {cap?.bild && t?.bild && c?.status === 'fertig' && c.bild && <button role="menuitem" onClick={() => { setMenueZeile(null); setSitzIn(c.id); }}>Verschluss anpassen</button>}
-                          {c?.status === 'fertig' && aktS && <button role="menuitem" onClick={() => { setMenueZeile(null); rendern([{ z, s: aktS }]); }}>Neu rendern</button>}
+                          {c?.status === 'fertig' && sL && <button role="menuitem" onClick={() => { setMenueZeile(null); rendern([{ z, s: sL }]); }}>Neu rendern</button>}
                           <button role="menuitem" className="rot" onClick={() => { setMenueZeile(null); zeileEntfernen(vid, z.id); }}>Teil entfernen</button>
                         </div>
                       )}
@@ -389,9 +412,9 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                     <div className="lb-buehne sx-buehne leer">
                       {t?.bild && (cap?.bild ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
                         : <span className="sx-foto"><img src={t.bild} alt="" /></span>)}
-                      {!aktS ? <span className="sx-hinweis">Füg oben einen Look hinzu</span>
+                      {!sL ? <span className="sx-hinweis">Füg oben einen Look hinzu</span>
                         : c?.status === 'laeuft' ? <div className="sx-lauf"><Fortschritt /><span>wird gerendert · etwa 2 Minuten</span></div>
-                        : <div className="sx-lauf">{c?.status === 'fehler' && <span className="pn-fehler">Das hat nicht geklappt.</span>}<button className="knopf haupt" disabled={startet} onClick={() => rendern([{ z, s: aktS }])}>{c?.status === 'fehler' ? 'Nochmal rendern' : `In «${aktS.richtung.name}» rendern`}</button></div>}
+                        : <div className="sx-lauf">{c?.status === 'fehler' && <span className="pn-fehler">Das hat nicht geklappt.</span>}<button className="knopf haupt" disabled={startet} onClick={() => rendern([{ z, s: sL }])}>{c?.status === 'fehler' ? 'Nochmal rendern' : `In «${sL.richtung.name}» rendern`}</button></div>}
                     </div>
                   )}
                 </div>
