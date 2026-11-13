@@ -315,7 +315,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
             ) : fenster.art === 'ich' ? (
               <form action={ichSenden} className="lb-form">
                 <h2 id="d-titel">Wer sind Sie?</h2>
-                <p className="lb-leise">Einmal angeben, dann weiss {a.lieferant}, wem welches Design gefällt. Gilt nur für dieses Lookboog.</p>
+                <p className="lb-leise">Einmal angeben, dann weiss {a.lieferant}, wem welches Design gefällt. Gilt nur für dieses Lookbook.</p>
                 <label htmlFor="i-name">Name</label>
                 <input id="i-name" name="name" required maxLength={120} autoComplete="name" />
                 <label htmlFor="i-mail">E-Mail</label>
