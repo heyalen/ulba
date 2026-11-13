@@ -2,14 +2,14 @@
 /* ulba · Empfängerseite als persönliches Lookbook: Absender, Richtungen als Schalter,
    grosses Bild, Vergleich zweier Richtungen, Fakten-Schublade, ♥, Muster, Anpassen-Wunsch,
    Weiterleiten mit eigenem Unterlink, PDF über den Druckdialog. */
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import type { Ansicht, Fakten } from './daten';
 import { CHIPS } from '../../../lib/richtung';
-import { anpassenWuenschen, ereignis, musterAnfragen, weiterleiten } from './actions';
+import { anpassenWuenschen, ereignis, musterAnfragen, teamBeitreten, weiterleiten } from './actions';
 import './v.css';
 
 type T = Ansicht['teile'][number];
-type Fenster = null | { art: 'fakten'; t: T } | { art: 'anpassen'; t: T; spalte: string } | { art: 'weiter' } | { art: 'muster' };
+type Fenster = null | { art: 'ich' } | { art: 'fakten'; t: T } | { art: 'anpassen'; t: T; spalte: string } | { art: 'weiter' } | { art: 'muster' };
 const schluessel = (teilId: string, spalte: string) => `${teilId}|${spalte}`;
 /* Karte nimmt die Farbe des Looks an; Schrift je nach Helligkeit dunkel oder hell */
 const hell = (hex: string) => { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150; };
@@ -24,7 +24,32 @@ function FaktenListe({ f }: { f: Fakten }) {
   return da.length ? <dl className="lb-fakten">{da.map(([k, w]) => <div key={k}><dt>{k}</dt><dd>{w}</dd></div>)}</dl> : <p className="lb-leise">Noch keine technischen Angaben hinterlegt.</p>;
 }
 
-export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
+export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: Ansicht }) {
+  // Team-Link: nach einmaliger Angabe von Name + E-Mail läuft alles über den eigenen Unterlink
+  const [ich, setIch] = useState<{ token: string; email: string } | null>(null);
+  useEffect(() => { try { const r = localStorage.getItem(`ulba_ich_${linkToken}`); if (r) setIch(JSON.parse(r)); } catch { /* egal */ } }, [linkToken]);
+  const token = ich?.token ?? linkToken;
+  const danach = useRef<(() => void) | null>(null);
+  const alsIch = (fn: () => void) => { if (a.team && !ich) { danach.current = fn; setFenster({ art: 'ich' }); } else fn(); };
+  // Kartenleiste links: aktiver Abschnitt + Fortschritt (Punkt)
+  const [sek, setSek] = useState({ i: 0, p: 0 });
+  useEffect(() => {
+    let raf = 0;
+    const mess = () => {
+      raf = 0;
+      const els = Array.from(document.querySelectorAll<HTMLElement>('[data-sek]'));
+      const mitte = window.innerHeight * 0.45;
+      let i = 0;
+      els.forEach((el, k) => { if (el.getBoundingClientRect().top <= mitte) i = k; });
+      const r = els[i]?.getBoundingClientRect();
+      const p = r ? Math.min(1, Math.max(0, (mitte - r.top) / Math.max(1, r.height))) : 0;
+      setSek((alt) => (alt.i === i && Math.abs(alt.p - p) < 0.01 ? alt : { i, p }));
+    };
+    const an = () => { if (!raf) raf = requestAnimationFrame(mess); };
+    mess(); window.addEventListener('scroll', an, { passive: true }); window.addEventListener('resize', an);
+    return () => { window.removeEventListener('scroll', an); window.removeEventListener('resize', an); if (raf) cancelAnimationFrame(raf); };
+  }, []);
+  const springe = (k: number) => document.querySelectorAll<HTMLElement>('[data-sek]')[k]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const [akt, setAkt] = useState(a.richtungen[0]?.id ?? '');
   // Jede Karte zeigt ihren eigenen Look: oben gewählt, sonst der erste, der für dieses Teil gerendert ist
   const [karte, setKarte] = useState<Record<string, string>>({});
@@ -59,6 +84,19 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
     setAkt(id); setKarte({}); ereignis(token, 'richtung_gewaehlt', null, id);
   }
   function vergleichen(id: string | null) { setVergleich(id); if (id) ereignis(token, 'verglichen', null, id); }
+  function ichSenden(f: FormData) {
+    setFehler(null);
+    start(async () => {
+      const r = await teamBeitreten(linkToken, String(f.get('name') ?? ''), String(f.get('email') ?? ''));
+      if (!r.ok || !r.token) { setFehler(r.fehler ?? 'Fehler'); return; }
+      const neu = { token: r.token, email: r.email ?? '' };
+      setIch(neu); try { localStorage.setItem(`ulba_ich_${linkToken}`, JSON.stringify(neu)); } catch { /* egal */ }
+      setFenster(null); setFehler(null);
+      const fn = danach.current; danach.current = null;
+      // die gemerkte Aktion läuft nach dem Neu-Rendern mit dem eigenen Token
+      if (fn) setTimeout(fn, 0);
+    });
+  }
   function herzen(t: T, spalte: string) {
     const k = schluessel(t.teilId, spalte), an = !herz[k];
     setHerz((h) => ({ ...h, [k]: an }));
@@ -99,6 +137,22 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
 
   return (
     <div className="lb">
+     <div className="lb-geruest">
+      <nav className="lb-rail lb-nodruck" aria-label="Inhalt">
+        {[
+          { nr: '00', txt: a.lieferant, stil: { '--farbe': '#FFFFFF', '--auf': '#0E0E0E' } as React.CSSProperties, logo: true },
+          ...a.teile.map((t, k) => ({ nr: String(k + 1).padStart(2, '0'), txt: t.name, stil: farben(a.richtungen.find((r) => r.id === lookVon(t))?.hex), logo: false })),
+          ...(a.absender?.email ? [{ nr: String(a.teile.length + 1).padStart(2, '0'), txt: 'Kontakt', stil: { '--farbe': '#0E0E0E', '--auf': '#F4EDE4' } as React.CSSProperties, logo: false }] : []),
+        ].map((it, k) => (
+          <button key={k} className={`lb-rail-k${sek.i === k ? ' an' : ''}`} style={it.stil} onClick={() => springe(k)} aria-current={sek.i === k ? 'true' : undefined}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {it.logo && a.logo ? <img src={a.logo} alt="" className="lb-rail-logo" /> : <span className="lb-rail-nr">{it.nr}</span>}
+            <span className="lb-rail-txt">{it.txt}</span>
+            {sek.i === k && <i className="lb-rail-punkt" style={{ top: `calc(18px + ${Math.round(sek.p * 1000) / 10}% * 0.78)` }} aria-hidden="true" />}
+          </button>
+        ))}
+      </nav>
+      <div className="lb-spalte">
       <header className="lb-kopf">
         <div className="lb-innen lb-kopf-zeile">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -111,7 +165,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
       </header>
 
       <main className="lb-innen lb-haupt">
-        <section className="lb-box lb-intro">
+        <section className="lb-box lb-intro" data-sek="">
           <span className="lb-klammer">({a.empfaengerName ? `Vorschlag für ${a.empfaengerName}` : 'Vorschlag'})</span>
           <h1>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
           {a.absender && (
@@ -162,7 +216,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
             const k = schluessel(t.teilId, tl), auf = !!liste[k], weg = !!gesendet[k];
             const eigene = a.richtungen.filter((r) => t.renders[r.id]);
             return (
-              <article key={t.posId} className="lb-box lb-teil" style={farben(tR?.hex)}>
+              <article key={t.posId} className="lb-box lb-teil" style={farben(tR?.hex)} data-sek="">
                 <div className={`lb-bilder${sp.length > 1 ? ' zwei' : ''}`}>
                   {sp.map((s) => {
                     const bild = t.renders[s], hk = schluessel(t.teilId, s);
@@ -170,7 +224,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                       <figure key={s} className="lb-buehne">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {bild ? <img src={bild} alt={`${t.name} in der Richtung ${rName(s)}`} /> : <span className="lb-leise">Für diese Richtung noch kein Design</span>}
-                        {bild && <button className={`lb-herz lb-nodruck${herz[hk] ? ' an' : ''}`} aria-pressed={!!herz[hk]} aria-label={herz[hk] ? 'Gefällt mir entfernen' : 'Gefällt mir'} onClick={() => herzen(t, s)}>{herz[hk] ? '♥' : '♡'}</button>}
+                        {bild && <button className={`lb-herz lb-nodruck${herz[hk] ? ' an' : ''}`} aria-pressed={!!herz[hk]} aria-label={herz[hk] ? 'Gefällt mir entfernen' : 'Gefällt mir'} onClick={() => alsIch(() => herzen(t, s))}>{herz[hk] ? '♥' : '♡'}</button>}
                         <figcaption>{sp.length > 1 && <b>{rName(s)}</b>}<span>Basiert auf echtem Studiofoto</span></figcaption>
                       </figure>
                     );
@@ -190,7 +244,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                   </div>
                   <div className="lb-aktionen lb-nodruck">
                     <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'fakten', t })}>Fakten</button>
-                    {t.renders[tl] && <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'anpassen', t, spalte: tl })}>Anpassen wünschen</button>}
+                    {t.renders[tl] && <button className="lb-btn lb-btn--hell" onClick={() => alsIch(() => setFenster({ art: 'anpassen', t, spalte: tl }))}>Anpassen wünschen</button>}
                     {weg ? <span className="lb-ok">✓ Muster angefragt</span> : t.renders[tl] && (
                       <button className={`lb-btn${auf ? ' lb-btn--hell an' : ''}`} aria-pressed={auf} onClick={() => setListe((l) => ({ ...l, [k]: !auf }))}>{auf ? 'Auf der Musterliste ✓' : 'Muster anfragen'}</button>
                     )}
@@ -203,7 +257,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
         </section>
 
         {a.absender?.email && (
-          <section className="lb-box lb-schluss lb-nodruck">
+          <section className="lb-box lb-schluss lb-nodruck" data-sek="">
             <span className="lb-klammer">(Kontakt)</span>
             <h2>Sprechen wir darüber.</h2>
             <p>{a.absender.name}{a.absender.titel ? `, ${a.absender.titel}` : ''} · {a.lieferant}</p>
@@ -219,12 +273,14 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
           Datenschutz: {a.lieferant} sieht, wann Sie diesen Vorschlag öffnen, welche Richtung Sie wählen, was Ihnen gefällt und was Sie anfragen. Keine Werbe-Tracker. · made with ulba
         </p>
       </main>
+      </div>
+     </div>
 
       {gewaehlt.length > 0 && !fenster && (
         <div className="lb-leiste lb-nodruck">
           <div className="lb-innen lb-leiste-zeile">
             <span><b>{gewaehlt.length} Muster</b> auf Ihrer Liste</span>
-            <button className="lb-btn" onClick={() => setFenster({ art: 'muster' })}>Kostenlose Muster anfragen</button>
+            <button className="lb-btn" onClick={() => alsIch(() => setFenster({ art: 'muster' }))}>Kostenlose Muster anfragen</button>
           </div>
         </div>
       )}
@@ -256,12 +312,24 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                 <p className="lb-leise">{fertig}</p>
                 <button className="lb-btn" onClick={zu}>Fertig</button>
               </>
+            ) : fenster.art === 'ich' ? (
+              <form action={ichSenden} className="lb-form">
+                <h2 id="d-titel">Wer sind Sie?</h2>
+                <p className="lb-leise">Einmal angeben, dann weiss {a.lieferant}, wem welches Design gefällt. Gilt nur für diesen Vorschlag.</p>
+                <label htmlFor="i-name">Name</label>
+                <input id="i-name" name="name" required maxLength={120} autoComplete="name" />
+                <label htmlFor="i-mail">E-Mail</label>
+                <input id="i-mail" name="email" type="email" required autoComplete="email" />
+                {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
+                <button type="submit" className="lb-btn" disabled={laeuft}>{laeuft ? 'Einen Moment …' : 'Weiter'}</button>
+                <button type="button" className="lb-link" onClick={() => { danach.current = null; zu(); }}>Abbrechen</button>
+              </form>
             ) : fenster.art === 'muster' ? (
               <form action={musterSenden} className="lb-form">
                 <h2 id="d-titel">Muster anfragen</h2>
                 <ul className="lb-auswahl">{gewaehlt.map((k) => { const [tid, sid] = k.split('|'); return <li key={k}>{teilVon(tid)?.name} <span className="lb-leise">· {rName(sid)}</span></li>; })}</ul>
                 <label htmlFor="m-mail">Ihre E-Mail</label>
-                <input id="m-mail" name="email" type="email" autoComplete="email" required defaultValue={a.empfaengerEmail ?? ""} />
+                <input id="m-mail" name="email" type="email" autoComplete="email" required defaultValue={ich?.email || a.empfaengerEmail || ''} />
                 <label htmlFor="m-text">Nachricht <span className="lb-leise">(optional)</span></label>
                 <textarea id="m-text" name="nachricht" rows={2} placeholder="z. B. geplante Menge, Termin" />
                 {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
