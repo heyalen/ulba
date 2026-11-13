@@ -18,6 +18,7 @@ import { KontoVideo } from './kontoVideo';
 import { RechtLinks } from './rechtlich';
 import { deDE } from '@clerk/localizations';
 import { useEffect, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 
 export const CLERK_AKTIV = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -179,8 +180,11 @@ const deUlba = {
   formButtonPrimary: 'Fortfahren',
 } as typeof deDE;
 
+/* Neues ulba (Studio, Login, /v) läuft mit Supabase — dort wird Clerk gar nicht erst geladen. */
+const OHNE_CLERK = /^\/(studio|login|auth|start|v)(\/|$)/;
 export function KontoProvider({ children }: { children: ReactNode }) {
-  if (!CLERK_AKTIV) return <>{children}</>;
+  const pfad = usePathname();
+  if (!CLERK_AKTIV || OHNE_CLERK.test(pfad ?? '')) return <>{children}</>;
   return (
     <ClerkProvider
       localization={deUlba}
