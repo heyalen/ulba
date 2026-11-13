@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseServer } from './supabase/server';
 
 export const PROJEKT_COOKIE = 'ulba_projekt';
-export const STANDARD_TITEL = 'Neuer Vorschlag';
+export const STANDARD_TITEL = 'Neues Lookbook';
 export type ProjektKurz = { id: string; titel: string; marke: string | null; teile: number };
 
 export const ladeProjekte = cache(async (): Promise<ProjektKurz[]> => {
