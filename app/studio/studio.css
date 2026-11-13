@@ -298,3 +298,6 @@
 a.sb-neu { text-decoration:none; }
 a.sb-neu.an { border-color:var(--tinte); }
 a.sb-mobil-neu { color:var(--tinte); }
+.sf-unter { margin:-8px 0 4px; max-width:560px; font-size:15px; line-height:1.5; color:var(--grau,#5E5D59); }
+.sf-ohne { font-size:13.5px; color:var(--grau,#5E5D59); }
+.sf-ohne:hover { color:var(--tinte); }
