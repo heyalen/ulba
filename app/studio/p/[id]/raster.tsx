@@ -5,6 +5,7 @@
    Referenzbild, Marke oder Bibliothek und lassen sich per Chip verfeinern. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DesignWand } from '../../werkbank/designwand';
 import { Kalibrierung } from './kalibrier';
 import type { WbWelt } from '../../werkbank/werkbank';
@@ -48,7 +49,9 @@ function Fortschritt() {
 }
 
 /* ── Teil hinzufügen (Schublade rechts) ── */
-function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; imRaster: Set<string>; onWahl: (t: RTeil) => void; onClose: () => void }) {
+function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; imRaster: Set<string>; onWahl: (t: RTeil) => Promise<void>; onClose: () => void }) {
+  const [laedt, setLaedt] = useState<Set<string>>(new Set());
+  const waehle = async (t: RTeil) => { setLaedt((s) => new Set(s).add(t.id)); try { await onWahl(t); } finally { setLaedt((s) => { const n = new Set(s); n.delete(t.id); return n; }); } };
   const [q, setQ] = useState('');
   const [typ, setTyp] = useState('alle');
   const behaelter = useMemo(() => teile.filter((t) => t.aktiv && t.rolle !== 'verschluss'), [teile]);
@@ -61,21 +64,22 @@ function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; i
   return (
     <div className="rz-ov" onClick={onClose}>
       <aside className="rz-schublade" onClick={(e) => e.stopPropagation()} aria-label="Teile hinzufügen">
-        <div className="rz-sch-kopf"><h3>Teile hinzufügen</h3><button className="pn-zu" onClick={onClose} aria-label="Schliessen">×</button></div>
+        <div className="rz-sch-kopf"><h3>Teile wählen</h3><button className="pn-zu" onClick={onClose} aria-label="Schliessen">×</button></div>
         <input className="rz-suche" type="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen — Name, Typ, Material, Volumen …" aria-label="Teile suchen" />
         <div className="wb-filter">{[['alle', 'Alle'], ...typen.map((x) => [x, x])].map(([k, txt]) => <button key={k} className={`dw-pill${typ === k ? ' an' : ''}`} onClick={() => setTyp(k)}>{txt}</button>)}</div>
         <div className="rz-sch-raster">
           {liste.map((t) => {
             const da = imRaster.has(t.id);
             return (
-              <button key={t.id} className={`rz-teilkarte${da ? ' da' : ''}`} onClick={() => !da && onWahl(t)} disabled={da}>
-                <span className="rz-tk-bild">{t.bild ? <img src={t.bild} alt="" loading="lazy" /> : null}{da && <em>✓ im Vorschlag</em>}</span>
+              <button key={t.id} className={`rz-teilkarte${da ? ' da' : ''}${laedt.has(t.id) ? ' laedt' : ''}`} onClick={() => !da && !laedt.has(t.id) && waehle(t)} disabled={da} aria-busy={laedt.has(t.id)}>
+                <span className="rz-tk-bild">{t.bild ? <img src={t.bild} alt="" loading="lazy" /> : null}{da ? <em>✓ im Vorschlag</em> : laedt.has(t.id) ? <em>wird hinzugefügt …</em> : null}</span>
                 <span className="rz-tk-nm">{t.name}</span><span className="rz-tk-spec">{spec(t)}</span>
               </button>
             );
           })}
           {!liste.length && <p className="st-hilfe">Nichts gefunden. In der <a href="/studio/datenbank">Datenbank</a> findest du alle Teile.</p>}
         </div>
+        <div className="rz-sch-fuss"><span>{imRaster.size ? `${imRaster.size} ${imRaster.size === 1 ? 'Teil' : 'Teile'} im Vorschlag` : 'Klick auf ein Teil, um es hinzuzufügen'}</span><button className="knopf haupt" onClick={onClose}>Fertig</button></div>
       </aside>
     </div>
   );
@@ -196,8 +200,8 @@ function SpaltenKopf({ vid, s, onVerfeinert, onWeg }: { vid: string; s: RSpalte;
   );
 }
 
-export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welten, bibliothek }: {
-  vid: string; teile: RTeil[]; spalten: RSpalte[]; zeilen: RZeile[]; zellen: RZelle[]; welten: WbWelt[]; bibliothek: RRichtung[];
+export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen, welten, bibliothek }: {
+  vid: string; links: number; teile: RTeil[]; spalten: RSpalte[]; zeilen: RZeile[]; zellen: RZelle[]; welten: WbWelt[]; bibliothek: RRichtung[];
 }) {
   const router = useRouter();
   const teilVon = useMemo(() => new Map(teile.map((t) => [t.id, t])), [teile]);
@@ -244,35 +248,42 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
   });
 
   const leer = !zeilen.length && !spalten.length;
+  const schritt = !zeilen.length ? 1 : !spalten.length ? 2 : offen.length || laufend.length ? 3 : 4;
   return (
     <div className="wb rz">
-      <div className="rz-leiste">
-        <button className="knopf zweit" onClick={() => setTeilOffen(true)}>+ Teil</button>
-        <button className="knopf zweit" onClick={() => setRichtungOffen(true)}>+ Richtung</button>
-        <span className="rz-leiste-info">{laufend.length ? `${laufend.length} ${laufend.length === 1 ? 'Design wird' : 'Designs werden'} gerendert …` : offen.length && zeilen.length && spalten.length ? `${offen.length} ${offen.length === 1 ? 'Feld' : 'Felder'} noch als Vorschau` : ''}</span>
+      <div className="rz-wegweiser">
+        <ol className="rz-schritte" aria-label="Fortschritt">
+          {['Teile', 'Richtungen', 'Rendern', 'Link teilen'].map((txt, i) => <li key={txt} className={i + 1 < schritt ? 'ok' : i + 1 === schritt ? 'an' : ''} aria-current={i + 1 === schritt ? 'step' : undefined}><i>{i + 1 < schritt ? '✓' : i + 1}</i>{txt}</li>)}
+        </ol>
+        <div className="rz-naechster">
+          {schritt === 1 && <><div><b>Wähl die Teile, die du zeigen willst</b><span>Aus deinem Katalog. Jedes Teil wird eine Zeile im Vorschlag.</span></div><button className="knopf haupt" onClick={() => setTeilOffen(true)}>Teile wählen</button></>}
+          {schritt === 2 && <><div><b>Leg fest, wie die Teile aussehen sollen</b><span>Eine Richtung ist ein Look, zum Beispiel «K-Beauty pastell». Jede Richtung wird eine Spalte.</span></div><button className="knopf haupt" onClick={() => setRichtungOffen(true)}>Richtung hinzufügen</button></>}
+          {schritt === 3 && (laufend.length ? (
+            <div><b>{laufend.length} {laufend.length === 1 ? 'Design wird' : 'Designs werden'} gerendert …</b><span>Dauert etwa 2 Minuten pro Design. Du kannst hier weiterarbeiten oder die Seite verlassen.</span></div>
+          ) : (
+            <><div><b>{offen.length} {offen.length === 1 ? 'Design ist' : 'Designs sind'} erst eine Vorschau</b><span>Die getönten Bilder sind nur eine Skizze. «Rendern» macht daraus das fotorealistische Design (etwa 2 Minuten).</span></div>
+              <button className="knopf haupt" disabled={startet} onClick={() => rendern(offen)}>{startet ? 'Startet …' : `Alle rendern · ${offen.length}`}</button></>
+          ))}
+          {schritt === 4 && <><div><b>{links ? 'Der Vorschlag ist geteilt' : 'Fertig – schick den Vorschlag an die Marke'}</b><span>{links ? `${links} ${links === 1 ? 'Link ist' : 'Links sind'} aktiv. Neue Designs erscheinen dort automatisch.` : 'Jede Person bekommt einen eigenen Link und braucht kein Konto.'}</span></div><Link className="knopf haupt" href={`/studio/p/${vid}?tab=teilen`}>{links ? 'Links ansehen' : 'Link erstellen'}</Link></>}
+        </div>
         {fehler && <span className="pn-fehler">{fehler}</span>}
-        <button className="knopf haupt" disabled={!offen.length || startet || !zeilen.length || !spalten.length} onClick={() => rendern(offen)}>
-          {startet ? 'Startet …' : offen.length ? `Alle rendern · ${offen.length}` : 'Alles gerendert'}
-        </button>
       </div>
 
       {leer ? (
-        <div className="rz-start">
-          <h2>Was willst du zeigen?</h2>
-          <p>Ein Vorschlag ist ein Raster: links deine Teile, oben die Design-Richtungen. Jedes Feld wird ein Design.</p>
-          <div className="rz-start-wege">
-            <button onClick={() => setTeilOffen(true)}><b>1 · Teile wählen</b><span>Ein neues Packmittel, eine ganze Linie oder ein einzelnes Teil.</span></button>
-            <button onClick={() => setRichtungOffen(true)}><b>2 · Richtung festlegen</b><span>Beschreiben, Welt wählen, Referenzbild oder Marke — z. B. «K-Beauty pastell».</span></button>
-          </div>
+        <div className="rz-start" aria-hidden="true">
+          <div className="rz-start-karte"><i>Zeilen</i><b>Deine Teile</b><span>Flaschen, Tiegel, Tuben – mit passendem Verschluss.</span></div>
+          <div className="rz-start-karte"><i>Spalten</i><b>Design-Richtungen</b><span>Beschreiben, Welt wählen, Referenzbild oder Marke.</span></div>
+          <div className="rz-start-karte"><i>Felder</i><b>Fertige Designs</b><span>ulba rendert jede Kombination fotorealistisch.</span></div>
         </div>
       ) : (
         <div className="rz-scroll">
+          {schritt >= 3 && <p className="rz-kopf-hilfe">Klick auf ein Design für die Grossansicht. Farbe und Stil einer Spalte änderst du über «Verfeinern».</p>}
           <div className="rz-grid" style={{ gridTemplateColumns: `230px repeat(${spalten.length}, 220px) 150px` }}>
             <div className="rz-ecke" />
             {spalten.map((s) => (
               <SpaltenKopf key={s.id} vid={vid} s={s}
-                onVerfeinert={(_sid, rid) => { const sp = { ...s, richtung: { ...s.richtung, id: rid } }; rendern(zeilen.map((z) => ({ z, s: sp }))); router.refresh(); }}
-                onWeg={async () => { await spalteEntfernen(vid, s.id); router.refresh(); }} />
+                onVerfeinert={(_sid, rid) => { const sp = { ...s, richtung: { ...s.richtung, id: rid } }; rendern(zeilen.map((z) => ({ z, s: sp }))); }}
+                onWeg={() => { spalteEntfernen(vid, s.id); }} />
             ))}
             <button className="rz-plus-spalte" onClick={() => setRichtungOffen(true)}>+ Richtung</button>
 
@@ -288,7 +299,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
                     <div className="rz-zk-oben">
                       <div className="rz-zk-bild">{t?.bild && <img src={t.bild} alt="" />}</div>
                       <div className="rz-zk-text"><b>{t?.name ?? 'Teil'}</b><span>{t ? spec(t) : ''}</span></div>
-                      <button className="rz-zk-weg" onClick={async () => { await zeileEntfernen(vid, z.id); router.refresh(); }} aria-label="Teil entfernen" title="Teil entfernen">×</button>
+                      <button className="rz-zk-weg" onClick={() => { zeileEntfernen(vid, z.id); }} aria-label="Teil entfernen" title="Teil entfernen">×</button>
                     </div>
                     {caps.length > 0 ? (
                       <button className="rz-cap-knopf" onClick={() => setCapOffen(capOffen === z.id ? null : z.id)} aria-expanded={capOffen === z.id}>
@@ -304,12 +315,12 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
                         <div className="rz-cap-raster" role="radiogroup">
                           {caps.map((c) => (
                             <button key={c.id} role="radio" aria-checked={z.capId === c.id} className={`rz-cap-karte${z.capId === c.id ? ' an' : ''}`}
-                              onClick={async () => { setCapOffen(null); await zeileCap(vid, z.id, c.id); router.refresh(); }}>
+                              onClick={() => { setCapOffen(null); zeileCap(vid, z.id, c.id); }}>
                               <span className="rz-ck-bild">{c.bild ? <img src={c.bild} alt="" /> : null}</span>
                               <b>{c.name}</b><span>{[c.verschluss || c.typ, c.material].filter(Boolean).join(' · ')}</span>
                             </button>
                           ))}
-                          <button role="radio" aria-checked={!z.capId} className={`rz-cap-karte ohne${!z.capId ? ' an' : ''}`} onClick={async () => { setCapOffen(null); await zeileCap(vid, z.id, null); router.refresh(); }}>
+                          <button role="radio" aria-checked={!z.capId} className={`rz-cap-karte ohne${!z.capId ? ' an' : ''}`} onClick={() => { setCapOffen(null); zeileCap(vid, z.id, null); }}>
                             <span className="rz-ck-bild"><i>ohne</i></span><b>Ohne Verschluss</b><span>nur der Behälter</span>
                           </button>
                         </div>
@@ -359,7 +370,7 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="knopf zweit wb-klein" onClick={() => { const x = grossX; setGross(null); rendern([{ z: x.z, s: x.s }]); }}>Neu rendern</button>
                 {grossX.z.capId && teilVon.get(grossX.z.capId)?.bild && <button className="knopf zweit wb-klein" onClick={() => { setSitz({ teilId: grossX.z.teilId, capId: grossX.z.capId! }); setGross(null); }}>Verschluss anpassen</button>}
-                <button className="knopf zweit wb-klein" onClick={async () => { const id = grossX.c!.id; setGross(null); await zelleEntfernen(vid, id); router.refresh(); }}>Entfernen</button>
+                <button className="knopf zweit wb-klein" onClick={async () => { const id = grossX.c!.id; setGross(null); await zelleEntfernen(vid, id); }}>Entfernen</button>
                 <a className="knopf zweit wb-klein wb-a" href={grossX.c!.bild!} download target="_blank" rel="noopener">Herunterladen</a>
               </div>
             </div>
@@ -381,11 +392,11 @@ export function Raster({ vid, teile, spalten, zeilen, zellen: startZellen, welte
       )}
       {meldung && <div className="rz-toast" role="status">{meldung}</div>}
       {teilOffen && <TeilSchublade teile={teile} imRaster={new Set(zeilen.map((z) => z.teilId))} onClose={() => setTeilOffen(false)}
-        onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); router.refresh(); }} />}
+        onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); }} />}
       {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} onClose={() => setRichtungOffen(false)}
         onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); router.refresh(); }} />}
       {wandOffen && <DesignWand welten={welten} titel="Welche Welt soll eine Spalte werden?" onClose={() => setWandOffen(false)}
-        onWahl={async (w) => { setWandOffen(false); await spalteAusWelt(vid, w.id); router.refresh(); }} />}
+        onWahl={async (w) => { setWandOffen(false); await spalteAusWelt(vid, w.id); }} />}
     </div>
   );
 }
