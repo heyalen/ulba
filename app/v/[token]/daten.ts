@@ -20,7 +20,7 @@ export async function empfaengerPruefen(token: string): Promise<Empfaenger | nul
 
 export type Fakten = { material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; deko: string; pcr: number | null; moq: number | null; datenblatt: string | null; foto: string | null };
 export type Ansicht = {
-  lieferant: string; logo: string | null; marke: string | null; titel: string; einleitung: string | null; nachricht: string | null; empfaengerName: string | null; empfaengerEmail: string | null; weitergeleitetVon: string | null;
+  lieferant: string; logo: string | null; marke: string | null; titel: string; einleitung: string | null; nachricht: string | null; empfaengerName: string | null; empfaengerEmail: string | null; team: boolean; weitergeleitetVon: string | null;
   absender: { name: string; titel: string | null; email: string | null; telefon: string | null; foto: string | null } | null;
   richtungen: { id: string; name: string; beschreibung: string; hex: string | null }[];
   teile: { posId: string; teilId: string; name: string; satz: string | null; fakten: Fakten; renders: Record<string, string> }[];
@@ -67,7 +67,7 @@ export async function ladeAnsicht(e: Empfaenger): Promise<Ansicht | null> {
 
   return {
     lieferant: vv.firmen?.name ?? 'Lieferant', logo: vv.firmen?.logo_pfad ? logoUrl.get(vv.firmen.logo_pfad) ?? null : null,
-    marke: vv.marken?.name ?? null, titel: vv.titel, einleitung: vv.einleitung ?? null, nachricht: e.nachricht, empfaengerName: e.name, empfaengerEmail: e.email ?? null,
+    marke: vv.marken?.name ?? null, titel: vv.titel, einleitung: vv.einleitung ?? null, nachricht: e.nachricht, empfaengerName: e.name?.startsWith('Team · ') ? null : e.name, empfaengerEmail: e.email ?? null, team: !e.email,
     weitergeleitetVon: (von as { name: string | null } | null)?.name ?? (e.weitergeleitet_von ? 'einer Kollegin' : null),
     absender: name || email ? { name: name ?? email!, titel: M?.titel ?? null, email, telefon: M?.telefon ?? null, foto: M?.foto_pfad ? logoUrl.get(M.foto_pfad) ?? null : null } : null,
     richtungen: ((ri ?? []) as unknown as { id: string; hex: string | null; richtungen: { name: string; beschreibung: string | null; felder: Record<string, unknown> } | null }[])
