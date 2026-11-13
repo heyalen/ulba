@@ -21,6 +21,9 @@ export async function zeileHinzufuegen(vid: string, teilId: string, capId: strin
   const { data: da } = await sb.from('vorschlag_positionen').select('id').eq('vorschlag_id', vid).eq('teil_id', teilId).maybeSingle();
   if (!da) {
     const { count } = await sb.from('vorschlag_positionen').select('id', { count: 'exact', head: true }).eq('vorschlag_id', vid);
+    // System = Verschluss ist auf dem Foto schon montiert → kein zusätzlicher Verschluss
+    const { data: rolle } = await sb.from('teile').select('rolle').eq('id', teilId).maybeSingle();
+    if ((rolle as { rolle: string } | null)?.rolle === 'system') capId = null;
     await sb.from('vorschlag_positionen').insert({ vorschlag_id: vid, teil_id: teilId, cap_id: capId, reihenfolge: count ?? 0 });
     // Erster Inhalt: aus «Neuer Vorschlag» wird ein sprechender Name (bleibt frei änderbar)
     if (!count) {
