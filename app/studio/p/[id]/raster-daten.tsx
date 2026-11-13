@@ -1,10 +1,11 @@
 /* ulba · lädt alles fürs Raster (Katalog, Welten, Bibliothek, Bilder) in einer Runde. */
 import { supabaseServer, bildLinks } from '../../../../lib/supabase/server';
 import type { Felder } from '../../../../lib/richtung';
-import { Raster, type RTeil, type RSpalte, type RZeile, type RZelle, type RRichtung } from './raster';
+import { Raster, type RSeite, type RTeil, type RSpalte, type RZeile, type RZelle, type RRichtung } from './raster';
 import type { WbWelt } from '../../werkbank/werkbank';
 import '../../werkbank/werkbank.css';
 import './raster.css';
+import '../../../v/[token]/v.css';
 
 export type SpalteRoh = { id: string; richtung_id: string; wunsch_text?: string | null; richtungen: { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null } | null };
 type TeilZeile = { id: string; status: string; name: string; rolle: string; typ: string | null; material: string | null; volumen_ml: number | null; hals: string | null; verschluss_art: string | null; kollektion: string | null; artikelnummer: string | null; bild_pfad: string | null };
@@ -22,9 +23,9 @@ export function ladeKatalog() {
   ]);
 }
 
-export async function RasterDaten({ vid, cols, pos, zellen, katalog, links }: {
-  katalog: ReturnType<typeof ladeKatalog>; links: number;
-  vid: string; cols: SpalteRoh[]; pos: { id: string; teil_id: string; cap_id: string | null }[];
+export async function RasterDaten({ vid, cols, pos, zellen, katalog, links, seiteInfo }: {
+  katalog: ReturnType<typeof ladeKatalog>; links: number; seiteInfo: RSeite;
+  vid: string; cols: SpalteRoh[]; pos: { id: string; teil_id: string; cap_id: string | null; verkaufssatz?: string | null }[];
   zellen: { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }[];
 }) {
   const [{ data: t }, { data: tv }, { data: w }, { data: bib }] = await katalog;
@@ -50,13 +51,13 @@ export async function RasterDaten({ vid, cols, pos, zellen, katalog, links }: {
     finish: typeof r.felder.Finish_Body === 'string' ? r.felder.Finish_Body : null,
   });
   const spalten: RSpalte[] = cols.filter((c) => c.richtungen).map((c) => ({ id: c.id, richtung: richtung(c.richtungen!), wunsch: c.wunsch_text ?? null }));
-  const zeilen: RZeile[] = pos.map((p) => ({ id: p.id, teilId: p.teil_id, capId: p.cap_id }));
+  const zeilen: RZeile[] = pos.map((p) => ({ id: p.id, teilId: p.teil_id, capId: p.cap_id, verkaufssatz: p.verkaufssatz ?? null }));
   const zellenOut: RZelle[] = zellen.map((z) => ({ id: z.id, teilId: z.teil_id, richtungId: z.welt_id, capId: z.cap_id, status: z.status, log: z.log, bild: z.bild_pfad ? renderBild.get(z.bild_pfad) ?? null : null }));
   const imRaster = new Set(spalten.map((s) => s.richtung.id));
   const wl: WbWelt[] = welten.map((x) => ({ id: x.id, art: 'welt', name: x.name, brand: String(x.felder.Brand ?? ''), bild: x.bild_pfad ? weltBild.get(x.bild_pfad) ?? null : null,
     register: x.felder.Register ? String(x.felder.Register) : null, laut: zahl(x.felder.Temp_Laut), farbtemp: zahl(x.felder.Farbtemp),
     bodyHex: hex(x.felder.Body_Hex), capHex: hex(x.felder.Cap_Hex), wirkung: String(x.felder.Wirkung_Keywords ?? '') }));
 
-  return <Raster vid={vid} links={links} teile={teile} spalten={spalten} zeilen={zeilen} zellen={zellenOut} welten={wl}
+  return <Raster vid={vid} links={links} seiteInfo={seiteInfo} teile={teile} spalten={spalten} zeilen={zeilen} zellen={zellenOut} welten={wl}
     bibliothek={bibliothek.filter((b) => !imRaster.has(b.id)).map(richtung)} />;
 }
