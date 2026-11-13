@@ -214,6 +214,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   const [akt, setAkt] = useState<string | null>(null);
   const [menueZeile, setMenueZeile] = useState<string | null>(null);
   const [alleCaps, setAlleCaps] = useState<Set<string>>(new Set());
+  const [sitzIn, setSitzIn] = useState<string | null>(null);
   const ansicht = seiteInfo.ansicht;
   const [wandOffen, setWandOffen] = useState(false);
   const [capOffen, setCapOffen] = useState<string | null>(null);
@@ -372,10 +373,18 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                   </div>
                 </div>
                 <div className="lb-bilder">
-                  {c?.status === 'fertig' && c.bild ? (
-                    <button className="lb-buehne sx-buehne" onClick={() => setGross(c.id)} aria-label={`${t?.name} gross ansehen`}>
-                      <img src={c.bild} alt="" />{veraltet && <em className="sx-hinweis">Verschluss geändert – neu rendern</em>}
-                    </button>
+                  {c?.status === 'fertig' && c.bild && sitzIn === c.id && cap?.bild && t?.bild ? (
+                    <div className="lb-buehne sx-buehne leer">
+                      <SitzInline vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} renderId={c.id}
+                        onAbbrechen={() => setSitzIn(null)}
+                        onGespeichert={(n) => { setSitzIn(null); setMeldung(n ? `Sitz gespeichert · ${n} ${n === 1 ? 'Design' : 'Designs'} neu zusammengesetzt` : 'Sitz gespeichert'); setTimeout(() => setMeldung(''), 5000); router.refresh(); }} />
+                    </div>
+                  ) : c?.status === 'fertig' && c.bild ? (
+                    <div className="lb-buehne sx-buehne fertig">
+                      <button className="sx-bild-knopf" onClick={() => setGross(c.id)} aria-label={`${t?.name} gross ansehen`}><img src={c.bild} alt="" /></button>
+                      {veraltet && <em className="sx-hinweis">Verschluss geändert – neu rendern</em>}
+                      {cap?.bild && t?.bild && !veraltet && <button className="sx-mini sx-anpassen" onClick={() => setSitzIn(c.id)}>Verschluss anpassen</button>}
+                    </div>
                   ) : (
                     <div className="lb-buehne sx-buehne leer">
                       {t?.bild && (cap?.bild ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
