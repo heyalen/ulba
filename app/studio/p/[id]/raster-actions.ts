@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { ladeKontext, supabaseServer } from '../../../../lib/supabase/server';
 import { backend } from '../../../../lib/backend';
 import { verfeinern as verfeinernFelder, type Chip, type Felder } from '../../../../lib/richtung';
-import { projektMerken } from '../../../../lib/projekt';
+import { projektMerken, STANDARD_TITEL } from '../../../../lib/projekt';
 
 const pfad = (vid: string) => `/studio/p/${vid}`;
 const jetzt = () => new Date().toISOString();
@@ -22,6 +22,12 @@ export async function zeileHinzufuegen(vid: string, teilId: string, capId: strin
   if (!da) {
     const { count } = await sb.from('vorschlag_positionen').select('id', { count: 'exact', head: true }).eq('vorschlag_id', vid);
     await sb.from('vorschlag_positionen').insert({ vorschlag_id: vid, teil_id: teilId, cap_id: capId, reihenfolge: count ?? 0 });
+    // Erster Inhalt: aus «Neuer Vorschlag» wird ein sprechender Name (bleibt frei änderbar)
+    if (!count) {
+      const { data: t } = await sb.from('teile').select('name').eq('id', teilId).maybeSingle();
+      const name = (t as { name: string } | null)?.name;
+      if (name) { const { data: u } = await sb.from('vorschlaege').update({ titel: name.slice(0, 120) }).eq('id', vid).eq('titel', STANDARD_TITEL).select('id'); if (u?.length) revalidatePath('/studio', 'layout'); }
+    }
   }
   await beruehrt(vid);
 }
