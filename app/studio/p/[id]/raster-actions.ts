@@ -198,3 +198,24 @@ export async function kalibrierungSpeichern(vid: string, teilId: string, capId: 
   await beruehrt(vid);
   return { neu: r.ok ? Number(r.json?.neu ?? 0) : 0 };
 }
+
+/* ── Seite: Anlass, Einleitung, Verkaufssatz ── */
+const EINLEITUNG: Record<string, string> = {
+  neuheit: 'Wir stellen Ihnen unsere Neuheit vor – hier in verschiedenen Looks, alle auf Basis echter Teile aus unserem Sortiment.',
+  marke: 'Wir haben uns gefragt, wie Ihre Marke in unseren Verpackungen aussehen könnte. Hier ein paar Ideen.',
+  trend: 'Eine Idee für eine neue Linie – umgesetzt mit lieferbaren Teilen aus unserem Sortiment.',
+};
+export async function anlassSetzen(vid: string, anlass: 'neuheit' | 'marke' | 'trend') {
+  const sb = supabaseServer();
+  await sb.from('vorschlaege').update({ anlass }).eq('id', vid);
+  await sb.from('vorschlaege').update({ einleitung: EINLEITUNG[anlass] }).eq('id', vid).is('einleitung', null);
+  await beruehrt(vid);
+}
+export async function seiteTextSpeichern(vid: string, einleitung: string) {
+  await supabaseServer().from('vorschlaege').update({ einleitung: einleitung.trim().slice(0, 600) || null, aktualisiert_am: jetzt() }).eq('id', vid);
+  revalidatePath(pfad(vid));
+}
+export async function verkaufssatzSpeichern(vid: string, posId: string, text: string) {
+  await supabaseServer().from('vorschlag_positionen').update({ verkaufssatz: text.trim().slice(0, 300) || null }).eq('id', posId).eq('vorschlag_id', vid);
+  revalidatePath(pfad(vid));
+}
