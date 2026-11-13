@@ -11,6 +11,9 @@ import './v.css';
 type T = Ansicht['teile'][number];
 type Fenster = null | { art: 'fakten'; t: T } | { art: 'anpassen'; t: T; spalte: string } | { art: 'weiter' } | { art: 'muster' };
 const schluessel = (teilId: string, spalte: string) => `${teilId}|${spalte}`;
+/* Karte nimmt die Farbe des Looks an; Schrift je nach Helligkeit dunkel oder hell */
+const hell = (hex: string) => { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150; };
+const farben = (hex: string | null | undefined): React.CSSProperties => { const f = hex ?? '#E9E2D6'; return { '--farbe': f, '--auf': hell(f) ? '#0E0E0E' : '#F6F1EA' } as React.CSSProperties; };
 
 function FaktenListe({ f }: { f: Fakten }) {
   const zeilen: [string, string | null][] = [
@@ -106,7 +109,9 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
       </header>
 
       <main className="lb-innen lb-haupt">
-        <section className="lb-intro">
+        <section className="lb-box lb-intro">
+          <span className="lb-klammer">({a.empfaengerName ? `Vorschlag für ${a.empfaengerName}` : 'Vorschlag'})</span>
+          <h1>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
           {a.absender && (
             <div className="lb-absender">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -123,8 +128,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
           )}
           {a.nachricht && <p className="lb-nachricht">{a.nachricht}</p>}
           {a.weitergeleitetVon && <p className="lb-leise">Weitergeleitet von {a.weitergeleitetVon}.</p>}
-          <h1>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
-          <p className="lb-leise">{a.empfaengerName ? `Für ${a.empfaengerName} · ` : ''}{a.teile.length} Teil{a.teile.length === 1 ? '' : 'e'} · {a.richtungen.length} Richtung{a.richtungen.length === 1 ? '' : 'en'} · alle Teile sind bei {a.lieferant} lieferbar</p>
+          <p className="lb-leise lb-zahl">{a.teile.length} Teil{a.teile.length === 1 ? '' : 'e'} · {a.richtungen.length} Richtung{a.richtungen.length === 1 ? '' : 'en'} · alle Teile sind bei {a.lieferant} lieferbar</p>
         </section>
 
         {a.richtungen.length > 0 && (
@@ -149,10 +153,10 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
         )}
 
         <section className="lb-teile" aria-label="Designs">
-          {a.teile.map((t) => {
+          {a.teile.map((t, i) => {
             const k = schluessel(t.teilId, akt), auf = !!liste[k], weg = !!gesendet[k];
             return (
-              <article key={t.posId} className="lb-teil">
+              <article key={t.posId} className="lb-box lb-teil" style={farben(aktR?.hex)}>
                 <div className={`lb-bilder${spalten.length > 1 ? ' zwei' : ''}`}>
                   {spalten.map((s) => {
                     const bild = t.renders[s], hk = schluessel(t.teilId, s);
@@ -168,8 +172,10 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                 </div>
                 <div className="lb-teil-text">
                   <div>
+                    <span className="lb-nr" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="lb-klammer">({rName(akt)}{vergleich ? ` / ${rName(vergleich)}` : ''})</span>
                     <h2>{t.name}</h2>
-                    <p className="lb-leise">{[t.fakten.volumen ? `${t.fakten.volumen} ml` : null, t.fakten.material, t.fakten.verschluss, spalten.length === 1 ? rName(akt) : null].filter(Boolean).join(' · ')}</p>
+                    <p className="lb-leise">{[t.fakten.volumen ? `${t.fakten.volumen} ml` : null, t.fakten.material, t.fakten.verschluss].filter(Boolean).join(' · ')}</p>
                   </div>
                   <div className="lb-aktionen lb-nodruck">
                     <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'fakten', t })}>Fakten</button>
@@ -184,6 +190,18 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
             );
           })}
         </section>
+
+        {a.absender?.email && (
+          <section className="lb-box lb-schluss lb-nodruck">
+            <span className="lb-klammer">(Kontakt)</span>
+            <h2>Sprechen wir darüber.</h2>
+            <p>{a.absender.name}{a.absender.titel ? `, ${a.absender.titel}` : ''} · {a.lieferant}</p>
+            <div className="lb-aktionen">
+              <a className="lb-btn" href={`mailto:${a.absender.email}?subject=${encodeURIComponent(a.marke ? `Ideen für ${a.marke}` : a.titel)}`}>E-Mail an {a.absender.name.split(' ')[0]}</a>
+              {a.absender.telefon && <a className="lb-btn lb-btn--hell" href={`tel:${a.absender.telefon.replace(/[^\d+]/g, '')}`}>{a.absender.telefon}</a>}
+            </div>
+          </section>
+        )}
 
         <p className="lb-fuss">
           Die Bilder sind Visualisierungen auf Basis echter Studiofotos der lieferbaren Teile, kein finales Design.
