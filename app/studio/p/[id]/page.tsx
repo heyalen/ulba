@@ -14,7 +14,7 @@ const REITER = [['seite', 'Seite'], ['raster', 'Übersicht'], ['teilen', 'Link t
 const UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
 const feld = { minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 } as const;
 
-export default async function Projekt({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+export default async function Projekt({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string; start?: string; idee?: string } }) {
   if (!UUID.test(params.id)) notFound();
   const sb = supabaseServer();
   const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'seite';
@@ -48,22 +48,30 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
       <div className="pj-kopf">
         <div>
           <TitelFeld key={p.titel} id={p.id} titel={p.titel} />
-          <p className="pj-meta">{P.length} {P.length === 1 ? 'Teil' : 'Teile'} · {(cols ?? []).length} {(cols ?? []).length === 1 ? 'Look' : 'Looks'} · {fertig} {fertig === 1 ? 'Design' : 'Designs'}</p>
+          <p className="pj-meta">{P.length} {P.length === 1 ? 'Card' : 'Cards'} · {(cols ?? []).length} {(cols ?? []).length === 1 ? 'Look' : 'Looks'} · {fertig} {fertig === 1 ? 'Design' : 'Designs'}</p>
         </div>
+        <details className="pj-mehr">
+          <summary aria-label="Mehr">···</summary>
+          <div>
+            <Link href={`/studio/p/${p.id}`}>Lookbook</Link>
+            <Link href={`/studio/p/${p.id}?tab=raster`}>Übersicht aller Designs</Link>
+            <Link href={`/studio/p/${p.id}?tab=teilen`}>Links{anzahl.teilen ? ` · ${anzahl.teilen}` : ''}</Link>
+            <Link href={`/studio/p/${p.id}?tab=anfragen`}>Anfragen{anzahl.anfragen ? ` · ${anzahl.anfragen}` : ''}</Link>
+          </div>
+        </details>
       </div>
 
-      <nav className="pj-tabs" aria-label="Vorschlag">
-        {REITER.map(([k, t]) => <Link key={k} href={k === 'seite' ? `/studio/p/${p.id}` : `/studio/p/${p.id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</Link>)}
-      </nav>
+      {tab !== 'seite' && <Link className="pj-zurueck" href={`/studio/p/${p.id}`}>← Zurück zum Lookbook</Link>}
 
       {(tab === 'raster' || tab === 'seite') && katalog && <RasterDaten vid={p.id} katalog={katalog} links={anzahl.teilen}
-        seiteInfo={{ ansicht: tab === 'raster' ? 'raster' : 'seite', anlass: p.anlass, einleitung: p.einleitung, kopf: p.marken?.name ? `Ideen für ${p.marken.name}` : p.titel, vorschau: E.find((x) => !x.widerrufen_am)?.token ?? null }} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
+        seiteInfo={{ ansicht: tab === 'raster' ? 'raster' : 'seite', anlass: p.anlass, einleitung: p.einleitung, kopf: p.marken?.name ? `Ideen für ${p.marken.name}` : p.titel, vorschau: E.find((x) => !x.widerrufen_am)?.token ?? null, anfragen: A.length,
+          start: searchParams.start === 'teile' || searchParams.start === 'marke' || searchParams.start === 'look' ? searchParams.start : null, idee: (searchParams.idee ?? '').slice(0, 300) }} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
 
       {tab === 'teilen' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 760 }}>
           <section className="st-box" style={{ maxWidth: 'none' }}>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Link erstellen</h2>
-            {fertig === 0 ? <p className="st-hilfe" style={{ margin: 0 }}>Sobald der Vorschlag ein fertiges Design hat, kannst du es hier als Link teilen.</p> : (
+            {fertig === 0 ? <p className="st-hilfe" style={{ margin: 0 }}>Sobald das Lookbook ein fertiges Design hat, kannst du es hier als Link teilen.</p> : (
               <>
                 <p className="st-hilfe" style={{ margin: 0 }}>Die Marke sieht alle {fertig} Designs und kann Muster anfragen — ohne Konto. Jede Person bekommt einen eigenen Link: so siehst du, wer geöffnet und angefragt hat. 90 Tage gültig, jederzeit widerrufbar.</p>
                 <form action={linkErstellen} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
@@ -75,7 +83,7 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
                   <input name="name" placeholder="Name (bei Team-Link: z. B. Marketing Aesop)" aria-label="Name" style={feld} />
                   <textarea name="email" rows={2} placeholder="E-Mails – mehrere mit Komma oder Zeilenumbruch" aria-label="E-Mails" style={{ ...feld, padding: 12, fontFamily: 'inherit' }} />
                   <p className="st-hilfe" style={{ gridColumn: '1 / -1', margin: 0 }}>Beim Team-Link nennt jede Person beim ersten Klick auf ♥, Wunsch oder Muster einmal Name und E-Mail. So siehst du trotzdem, wer was wollte.</p>
-                  <textarea name="nachricht" rows={2} placeholder="Persönliche Nachricht (erscheint oben im Vorschlag)" aria-label="Persönliche Nachricht" style={{ ...feld, gridColumn: '1 / -1', padding: 12, fontFamily: 'inherit' }} />
+                  <textarea name="nachricht" rows={2} placeholder="Persönliche Nachricht (erscheint oben im Lookbook)" aria-label="Persönliche Nachricht" style={{ ...feld, gridColumn: '1 / -1', padding: 12, fontFamily: 'inherit' }} />
                   <button className="st-btn" type="submit" style={{ justifySelf: 'start' }}>Link erstellen</button>
                 </form>
               </>
@@ -93,9 +101,9 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
                 )}
               </div>
             ))}
-            {E.length > 0 && <p className="st-hilfe" style={{ margin: 0 }}>Links sind live: neue Designs dieses Vorschlags erscheinen automatisch beim nächsten Öffnen.</p>}
+            {E.length > 0 && <p className="st-hilfe" style={{ margin: 0 }}>Links sind live: neue Designs dieses Lookbooks erscheinen automatisch beim nächsten Öffnen.</p>}
           </section>
-          <form action={archivieren}><input type="hidden" name="id" value={p.id} /><button type="submit" className="st-abmelden">Vorschlag archivieren</button></form>
+          <form action={archivieren}><input type="hidden" name="id" value={p.id} /><button type="submit" className="st-abmelden">Lookbook archivieren</button></form>
         </div>
       )}
 
