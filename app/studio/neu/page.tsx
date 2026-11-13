@@ -24,6 +24,7 @@ export default async function Neu({ searchParams }: { searchParams: { q?: string
   }
   const wunschCap = a.was.find((w) => w.art === 'verschluss');
   const capFuer = (id: string) => {
+    if (nachId.get(id)?.rolle === 'system') return null;
     const l = (caps.get(id) ?? []).slice().sort((x, y) => Number(!!y.bild_pfad) - Number(!!x.bild_pfad));
     const w = wunschCap ? l.find((c) => `${c.name} ${c.verschluss_art ?? ''} ${c.typ ?? ''}`.toLowerCase().match(wunschCap.wort === 'pipette' || wunschCap.wort === 'dropper' ? /pipette|dropper|drop/ : wunschCap.wort.startsWith('pump') ? /pump/ : /spray|sprüh|mist/)) : null;
     return (w ?? l[0])?.id ?? null;
