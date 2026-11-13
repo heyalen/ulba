@@ -26,6 +26,9 @@ function FaktenListe({ f }: { f: Fakten }) {
 
 export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
   const [akt, setAkt] = useState(a.richtungen[0]?.id ?? '');
+  // Jede Karte zeigt ihren eigenen Look: oben gewählt, sonst der erste, der für dieses Teil gerendert ist
+  const [karte, setKarte] = useState<Record<string, string>>({});
+  const lookVon = (t: T) => karte[t.posId] && t.renders[karte[t.posId]] ? karte[t.posId] : t.renders[akt] ? akt : a.richtungen.find((r) => t.renders[r.id])?.id ?? akt;
   const [vergleich, setVergleich] = useState<string | null>(null);
   const [herz, setHerz] = useState<Record<string, boolean>>({});
   const [liste, setListe] = useState<Record<string, boolean>>({});
@@ -53,7 +56,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
   function waehle(id: string) {
     if (id === akt) return;
     if (id === vergleich) setVergleich(akt);
-    setAkt(id); ereignis(token, 'richtung_gewaehlt', null, id);
+    setAkt(id); setKarte({}); ereignis(token, 'richtung_gewaehlt', null, id);
   }
   function vergleichen(id: string | null) { setVergleich(id); if (id) ereignis(token, 'verglichen', null, id); }
   function herzen(t: T, spalte: string) {
@@ -93,7 +96,6 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
   }
   async function kopieren(text: string) { try { await navigator.clipboard.writeText(text); setKopiert(true); } catch { setKopiert(false); } }
 
-  const spalten = vergleich ? [akt, vergleich] : [akt];
 
   return (
     <div className="lb">
@@ -155,18 +157,21 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
 
         <section className="lb-teile" aria-label="Designs">
           {a.teile.map((t, i) => {
-            const k = schluessel(t.teilId, akt), auf = !!liste[k], weg = !!gesendet[k];
+            const tl = lookVon(t), tR = a.richtungen.find((r) => r.id === tl);
+            const sp = vergleich ? [tl, vergleich === tl ? akt : vergleich] : [tl];
+            const k = schluessel(t.teilId, tl), auf = !!liste[k], weg = !!gesendet[k];
+            const eigene = a.richtungen.filter((r) => t.renders[r.id]);
             return (
-              <article key={t.posId} className="lb-box lb-teil" style={farben(aktR?.hex)}>
-                <div className={`lb-bilder${spalten.length > 1 ? ' zwei' : ''}`}>
-                  {spalten.map((s) => {
+              <article key={t.posId} className="lb-box lb-teil" style={farben(tR?.hex)}>
+                <div className={`lb-bilder${sp.length > 1 ? ' zwei' : ''}`}>
+                  {sp.map((s) => {
                     const bild = t.renders[s], hk = schluessel(t.teilId, s);
                     return (
                       <figure key={s} className="lb-buehne">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {bild ? <img src={bild} alt={`${t.name} in der Richtung ${rName(s)}`} /> : <span className="lb-leise">Für diese Richtung noch kein Design</span>}
                         {bild && <button className={`lb-herz lb-nodruck${herz[hk] ? ' an' : ''}`} aria-pressed={!!herz[hk]} aria-label={herz[hk] ? 'Gefällt mir entfernen' : 'Gefällt mir'} onClick={() => herzen(t, s)}>{herz[hk] ? '♥' : '♡'}</button>}
-                        <figcaption>{spalten.length > 1 && <b>{rName(s)}</b>}<span>Basiert auf echtem Studiofoto</span></figcaption>
+                        <figcaption>{sp.length > 1 && <b>{rName(s)}</b>}<span>Basiert auf echtem Studiofoto</span></figcaption>
                       </figure>
                     );
                   })}
@@ -174,15 +179,19 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                 <div className="lb-teil-text">
                   <div>
                     <span className="lb-nr" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="lb-klammer">({rName(akt)}{vergleich ? ` / ${rName(vergleich)}` : ''})</span>
+                    {eigene.length > 1 && !vergleich ? (
+                      <div className="lb-kartenlooks lb-nodruck" role="radiogroup" aria-label={`Look für ${t.name}`}>
+                        {eigene.map((r) => <button key={r.id} role="radio" aria-checked={r.id === tl} className={`lb-chip${r.id === tl ? ' an' : ''}`} onClick={() => { setKarte((m) => ({ ...m, [t.posId]: r.id })); ereignis(token, 'richtung_gewaehlt', t.teilId, r.id); }}>{r.name}</button>)}
+                      </div>
+                    ) : <span className="lb-klammer">({rName(tl)}{vergleich ? ` / ${rName(sp[1])}` : ''})</span>}
                     <h2>{t.name}</h2>
                     <p className="lb-leise">{[t.fakten.volumen ? `${t.fakten.volumen} ml` : null, t.fakten.material, t.fakten.verschluss].filter(Boolean).join(' · ')}</p>
                     {t.satz && <p className="lb-satz">{t.satz}</p>}
                   </div>
                   <div className="lb-aktionen lb-nodruck">
                     <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'fakten', t })}>Fakten</button>
-                    {t.renders[akt] && <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'anpassen', t, spalte: akt })}>Anpassen wünschen</button>}
-                    {weg ? <span className="lb-ok">✓ Muster angefragt</span> : t.renders[akt] && (
+                    {t.renders[tl] && <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'anpassen', t, spalte: tl })}>Anpassen wünschen</button>}
+                    {weg ? <span className="lb-ok">✓ Muster angefragt</span> : t.renders[tl] && (
                       <button className={`lb-btn${auf ? ' lb-btn--hell an' : ''}`} aria-pressed={auf} onClick={() => setListe((l) => ({ ...l, [k]: !auf }))}>{auf ? 'Auf der Musterliste ✓' : 'Muster anfragen'}</button>
                     )}
                   </div>
