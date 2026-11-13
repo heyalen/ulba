@@ -261,7 +261,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                 <h2 id="d-titel">Muster anfragen</h2>
                 <ul className="lb-auswahl">{gewaehlt.map((k) => { const [tid, sid] = k.split('|'); return <li key={k}>{teilVon(tid)?.name} <span className="lb-leise">· {rName(sid)}</span></li>; })}</ul>
                 <label htmlFor="m-mail">Ihre E-Mail</label>
-                <input id="m-mail" name="email" type="email" autoComplete="email" required />
+                <input id="m-mail" name="email" type="email" autoComplete="email" required defaultValue={a.empfaengerEmail ?? ""} />
                 <label htmlFor="m-text">Nachricht <span className="lb-leise">(optional)</span></label>
                 <textarea id="m-text" name="nachricht" rows={2} placeholder="z. B. geplante Menge, Termin" />
                 {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
