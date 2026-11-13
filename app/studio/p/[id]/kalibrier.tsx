@@ -77,6 +77,7 @@ export function SitzInline({ vid, teilId, capId, bodyUrl: studioBody, capUrl: st
   const [basis, setBasis] = useState<{ skala: number; bottomY: number } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [ok, setOk] = useState(false);
+  const [versuch, setVersuch] = useState(0);
   useEffect(() => {
     let tot = false; setGeo(null); setFehler(false);
     // Im fertigen Design: auf dem gerenderten Körper anpassen (alte Designs ohne Rohbilder → Studiofoto)
@@ -91,12 +92,20 @@ export function SitzInline({ vid, teilId, capId, bodyUrl: studioBody, capUrl: st
       if (!r.geo) { setFehler(true); return; }
       const w = { skala: r.geo.gespeichert?.skala ?? r.geo.auto.skala, bottomY: (r.geo.gespeichert?.versatzY ?? r.geo.auto.versatzY) / 100 };
       setGeo(r.geo); setWert(w); setBasis(w);
-    });
+    }).catch(() => { if (!tot) setFehler(true); });
     return () => { tot = true; };
-  }, [teilId, capId, renderId, studioBody, studioCap]);
+  }, [teilId, capId, renderId, studioBody, studioCap, versuch]);
   const bodyUrl = urls?.body ?? studioBody, capUrl = urls?.cap ?? studioCap;
-  if (fehler) return <span className="sx-foto"><img className="sx-foto-cap" src={capUrl} alt="" /><img src={bodyUrl} alt="" /></span>;
-  if (!geo || !wert) return <span className="sx-foto laedt"><img src={bodyUrl} alt="" /></span>;
+  if (fehler || !geo || !wert) return (
+    <div className="sx-sitz">
+      <span className={`sx-foto${fehler ? '' : ' laedt'}`}><img src={bodyUrl} alt="" /></span>
+      <div className="sx-sitz-leiste">
+        {fehler ? <><span className="sx-sitz-tipp">Die Form konnte nicht gemessen werden.</span><button className="sx-mini" onClick={() => setVersuch((v) => v + 1)}>Nochmal</button></>
+          : <span className="sx-sitz-tipp">Form wird gemessen …</span>}
+        {onAbbrechen && <button className="sx-mini" onClick={onAbbrechen}>Fertig</button>}
+      </div>
+    </div>
+  );
   const geaendert = !!basis && (Math.abs(wert.skala - basis.skala) > 0.0005 || Math.abs(wert.bottomY - basis.bottomY) > 0.0005);
   return (
     <div className="sx-sitz">
@@ -130,6 +139,17 @@ export function Kalibrierung({ vid, teilId, capId, bodyUrl, capUrl, titel, onZu,
   const [bottomY, setBottomY] = useState(0.16);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
+  const [versuch, setVersuch] = useState(0);
+  useEffect(() => {
+    let tot = false; setGeoFehler('');
+    geometrieLaden(teilId, capId).then((r) => {
+      if (tot) return;
+      if (r.fehler || !r.geo) { setGeoFehler(r.fehler || 'Die Form konnte nicht gemessen werden.'); return; }
+      setGeo(r.geo); setSkala(r.geo.gespeichert?.skala ?? r.geo.auto.skala); setBottomY((r.geo.gespeichert?.versatzY ?? r.geo.auto.versatzY) / 100);
+    }).catch(() => { if (!tot) setGeoFehler('Die Form konnte nicht gemessen werden.'); });
+    return () => { tot = true; };
+  }, [teilId, capId, versuch]);
+  useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !laeuft) onZu(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onZu, laeuft]);
   const zuruecksetzen = () => { if (geo) { setSkala(geo.auto.skala); setBottomY(geo.auto.versatzY / 100); } };
 
   return (
@@ -138,8 +158,9 @@ export function Kalibrierung({ vid, teilId, capId, bodyUrl, capUrl, titel, onZu,
         <button className="pn-zu rg-zu" onClick={onZu} disabled={laeuft} aria-label="Schliessen">×</button>
         <h3 className="kal-titel">Sitz anpassen · {titel}</h3>
         <p className="kal-hilfe">Verschluss senkrecht ziehen, mit dem Punkt an der Ecke die Grösse ändern. Gilt ab jetzt für alle Designs mit diesem Teil und Verschluss — fertige Designs werden ohne neuen Render neu zusammengesetzt.{!geo && !geoFehler ? ' Form wird gemessen …' : ''}</p>
-        {geoFehler && <p className="pn-fehler">{geoFehler}</p>}
+        {geoFehler && <p className="pn-fehler">{geoFehler} <button className="sx-mini" onClick={() => setVersuch((v) => v + 1)}>Nochmal</button></p>}
         <div className="kal-flaeche">
+          {!geo && <div className="kal-laedt"><img src={bodyUrl} alt="" />{!geoFehler && <span>Form wird gemessen …</span>}</div>}
           {geo && <SitzFlaeche geo={geo} bodyUrl={bodyUrl} capUrl={capUrl} skala={skala} bottomY={bottomY} maxH="44vh" onChange={(sk, by) => { setSkala(sk); setBottomY(by); }} />}
         </div>
         {fehler && <p className="pn-fehler">{fehler}</p>}
