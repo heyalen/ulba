@@ -19,6 +19,21 @@ export async function projektAnlegen(titel?: string): Promise<string | null> {
   return id;
 }
 
+/* Neuer Vorschlag ohne Neuladen. Ein noch leerer «Neuer Vorschlag» wird wiederverwendet,
+   damit sich die Liste nicht mit leeren Einträgen füllt. */
+export async function neuesProjektId(): Promise<string | null> {
+  const k = await ladeKontext();
+  if (!k?.firma) return null;
+  const sb = supabaseServer();
+  const { data: alt } = await sb.from('vorschlaege').select('id, vorschlag_positionen ( count ), vorschlag_richtungen ( count )').eq('titel', STANDARD_TITEL).neq('status', 'archiviert').order('aktualisiert_am', { ascending: false }).limit(10);
+  const leer = ((alt ?? []) as unknown as { id: string; vorschlag_positionen: { count: number }[]; vorschlag_richtungen: { count: number }[] }[])
+    .find((v) => !(v.vorschlag_positionen?.[0]?.count) && !(v.vorschlag_richtungen?.[0]?.count));
+  if (leer) return leer.id;
+  const { data } = await sb.from('vorschlaege').insert({ firma_id: k.firma.id, erstellt_von: k.userId, titel: STANDARD_TITEL }).select('id').single();
+  revalidatePath('/studio', 'layout');
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function neuesProjekt() {
   const id = await projektAnlegen();
   redirect(id ? pfad(id) : '/studio');
