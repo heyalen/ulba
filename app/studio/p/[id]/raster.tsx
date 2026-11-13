@@ -352,6 +352,8 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
           {seiteInfo.vorschau && <a className="sx-textlink" href={`/v/${seiteInfo.vorschau}?vorschau=1`} target="_blank" rel="noopener">Vorschau ↗</a>}
           {offenAkt.length > 0
             ? <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Rendern · ${offenAkt.length}`}</button>
+            : !spalten.length ? <button className="knopf haupt" onClick={() => setRichtungOffen(true)}>Look hinzufügen</button>
+            : !zeilen.length ? <button className="knopf haupt" onClick={() => setTeilOffen(true)}>Card hinzufügen</button>
             : <Link className="knopf haupt" href={`/studio/p/${vid}?tab=teilen`}>Senden</Link>}
         </div>
       </div>
