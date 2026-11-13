@@ -184,15 +184,22 @@ export type KalGeo = {
   auto: { skala: number; versatzY: number };
   gespeichert: { skala: number; versatzY: number | null } | null;
 };
-export async function geometrieLaden(teilId: string, capId: string): Promise<{ geo?: KalGeo; fehler?: string }> {
+export async function geometrieLaden(teilId: string, capId: string, renderId?: string): Promise<{ geo?: KalGeo; fehler?: string }> {
   await firma();
-  const r = await backend('/api/vorschlag', { aufgabe: 'geometrie', teilId, capId }, 45_000);
+  const r = await backend('/api/vorschlag', { aufgabe: 'geometrie', teilId, capId, ...(renderId ? { renderId } : {}) }, 45_000);
   if (!r.ok || !r.json?.cap) return { fehler: r.json?.error || 'Die Form konnte nicht gemessen werden.' };
   return { geo: r.json as KalGeo };
 }
-export async function kalibrierungSpeichern(vid: string, teilId: string, capId: string, skala: number, versatzY: number): Promise<{ neu?: number; fehler?: string }> {
+/* Gespeichert wird relativ zur Körper-Silhouette (Basis 'sil'): Breite = Anteil der Silhouettenbreite,
+   Versatz = Abstand der Verschluss-Unterkante zur Hals-Oberkante in Silhouettenbreiten (×100).
+   So stimmt der Sitz auf dem Studiofoto und auf jedem gerenderten Körper mit anderem Bildausschnitt. */
+export async function kalibrierungSpeichern(vid: string, teilId: string, capId: string, skala: number, versatzY: number, body: KalGeo['body']): Promise<{ neu?: number; fehler?: string }> {
   if (!(skala > 0 && skala <= 2) || !(versatzY >= -60 && versatzY <= 90)) return { fehler: 'Ungültige Werte.' };
-  const { error } = await supabaseServer().from('teil_verschluesse').update({ montage_skala: skala, montage_versatz_y: versatzY, montage_am: jetzt() }).eq('teil_id', teilId).eq('verschluss_id', capId);
+  const silW = (body.silhouetteBox?.w ?? 100) / 100;
+  if (!(silW > 0.02) || !(body.w > 0) || !(body.h > 0)) return { fehler: 'Die Form konnte nicht gemessen werden.' };
+  const relSkala = Math.round(skala / silW * 10000) / 10000;
+  const relVersatz = Math.round((versatzY / 100 - body.neckTopPct / 100) * body.h / (silW * body.w) * 10000) / 100;
+  const { error } = await supabaseServer().from('teil_verschluesse').update({ montage_skala: relSkala, montage_versatz_y: relVersatz, montage_basis: 'sil', montage_am: jetzt() }).eq('teil_id', teilId).eq('verschluss_id', capId);
   if (error) return { fehler: 'Konnte nicht gespeichert werden.' };
   const r = await backend('/api/vorschlag', { aufgabe: 'montieren', teilId, capId }, 120_000);
   await beruehrt(vid);
@@ -218,4 +225,15 @@ export async function seiteTextSpeichern(vid: string, einleitung: string) {
 export async function verkaufssatzSpeichern(vid: string, posId: string, text: string) {
   await supabaseServer().from('vorschlag_positionen').update({ verkaufssatz: text.trim().slice(0, 300) || null }).eq('id', posId).eq('vorschlag_id', vid);
   revalidatePath(pfad(vid));
+}
+
+/* Rohbilder eines fertigen Designs (Körper + Verschluss getrennt) zum Anpassen im Design selbst */
+export async function renderRoh(renderId: string): Promise<{ body: string; cap: string } | null> {
+  const { data } = await supabaseServer().from('studio_renders').select('body_pfad, cap_pfad').eq('id', renderId).maybeSingle();
+  const r = data as { body_pfad: string | null; cap_pfad: string | null } | null;
+  if (!r?.body_pfad || !r.cap_pfad) return null;
+  const { bildLinks } = await import('../../../../lib/supabase/server');
+  const l = await bildLinks([r.body_pfad, r.cap_pfad], 'renders');
+  const body = l.get(r.body_pfad), cap = l.get(r.cap_pfad);
+  return body && cap ? { body, cap } : null;
 }
