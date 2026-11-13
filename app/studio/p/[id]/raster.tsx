@@ -88,18 +88,18 @@ function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; i
 /* ── Richtung hinzufügen: fünf Wege, ein Ergebnis ── */
 function RichtungDialog({ vid, bibliothek, start, idee, onWelten, onClose, onFertig }: { vid: string; bibliothek: RRichtung[]; start?: 'beschreiben' | 'marke'; idee?: string; onWelten: () => void; onClose: () => void; onFertig: () => void }) {
   const [weg, setWeg] = useState<'beschreiben' | 'referenz' | 'marke' | 'gespeichert'>(start ?? 'beschreiben');
-  const [text, setText] = useState(idee ?? '');
+  const [text, setText] = useState(start === 'marke' ? '' : idee ?? '');
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
   const [entwuerfe, setEntwuerfe] = useState<Entwurf[] | null>(null);
   const [wahl, setWahl] = useState<Set<number>>(new Set([0, 1, 2]));
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(start === 'marke' ? idee ?? '' : '');
   const dateiRef = useRef<HTMLInputElement>(null);
   useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !laeuft) onClose(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onClose, laeuft]);
   const los = async (f: () => Promise<{ fehler?: string } | void>) => { setFehler(''); setLaeuft(true); try { const r = await f(); if (r && r.fehler) setFehler(r.fehler); } catch { setFehler('Das hat nicht geklappt. Versuch es noch einmal.'); } setLaeuft(false); };
   const autoRef = useRef(false);
   useEffect(() => {
-    if (autoRef.current || !idee || idee.trim().length < 3) return;
+    if (autoRef.current || start === 'marke' || !idee || idee.trim().length < 3) return;
     autoRef.current = true;
     los(async () => { const r = await richtungBeschreiben(idee); if (r.entwuerfe) { setEntwuerfe(r.entwuerfe); setWahl(new Set(r.entwuerfe.map((_, i) => i))); } return r; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +130,7 @@ function RichtungDialog({ vid, bibliothek, start, idee, onWelten, onClose, onFer
             </>
           ) : (
             <>
-              <p className="st-hilfe" style={{ margin: 0 }}>Wähl, welche Spielarten als Spalten ins Raster kommen.</p>
+              <p className="st-hilfe" style={{ margin: 0 }}>Wähl, welche Spielarten du als Looks übernehmen willst.</p>
               <div className="rz-entwuerfe">
                 {entwuerfe.map((e, i) => (
                   <button key={i} className={`rz-entwurf${wahl.has(i) ? ' an' : ''}`} onClick={() => setWahl((w) => { const n = new Set(w); if (n.has(i)) n.delete(i); else n.add(i); return n; })} aria-pressed={wahl.has(i)}>
@@ -140,7 +140,7 @@ function RichtungDialog({ vid, bibliothek, start, idee, onWelten, onClose, onFer
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="knopf haupt" disabled={laeuft || !wahl.size} onClick={() => los(async () => { await entwuerfeUebernehmen(vid, entwuerfe.filter((_, i) => wahl.has(i))); onFertig(); })}>{laeuft ? 'Wird übernommen …' : `${wahl.size} ${wahl.size === 1 ? 'Richtung' : 'Richtungen'} übernehmen`}</button>
+                <button className="knopf haupt" disabled={laeuft || !wahl.size} onClick={() => los(async () => { await entwuerfeUebernehmen(vid, entwuerfe.filter((_, i) => wahl.has(i))); onFertig(); })}>{laeuft ? 'Wird übernommen …' : `${wahl.size} ${wahl.size === 1 ? 'Look' : 'Looks'} übernehmen`}</button>
                 <button className="knopf zweit" disabled={laeuft} onClick={() => setEntwuerfe(null)}>Neu beschreiben</button>
               </div>
             </>
@@ -310,17 +310,10 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   ] as const;
 
   const seite = leer ? (
-    <div className="sx-anlass">
-      <h2>Was möchtest du zeigen?</h2>
-      <p>Wähl den Anlass. Danach baust du direkt die Seite, die deine Kundin bekommt.</p>
-      <div className="sx-anlass-raster">
-        {ANLASS.map(([k, t, txt, cta], i) => (
-          <button key={k} className={`sx-anlass-karte${seiteInfo.anlass === k ? ' an' : ''}`} onClick={() => anlassWahl(k)}>
-            <span className="sx-nr">{String(i + 1).padStart(2, '0')}</span>
-            <b>{t}</b><span>{txt}</span><em>{cta} →</em>
-          </button>
-        ))}
-      </div>
+    <div className="sx-leer">
+      <h2>Dieses Lookbook ist noch leer</h2>
+      <p>Wähl zuerst die Teile, die du zeigen willst. Danach legst du fest, wie sie aussehen sollen.</p>
+      <div><button className="knopf haupt" onClick={() => setTeilOffen(true)}>Cards wählen</button><button className="knopf zweit" onClick={() => setRichtungOffen(true)}>Look hinzufügen</button></div>
     </div>
   ) : (
     <div className="sx">
