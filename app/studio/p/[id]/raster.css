@@ -305,3 +305,9 @@
 @media(max-width:820px){.sx-cap-bild{width:46px;height:46px}.sx-sitz .kal-rahmen{max-width:86%}}
 .kal-rohr{position:absolute;overflow:hidden;pointer-events:none;opacity:.6}
 .kal-rohr img{mix-blend-mode:multiply;user-select:none}
+.sx-buehne.fertig{cursor:default}
+.sx-bild-knopf{width:100%;height:100%;display:flex!important;align-items:center;justify-content:center;cursor:zoom-in;padding:0!important}
+.sx-bild-knopf img{width:100%;height:100%;max-height:min(74vh,720px);object-fit:contain}
+.sx-anpassen{position:absolute;right:12px;bottom:12px;opacity:0;transition:opacity .15s}
+.sx-buehne.fertig:hover .sx-anpassen,.sx-anpassen:focus-visible{opacity:1}
+@media(hover:none){.sx-anpassen{opacity:1}}
