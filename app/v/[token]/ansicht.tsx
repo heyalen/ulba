@@ -297,7 +297,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
             {fenster.t.fakten.foto && (
               <figure className="lb-original">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={fenster.t.fakten.foto} alt={`${fenster.t.name}, Studiofoto`} />
+                <img src={fenster.t.fakten.foto} alt={`${fenster.t.name}, Studiofoto`} onError={(ev) => { const f = ev.currentTarget.closest('figure'); if (f) f.style.display = 'none'; }} />
                 <figcaption className="lb-leise">Das echte Teil · Studiofoto</figcaption>
               </figure>
             )}
