@@ -356,3 +356,8 @@
 .sx-leer p{margin:0 0 12px;color:var(--grau);font-size:14.5px;max-width:460px}
 .sx-leer div{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .sx-leer .knopf{min-height:44px;padding:0 20px}
+/* Bühne ohne Render: Foto nie grösser als die Bühne, Fortschritt bleibt sichtbar */
+.sx-foto{flex:none;max-height:none}
+.sx-foto img{max-height:min(38vh,300px)}
+.sx-buehne.leer{overflow:hidden}
+@media(max-width:820px){.sx-buehne.leer{aspect-ratio:auto;min-height:0;padding:20px 16px}.sx-foto img{max-height:230px}.sx-sitz .kal-body{max-height:230px!important}.sx-anpassen{position:static;margin:0 0 12px;opacity:1}.sx-buehne.fertig{flex-direction:column}}
