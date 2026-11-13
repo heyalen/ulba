@@ -94,7 +94,7 @@ export async function weiterleiten(token: string, name: string, email: string): 
   if (mail && !MAIL.test(mail)) return { ok: false, fehler: 'Bitte eine gültige E-Mail-Adresse eingeben.' };
   const sb = supabaseAdmin();
   const { count } = await sb.from('empfaenger').select('id', { count: 'exact', head: true }).eq('weitergeleitet_von', e.id);
-  if ((count ?? 0) >= 10) return { ok: false, fehler: 'Sie haben diesen Vorschlag schon 10-mal weitergeleitet.' };
+  if ((count ?? 0) >= 10) return { ok: false, fehler: 'Sie haben dieses Lookbook schon 10-mal weitergeleitet.' };
   const { data, error } = await sb.from('empfaenger').insert({ vorschlag_id: e.vorschlag_id, name: n, email: mail || null, nachricht: e.nachricht,
     weitergeleitet_von: e.id, laeuft_ab_am: e.laeuft_ab_am }).select('id, token').single();
   if (error || !data) return { ok: false, fehler: 'Der Link konnte nicht erstellt werden.' };
