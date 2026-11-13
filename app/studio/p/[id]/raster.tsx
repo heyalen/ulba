@@ -4,7 +4,7 @@
    «Alle rendern» füllt sie. Richtungen entstehen aus Beschreibung, Welt,
    Referenzbild, Marke oder Bibliothek und lassen sich per Chip verfeinern. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { DesignWand } from '../../werkbank/designwand';
 import { Kalibrierung, SitzInline } from './kalibrier';
@@ -72,23 +72,23 @@ function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; i
             const da = imRaster.has(t.id);
             return (
               <button key={t.id} className={`rz-teilkarte${da ? ' da' : ''}${laedt.has(t.id) ? ' laedt' : ''}`} onClick={() => !da && !laedt.has(t.id) && waehle(t)} disabled={da} aria-busy={laedt.has(t.id)}>
-                <span className="rz-tk-bild">{t.bild ? <img src={t.bild} alt="" loading="lazy" /> : null}{da ? <em>✓ im Vorschlag</em> : laedt.has(t.id) ? <em>wird hinzugefügt …</em> : null}</span>
+                <span className="rz-tk-bild">{t.bild ? <img src={t.bild} alt="" loading="lazy" /> : null}{da ? <em>✓ im Lookbook</em> : laedt.has(t.id) ? <em>wird hinzugefügt …</em> : null}</span>
                 <span className="rz-tk-nm">{t.name}</span><span className="rz-tk-spec">{spec(t)}</span>
               </button>
             );
           })}
           {!liste.length && <p className="st-hilfe">Nichts gefunden. In der <a href="/studio/datenbank">Datenbank</a> findest du alle Teile.</p>}
         </div>
-        <div className="rz-sch-fuss"><span>{imRaster.size ? `${imRaster.size} ${imRaster.size === 1 ? 'Teil' : 'Teile'} im Vorschlag` : 'Klick auf ein Teil, um es hinzuzufügen'}</span><button className="knopf haupt" onClick={onClose}>Fertig</button></div>
+        <div className="rz-sch-fuss"><span>{imRaster.size ? `${imRaster.size} ${imRaster.size === 1 ? 'Teil' : 'Teile'} im Lookbook` : 'Klick auf ein Teil, um es hinzuzufügen'}</span><button className="knopf haupt" onClick={onClose}>Fertig</button></div>
       </aside>
     </div>
   );
 }
 
 /* ── Richtung hinzufügen: fünf Wege, ein Ergebnis ── */
-function RichtungDialog({ vid, bibliothek, start, onWelten, onClose, onFertig }: { vid: string; bibliothek: RRichtung[]; start?: 'beschreiben' | 'marke'; onWelten: () => void; onClose: () => void; onFertig: () => void }) {
+function RichtungDialog({ vid, bibliothek, start, idee, onWelten, onClose, onFertig }: { vid: string; bibliothek: RRichtung[]; start?: 'beschreiben' | 'marke'; idee?: string; onWelten: () => void; onClose: () => void; onFertig: () => void }) {
   const [weg, setWeg] = useState<'beschreiben' | 'referenz' | 'marke' | 'gespeichert'>(start ?? 'beschreiben');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(idee ?? '');
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
   const [entwuerfe, setEntwuerfe] = useState<Entwurf[] | null>(null);
@@ -97,6 +97,13 @@ function RichtungDialog({ vid, bibliothek, start, onWelten, onClose, onFertig }:
   const dateiRef = useRef<HTMLInputElement>(null);
   useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !laeuft) onClose(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onClose, laeuft]);
   const los = async (f: () => Promise<{ fehler?: string } | void>) => { setFehler(''); setLaeuft(true); try { const r = await f(); if (r && r.fehler) setFehler(r.fehler); } catch { setFehler('Das hat nicht geklappt. Versuch es noch einmal.'); } setLaeuft(false); };
+  const autoRef = useRef(false);
+  useEffect(() => {
+    if (autoRef.current || !idee || idee.trim().length < 3) return;
+    autoRef.current = true;
+    los(async () => { const r = await richtungBeschreiben(idee); if (r.entwuerfe) { setEntwuerfe(r.entwuerfe); setWahl(new Set(r.entwuerfe.map((_, i) => i))); } return r; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const hex = (e: Entwurf, k: string) => { const v = e.felder[k]; return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; };
 
   return (
@@ -200,7 +207,7 @@ function SpaltenKopf({ vid, s, onVerfeinert, onWeg }: { vid: string; s: RSpalte;
   );
 }
 
-export type RSeite = { ansicht: 'seite' | 'raster'; anlass: string | null; einleitung: string | null; kopf: string; vorschau: string | null };
+export type RSeite = { ansicht: 'seite' | 'raster'; anlass: string | null; einleitung: string | null; kopf: string; vorschau: string | null; anfragen: number; start: 'teile' | 'marke' | 'look' | null; idee: string };
 export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: startZellen, welten, bibliothek }: {
   vid: string; links: number; seiteInfo: RSeite; teile: RTeil[]; spalten: RSpalte[]; zeilen: RZeile[]; zellen: RZelle[]; welten: WbWelt[]; bibliothek: RRichtung[];
 }) {
@@ -215,6 +222,21 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   const [menueZeile, setMenueZeile] = useState<string | null>(null);
   const [alleCaps, setAlleCaps] = useState<Set<string>>(new Set());
   const [sitzIn, setSitzIn] = useState<string | null>(null);
+  const [panel, setPanel] = useState<string | null>(null);
+  const [lookEdit, setLookEdit] = useState<string | null>(null);
+  const [ideeStart, setIdeeStart] = useState('');
+  const pfadName = usePathname();
+  // Einstieg vom Start-Fenster: direkt den passenden ersten Schritt öffnen, dann die URL säubern
+  const startRef = useRef(false);
+  useEffect(() => {
+    if (startRef.current || !seiteInfo.start) return;
+    startRef.current = true;
+    if (seiteInfo.start === 'teile') setTeilOffen(true);
+    else { setRichtungStart(seiteInfo.start === 'marke' ? 'marke' : 'beschreiben'); setIdeeStart(seiteInfo.idee); setRichtungOffen(true); }
+    if (pfadName) router.replace(pfadName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { if (!panel) return; const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanel(null); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [panel]);
   const [kartenLook, setKartenLook] = useState<Record<string, string>>({});
   useEffect(() => { try { const r = localStorage.getItem(`ulba_kartenlook_${vid}`); if (r) setKartenLook(JSON.parse(r)); } catch { /* egal */ } }, [vid]);
   const ansicht = seiteInfo.ansicht;
@@ -303,33 +325,41 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
   ) : (
     <div className="sx">
       <div className="sx-leiste">
-        <div className="sx-looks" role="tablist" aria-label="Looks">
-          {spalten.map((s) => (
-            <div key={s.id} role="tab" aria-selected={aktS?.id === s.id} tabIndex={0} className={`sx-look${aktS?.id === s.id ? ' an' : ''}`}
-              onClick={(e) => { if (!(e.target as HTMLElement).closest('button,input')) { setAkt(s.id); setKartenLook({}); try { localStorage.removeItem(`ulba_kartenlook_${vid}`); } catch { /* egal */ } } }} onKeyDown={(e) => { if (e.key === 'Enter') { setAkt(s.id); setKartenLook({}); } }}>
-              <SpaltenKopf vid={vid} s={s}
-                onVerfeinert={(_sid, rid) => { const sp = { ...s, richtung: { ...s.richtung, id: rid } }; setAkt(s.id); rendern(zeilen.map((z) => ({ z, s: sp }))); }}
-                onWeg={() => { spalteEntfernen(vid, s.id); }} />
-            </div>
-          ))}
-          <button className={`sx-look-neu${spalten.length ? '' : ' gross'}`} onClick={() => setRichtungOffen(true)}>
-            <b>+ Look</b>{!spalten.length && <span>Wie sollen die Teile aussehen? Beschreiben, Welt, Referenzbild oder Marke.</span>}
-          </button>
+        <div className="sx-chips" role="tablist" aria-label="Looks">
+          {spalten.map((s) => {
+            const an = aktS?.id === s.id;
+            return (
+              <div key={s.id} className="sx-chipwrap">
+                <button role="tab" aria-selected={an} className={`sx-chip${an ? ' an' : ''}`}
+                  onClick={() => { setAkt(s.id); setKartenLook({}); setLookEdit(null); try { localStorage.removeItem(`ulba_kartenlook_${vid}`); } catch { /* egal */ } }}>
+                  <i style={{ background: s.richtung.bodyHex ?? '#E9E2D6' }} />{s.richtung.name}
+                </button>
+                {an && <button className="sx-chip-edit" aria-label={`Look ${s.richtung.name} bearbeiten`} aria-expanded={lookEdit === s.id} onClick={() => setLookEdit(lookEdit === s.id ? null : s.id)}>Bearbeiten</button>}
+                {lookEdit === s.id && (
+                  <div className="sx-lookpop">
+                    <SpaltenKopf vid={vid} s={s} onVerfeinert={() => { setAkt(s.id); setLookEdit(null); }} onWeg={() => { setLookEdit(null); spalteEntfernen(vid, s.id); }} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <button className="sx-chip neu" onClick={() => { setLookEdit(null); setRichtungOffen(true); }}>+ Look</button>
         </div>
         <div className="sx-aktion">
           <span className="sx-stand">{laufend.length ? `${laufend.length} ${laufend.length === 1 ? 'Bild wird' : 'Bilder werden'} gerendert …` : aktS && zeilen.length ? `${fertigAkt} von ${zeilen.length} Bildern fertig` : ''}</span>
           {fehler && <span className="pn-fehler">{fehler}</span>}
-          {offen.length > offenAkt.length && <button className="knopf zweit" disabled={startet} onClick={() => rendern(offen)}>Alle Looks rendern · {offen.length}</button>}
-          {offenAkt.length > 0 && <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Rendern · ${offenAkt.length}`}</button>}
-          {seiteInfo.vorschau && <a className="knopf zweit" href={`/v/${seiteInfo.vorschau}?vorschau=1`} target="_blank" rel="noopener">Vorschau ↗</a>}
-          <Link className={`knopf ${offenAkt.length ? 'zweit' : 'haupt'}`} href={`/studio/p/${vid}?tab=teilen`}>Senden</Link>
+          {seiteInfo.anfragen > 0 && <Link className="sx-textlink" href={`/studio/p/${vid}?tab=anfragen`}>{seiteInfo.anfragen} {seiteInfo.anfragen === 1 ? 'Anfrage' : 'Anfragen'}</Link>}
+          {seiteInfo.vorschau && <a className="sx-textlink" href={`/v/${seiteInfo.vorschau}?vorschau=1`} target="_blank" rel="noopener">Vorschau ↗</a>}
+          {offenAkt.length > 0
+            ? <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Rendern · ${offenAkt.length}`}</button>
+            : <Link className="knopf haupt" href={`/studio/p/${vid}?tab=teilen`}>Senden</Link>}
         </div>
       </div>
 
       <div className="lb lb-editor">
         <div className="lb-haupt">
           <section className="lb-box lb-intro">
-            <span className="lb-klammer">(Vorschlag)</span>
+            <span className="lb-klammer">(Lookbook)</span>
             <h1>{seiteInfo.kopf}</h1>
             <textarea className="sx-text sx-einleitung" defaultValue={seiteInfo.einleitung ?? ''} rows={2} maxLength={600} aria-label="Einleitung"
               placeholder="Einleitung für deine Kundin, zum Beispiel: Wir stellen Ihnen unsere neue Airless-Flasche vor – hier in drei Looks."
@@ -346,7 +376,23 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                 <div className="lb-teil-text">
                   <div>
                     <span className="lb-nr" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                    {spalten.length > 1 ? (
+                    <span className="lb-klammer">({sL?.richtung.name ?? 'noch kein Look'})</span>
+                    <h2>{t?.name ?? 'Teil'}</h2>
+                    <p className="lb-leise">{t ? spec(t) : ''}</p>
+                    <textarea className="sx-text sx-satz" defaultValue={z.verkaufssatz ?? ''} rows={2} maxLength={300} aria-label={`Verkaufssatz für ${t?.name}`}
+                      placeholder="Warum dieses Teil? Zum Beispiel: 50 % weniger Material, nachfüllbar."
+                      onBlur={(e) => { if (e.target.value !== (z.verkaufssatz ?? '')) verkaufssatzSpeichern(vid, z.id, e.target.value); }} />
+                  </div>
+                  <div className="sx-teil-unten">
+                    <button className="lb-btn lb-btn--hell" onClick={() => setPanel(z.id)}>Anpassen</button>
+                  </div>
+                  {panel === z.id && (
+                    <div className="sx-panel-ov" onClick={() => setPanel(null)}>
+                      <aside className="sx-panel" role="dialog" aria-label={`${t?.name} anpassen`} onClick={(e) => e.stopPropagation()}>
+                        <div className="sx-panel-kopf"><b>{t?.name}</b><button className="pn-zu" onClick={() => setPanel(null)} aria-label="Schliessen">×</button></div>
+                        <section><h4>Look dieser Card</h4>
+                          {spalten.length > 1 ? null : <p className="sx-panel-hilfe">{sL ? `${sL.richtung.name}. Mit «+ Look» oben kannst du weitere anlegen.` : 'Noch kein Look. Leg oben mit «+ Look» einen an.'}</p>}
+                          {spalten.length > 1 && (
                       <div className="sx-kartenlooks" role="radiogroup" aria-label={`Look für ${t?.name}`}>
                         {spalten.map((s) => {
                           const cz = zelleVon(z, s), an = sL?.id === s.id;
@@ -357,14 +403,10 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                           );
                         })}
                       </div>
-                    ) : <span className="lb-klammer">({sL?.richtung.name ?? 'noch kein Look'})</span>}
-                    <h2>{t?.name ?? 'Teil'}</h2>
-                    <p className="lb-leise">{t ? spec(t) : ''}</p>
-                    <textarea className="sx-text sx-satz" defaultValue={z.verkaufssatz ?? ''} rows={2} maxLength={300} aria-label={`Verkaufssatz für ${t?.name}`}
-                      placeholder="Warum dieses Teil? Zum Beispiel: 50 % weniger Material, nachfüllbar."
-                      onBlur={(e) => { if (e.target.value !== (z.verkaufssatz ?? '')) verkaufssatzSpeichern(vid, z.id, e.target.value); }} />
-                  </div>
-                  <div className="sx-teil-unten">
+                    )}
+                        </section>
+                        <section><h4>Verschluss</h4>
+                          {caps.length === 0 && <p className="sx-panel-hilfe">Für diese Card ist kein Verschluss hinterlegt.</p>}
                     {caps.length > 0 && (() => {
                       const zeig = alleCaps.has(z.id) ? caps : caps.slice(0, 7);
                       return (
@@ -383,17 +425,15 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                         </div>
                       );
                     })()}
-                    <div className="sx-mehr-wrap">
-                      <button className="sx-mehr" aria-label={`Optionen für ${t?.name}`} aria-expanded={menueZeile === z.id} onClick={() => setMenueZeile(menueZeile === z.id ? null : z.id)}>···</button>
-                      {menueZeile === z.id && (
-                        <div className="sx-pop" role="menu" onMouseLeave={() => setMenueZeile(null)}>
-                          {cap?.bild && t?.bild && c?.status === 'fertig' && c.bild && <button role="menuitem" onClick={() => { setMenueZeile(null); setSitzIn(c.id); }}>Verschluss anpassen</button>}
-                          {c?.status === 'fertig' && sL && <button role="menuitem" onClick={() => { setMenueZeile(null); rendern([{ z, s: sL }]); }}>Neu rendern</button>}
-                          <button role="menuitem" className="rot" onClick={() => { setMenueZeile(null); zeileEntfernen(vid, z.id); }}>Teil entfernen</button>
-                        </div>
-                      )}
+                          {cap?.bild && t?.bild && c?.status === 'fertig' && c.bild && <button className="sx-panel-akt" onClick={() => { setPanel(null); setSitzIn(c.id); }}>Sitz des Verschlusses anpassen</button>}
+                        </section>
+                        <section>
+                          {c?.status === 'fertig' && sL && <button className="sx-panel-akt" onClick={() => { setPanel(null); rendern([{ z, s: sL }]); }}>Neu rendern</button>}
+                          <button className="sx-panel-akt rot" onClick={() => { setPanel(null); zeileEntfernen(vid, z.id); }}>Card entfernen</button>
+                        </section>
+                      </aside>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <div className="lb-bilder">
                   {c?.status === 'fertig' && c.bild && sitzIn === c.id && cap?.bild && t?.bild ? (
@@ -412,7 +452,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                     <div className="lb-buehne sx-buehne leer">
                       {t?.bild && (cap?.bild ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
                         : <span className="sx-foto"><img src={t.bild} alt="" /></span>)}
-                      {!sL ? <span className="sx-hinweis">Füg oben einen Look hinzu</span>
+                      {!sL ? <button className="knopf haupt" onClick={() => setRichtungOffen(true)}>Look hinzufügen</button>
                         : c?.status === 'laeuft' ? <div className="sx-lauf"><Fortschritt /><span>wird gerendert · etwa 2 Minuten</span></div>
                         : <div className="sx-lauf">{c?.status === 'fehler' && <span className="pn-fehler">Das hat nicht geklappt.</span>}<button className="knopf haupt" disabled={startet} onClick={() => rendern([{ z, s: sL }])}>{c?.status === 'fehler' ? 'Nochmal rendern' : `In «${sL.richtung.name}» rendern`}</button></div>}
                     </div>
@@ -421,7 +461,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
               </article>
             );
           })}
-          <button className="lb-box sx-teil-neu" onClick={() => setTeilOffen(true)}><b>+ Teil hinzufügen</b><span>{zeilen.length ? 'Ein weiteres Teil aus deinem Katalog.' : 'Welche Teile möchtest du zeigen?'}</span></button>
+          <button className="lb-box sx-teil-neu" onClick={() => setTeilOffen(true)}><b>+ Card hinzufügen</b><span>{zeilen.length ? 'Ein weiteres Teil aus deinem Katalog.' : 'Welche Teile möchtest du zeigen?'}</span></button>
         </div>
       </div>
     </div>
@@ -573,8 +613,8 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
       {meldung && <div className="rz-toast" role="status">{meldung}</div>}
       {teilOffen && <TeilSchublade teile={teile} imRaster={new Set(zeilen.map((z) => z.teilId))} onClose={() => setTeilOffen(false)}
         onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); }} />}
-      {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} start={richtungStart} onClose={() => setRichtungOffen(false)}
-        onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); setRichtungStart('beschreiben'); router.refresh(); }} />}
+      {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} start={richtungStart} idee={ideeStart} onClose={() => setRichtungOffen(false)}
+        onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); setRichtungStart('beschreiben'); setIdeeStart(''); router.refresh(); if (!zeilen.length) setTeilOffen(true); }} />}
       {wandOffen && <DesignWand welten={welten} titel="Welche Welt soll eine Spalte werden?" onClose={() => setWandOffen(false)}
         onWahl={async (w) => { setWandOffen(false); await spalteAusWelt(vid, w.id); }} />}
     </div>
