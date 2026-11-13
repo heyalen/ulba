@@ -179,3 +179,25 @@
 @media (max-width: 980px) { .lb-geruest { grid-template-columns:1fr; padding:0; } .lb-rail { display:none; } .lb-spalte .lb-innen { padding-left:10px; padding-right:10px; } }
 @media (prefers-reduced-motion:reduce) { .lb-rail-k, .lb-rail-punkt { transition:none; } }
 @media print { .lb-geruest { display:block; padding:0; } }
+
+/* ══ Mobil: Kartenleiste unten als Streifen, Abschnitts-Banner (wie ein Kartenstapel zum Wischen) ══ */
+.lb-banner { display:none; }
+@media (max-width: 980px) {
+  .lb-rail { display:flex; position:fixed; left:0; right:0; bottom:0; top:auto; height:auto; z-index:9; flex-direction:row; gap:8px; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); overflow-x:auto; overflow-y:hidden; background:#F4EDE4; border-top:1px solid #0E0E0E; scrollbar-width:none; }
+  .lb-rail::-webkit-scrollbar { display:none; }
+  .lb-rail-k { flex:0 0 76px; height:78px; min-height:0; padding:12px 14px; border-radius:18px; transition:flex-basis .35s cubic-bezier(.2,.7,.2,1); }
+  .lb-rail-k.an { flex:0 0 68vw; }
+  .lb-rail-k:not(.an) .lb-rail-txt { display:none; }
+  .lb-rail-k:hover { transform:none; }
+  .lb-rail-txt { font-size:16px; -webkit-line-clamp:1; }
+  .lb-rail-logo { max-height:22px; }
+  .lb-rail-punkt { top:16px !important; }
+  .lb-spalte .lb-haupt { padding-bottom:230px; }
+  .lb-leiste { bottom:calc(99px + env(safe-area-inset-bottom)); }
+  .lb-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; padding:0 20px; border-radius:999px; background:var(--farbe); color:var(--auf); font-size:14px; }
+  .lb-banner span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lb-banner b { flex:none; display:inline-flex; align-items:center; gap:7px; font-weight:500; }
+  .lb-banner i { width:9px; height:9px; border-radius:50%; background:currentColor; }
+  .lb-intro { border-radius:22px; }
+  .lb-teil { border-radius:22px; }
+}
