@@ -5,34 +5,38 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import { supabaseServer } from '../../../../lib/supabase/server';
 import { linkErstellen, linkWiderrufen, archivieren } from '../../projekte/actions';
-import { RasterDaten, type SpalteRoh } from './raster-daten';
-import { AktivSetzen, TitelFeld, KopierFeld } from './felder';
+import { RasterDaten, ladeKatalog, type SpalteRoh } from './raster-daten';
+import { TitelFeld, KopierFeld } from './felder';
 
 export const maxDuration = 150;
 
-const REITER = [['raster', 'Designs'], ['teilen', 'Teilen'], ['anfragen', 'Anfragen']] as const;
+const REITER = [['raster', 'Designs'], ['teilen', 'Link teilen'], ['anfragen', 'Anfragen']] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
 const feld = { minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 } as const;
 
 export default async function Projekt({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+  if (!UUID.test(params.id)) notFound();
   const sb = supabaseServer();
-  const { data: v } = await sb.from('vorschlaege').select('id, titel, status, marken_url, marken ( name )').eq('id', params.id).maybeSingle();
+  const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'raster';
+  const pid = params.id;
+  // Alles in EINER Runde: Vorschlag, Raster, Links, Anfragen — und der Katalog läuft schon parallel los
+  const katalog = tab === 'raster' ? ladeKatalog() : null;
+  const [{ data: v }, { data: cols }, { data: pos }, { data: d }, { data: empf }, { data: anf }, { data: ev }] = await Promise.all([
+    sb.from('vorschlaege').select('id, titel, status, marken_url, marken ( name )').eq('id', pid).maybeSingle(),
+    sb.from('vorschlag_richtungen').select('id, reihenfolge, richtung_id, wunsch_text, richtungen ( id, name, beschreibung, felder, quelle, bild_pfad )').eq('vorschlag_id', pid).not('richtung_id', 'is', null).order('reihenfolge'),
+    sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge').eq('vorschlag_id', pid).order('reihenfolge'),
+    sb.from('studio_renders').select('id, teil_id, cap_id, welt_id, status, log, bild_pfad').eq('projekt_id', pid).eq('welt_art', 'richtung').order('erstellt_am'),
+    sb.from('empfaenger').select('id, name, email, token, widerrufen_am, erstellt_am').eq('vorschlag_id', pid).order('erstellt_am', { ascending: false }),
+    sb.from('musteranfragen').select('id, email, status, nachricht, erstellt_am, teile:teil_id ( name ), empfaenger!inner ( vorschlag_id, name )').eq('empfaenger.vorschlag_id', pid).order('erstellt_am', { ascending: false }),
+    tab === 'teilen' ? sb.from('ereignisse').select('empfaenger_id, art, empfaenger!inner ( vorschlag_id )').eq('empfaenger.vorschlag_id', pid) : Promise.resolve({ data: [] }),
+  ]);
   if (!v) notFound();
   const p = v as unknown as { id: string; titel: string; status: string; marken_url: string | null; marken: { name: string } | null };
-  const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'raster';
-
-  const [{ data: cols }, { data: pos }, { data: d }, { data: empf }, { data: anf }] = await Promise.all([
-    sb.from('vorschlag_richtungen').select('id, reihenfolge, richtung_id, wunsch_text, richtungen ( id, name, beschreibung, felder, quelle, bild_pfad )').eq('vorschlag_id', p.id).not('richtung_id', 'is', null).order('reihenfolge'),
-    sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge').eq('vorschlag_id', p.id).order('reihenfolge'),
-    sb.from('studio_renders').select('id, teil_id, cap_id, welt_id, status, log, bild_pfad').eq('projekt_id', p.id).eq('welt_art', 'richtung').order('erstellt_am'),
-    sb.from('empfaenger').select('id, name, email, token, widerrufen_am, erstellt_am').eq('vorschlag_id', p.id).order('erstellt_am', { ascending: false }),
-    sb.from('musteranfragen').select('id, email, status, nachricht, erstellt_am, teile:teil_id ( name ), empfaenger!inner ( vorschlag_id, name )').eq('empfaenger.vorschlag_id', p.id).order('erstellt_am', { ascending: false }),
-  ]);
   const zellen = new Map<string, { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }>();
   for (const z of (d ?? []) as { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }[]) zellen.set(`${z.teil_id}|${z.welt_id}`, z);
   const fertig = Array.from(zellen.values()).filter((z) => z.status === 'fertig').length;
   const E = (empf ?? []) as { id: string; name: string | null; email: string | null; token: string; widerrufen_am: string | null }[];
   const A = (anf ?? []) as unknown as { id: string; email: string; status: string; nachricht: string | null; teile: { name: string } | null; empfaenger: { name: string | null } }[];
-  const { data: ev } = E.length ? await sb.from('ereignisse').select('empfaenger_id, art').in('empfaenger_id', E.map((x) => x.id)) : { data: [] };
   const zaehl = (eid: string, art: string) => ((ev ?? []) as { empfaenger_id: string; art: string }[]).filter((x) => x.empfaenger_id === eid && x.art === art).length;
   const h = headers();
   const origin = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
@@ -41,14 +45,10 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
 
   return (
     <>
-      <AktivSetzen id={p.id} />
       <div className="pj-kopf">
         <div>
-          <TitelFeld id={p.id} titel={p.titel} />
+          <TitelFeld key={p.titel} id={p.id} titel={p.titel} />
           <p className="pj-meta">{P.length} {P.length === 1 ? 'Teil' : 'Teile'} · {(cols ?? []).length} {(cols ?? []).length === 1 ? 'Richtung' : 'Richtungen'} · {fertig} {fertig === 1 ? 'Design' : 'Designs'}</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link className="st-btn" href={`/studio/p/${p.id}?tab=teilen`}>Teilen</Link>
         </div>
       </div>
 
@@ -56,7 +56,7 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
         {REITER.map(([k, t]) => <Link key={k} href={k === 'raster' ? `/studio/p/${p.id}` : `/studio/p/${p.id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</Link>)}
       </nav>
 
-      {tab === 'raster' && <RasterDaten vid={p.id} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
+      {tab === 'raster' && katalog && <RasterDaten vid={p.id} katalog={katalog} links={anzahl.teilen} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
 
       {tab === 'teilen' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 760 }}>
