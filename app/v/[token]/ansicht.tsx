@@ -1,142 +1,281 @@
 'use client';
-/* ulba · Vorschlagsseite für die Marke: Looks umschalten, Gefällt mir, Musterliste, Anfrage. */
-import { useState, useTransition } from 'react';
-import type { Ansicht } from './daten';
-import { ereignis, musterAnfragen } from './actions';
+/* ulba · Empfängerseite als persönliches Lookbook: Absender, Richtungen als Schalter,
+   grosses Bild, Vergleich zweier Richtungen, Fakten-Schublade, ♥, Muster, Anpassen-Wunsch,
+   Weiterleiten mit eigenem Unterlink, PDF über den Druckdialog. */
+import { useEffect, useState, useTransition } from 'react';
+import type { Ansicht, Fakten } from './daten';
+import { CHIPS } from '../../../lib/richtung';
+import { anpassenWuenschen, ereignis, musterAnfragen, weiterleiten } from './actions';
+import './v.css';
 
-const knopf = (aktiv: boolean): React.CSSProperties => ({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, padding: '0 16px', minHeight: 44, borderRadius: 999, cursor: 'pointer',
-  color: '#1A1A1A', background: aktiv ? '#F3F2EE' : '#FFFFFF', border: aktiv ? '1.5px solid #1A1A1A' : '1px solid #DAD7D0' });
+type T = Ansicht['teile'][number];
+type Fenster = null | { art: 'fakten'; t: T } | { art: 'anpassen'; t: T; spalte: string } | { art: 'weiter' } | { art: 'muster' };
+const schluessel = (teilId: string, spalte: string) => `${teilId}|${spalte}`;
+
+function FaktenListe({ f }: { f: Fakten }) {
+  const zeilen: [string, string | null][] = [
+    ['Material', f.material], ['Volumen', f.volumen ? `${f.volumen} ml` : null], ['Hals', f.hals], ['Verschluss', f.verschluss],
+    ['Dekoration', f.deko || null], ['Rezyklat (PCR)', f.pcr !== null ? `bis ${f.pcr} %` : null], ['Mindestmenge', f.moq ? `${f.moq.toLocaleString('de-CH')} Stk.` : null],
+  ];
+  const da = zeilen.filter(([, w]) => w);
+  return da.length ? <dl className="lb-fakten">{da.map(([k, w]) => <div key={k}><dt>{k}</dt><dd>{w}</dd></div>)}</dl> : <p className="lb-leise">Noch keine technischen Angaben hinterlegt.</p>;
+}
 
 export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
-  const [look, setLook] = useState(a.looks[0]?.id ?? '');
-  const [gefaellt, setGefaellt] = useState<Record<string, boolean>>({});
+  const [akt, setAkt] = useState(a.richtungen[0]?.id ?? '');
+  const [vergleich, setVergleich] = useState<string | null>(null);
+  const [herz, setHerz] = useState<Record<string, boolean>>({});
   const [liste, setListe] = useState<Record<string, boolean>>({});
   const [gesendet, setGesendet] = useState<Record<string, boolean>>({});
-  const [form, setForm] = useState<'zu' | 'offen' | 'fertig'>('zu');
+  const [fenster, setFenster] = useState<Fenster>(null);
+  const [fertig, setFertig] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [chips, setChips] = useState<string[]>([]);
+  const [neuLink, setNeuLink] = useState<string | null>(null);
+  const [kopiert, setKopiert] = useState(false);
   const [laeuft, start] = useTransition();
-  const aktLook = a.looks.find((l) => l.id === look);
-  const gewaehlt = Object.keys(liste).filter((k) => liste[k] && !gesendet[k]);
 
-  function senden(f: FormData) {
+  const rName = (id: string) => a.richtungen.find((r) => r.id === id)?.name ?? '';
+  const aktR = a.richtungen.find((r) => r.id === akt);
+  const gewaehlt = Object.keys(liste).filter((k) => liste[k] && !gesendet[k]);
+  const teilVon = (id: string) => a.teile.find((t) => t.teilId === id);
+
+  useEffect(() => {
+    const esc = (ev: KeyboardEvent) => { if (ev.key === 'Escape') zu(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, []);
+
+  function zu() { setFenster(null); setFertig(null); setFehler(null); setChips([]); setNeuLink(null); setKopiert(false); }
+  function waehle(id: string) {
+    if (id === akt) return;
+    if (id === vergleich) setVergleich(akt);
+    setAkt(id); ereignis(token, 'richtung_gewaehlt', null, id);
+  }
+  function vergleichen(id: string | null) { setVergleich(id); if (id) ereignis(token, 'verglichen', null, id); }
+  function herzen(t: T, spalte: string) {
+    const k = schluessel(t.teilId, spalte), an = !herz[k];
+    setHerz((h) => ({ ...h, [k]: an }));
+    if (an) ereignis(token, 'gefaellt', t.teilId, spalte);
+  }
+  function drucken() { ereignis(token, 'pdf_export', null); setTimeout(() => window.print(), 50); }
+
+  function musterSenden(f: FormData) {
     setFehler(null);
     start(async () => {
-      const r = await musterAnfragen(token, gewaehlt, look || null, String(f.get('email') ?? ''), String(f.get('nachricht') ?? ''));
+      const designs = gewaehlt.map((k) => { const [teilId, spalteId] = k.split('|'); return { teilId, spalteId: spalteId || null }; });
+      const r = await musterAnfragen(token, designs, String(f.get('email') ?? ''), String(f.get('nachricht') ?? ''));
       if (!r.ok) { setFehler(r.fehler ?? 'Fehler'); return; }
       setGesendet((g) => ({ ...g, ...Object.fromEntries(gewaehlt.map((k) => [k, true])) }));
-      setListe({}); setForm('fertig');
+      setListe({}); setFertig(`${a.lieferant} meldet sich per E-Mail bei Ihnen.`);
     });
   }
+  function wunschSenden(f: FormData) {
+    if (fenster?.art !== 'anpassen') return;
+    const { t, spalte } = fenster;
+    setFehler(null);
+    start(async () => {
+      const r = await anpassenWuenschen(token, t.teilId, spalte, chips, String(f.get('notiz') ?? ''));
+      if (!r.ok) { setFehler(r.fehler ?? 'Fehler'); return; }
+      setFertig(`${a.lieferant} bekommt Ihren Wunsch als neue Variante und meldet sich, sobald sie fertig ist.`);
+    });
+  }
+  function weiterSenden(f: FormData) {
+    setFehler(null);
+    start(async () => {
+      const r = await weiterleiten(token, String(f.get('name') ?? ''), String(f.get('email') ?? ''));
+      if (!r.ok || !r.token) { setFehler(r.fehler ?? 'Fehler'); return; }
+      setNeuLink(`${window.location.origin}/v/${r.token}`);
+    });
+  }
+  async function kopieren(text: string) { try { await navigator.clipboard.writeText(text); setKopiert(true); } catch { setKopiert(false); } }
+
+  const spalten = vergleich ? [akt, vergleich] : [akt];
 
   return (
-    <div style={{ position: 'relative', minHeight: '100dvh', background: '#FFFFFF', color: '#1A1A1A' }}>
-      <header style={{ borderBottom: '1px solid #E7E5E0' }}>
-        <div style={{ maxWidth: 1080, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 9, background: '#23324A', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>{a.lieferant.charAt(0)}</div>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{a.lieferant}</span>
+    <div className="lb">
+      <header className="lb-kopf">
+        <div className="lb-innen lb-kopf-zeile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {a.logo ? <img className="lb-logo" src={a.logo} alt={a.lieferant} /> : <span className="lb-logo lb-logo--text" aria-hidden="true">{a.lieferant.charAt(0)}</span>}
+          <span className="lb-firma">{a.lieferant}</span>
+          <span className="lb-luft" />
+          <button className="lb-btn lb-btn--hell lb-nodruck" onClick={() => setFenster({ art: 'weiter' })}>Weiterleiten</button>
+          <button className="lb-btn lb-btn--hell lb-nodruck" onClick={drucken}>PDF</button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 24px 120px', display: 'flex', flexDirection: 'column', gap: 22 }}>
-        {a.nachricht && (
-          <div style={{ padding: 18, borderRadius: 16, background: '#F7F6F3', maxWidth: 720 }}>
-            <span style={{ fontSize: 13, color: '#4A4A4A' }}><b style={{ color: '#1A1A1A' }}>{a.lieferant}</b> schreibt:</span>
-            <p style={{ margin: '6px 0 0', fontSize: 15, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{a.nachricht}</p>
-          </div>
-        )}
-        <div>
-          <h1 style={{ margin: 0, fontSize: 32, lineHeight: 1.15, fontWeight: 700, letterSpacing: '-.02em' }}>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 15, color: '#4A4A4A' }}>{a.teile.length} Teile · {a.looks.length} Look{a.looks.length === 1 ? '' : 's'} · alle Teile sind bei {a.lieferant} lieferbar</p>
-        </div>
+      <main className="lb-innen lb-haupt">
+        <section className="lb-intro">
+          {a.absender && (
+            <div className="lb-absender">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {a.absender.foto ? <img className="lb-foto" src={a.absender.foto} alt="" /> : <span className="lb-foto lb-foto--text" aria-hidden="true">{a.absender.name.charAt(0).toUpperCase()}</span>}
+              <div>
+                <b>{a.absender.name}</b>
+                <span className="lb-leise">{[a.absender.titel, a.lieferant].filter(Boolean).join(' · ')}</span>
+                <span className="lb-kontakt">
+                  {a.absender.email && <a href={`mailto:${a.absender.email}`}>{a.absender.email}</a>}
+                  {a.absender.telefon && <a href={`tel:${a.absender.telefon.replace(/[^\d+]/g, '')}`}>{a.absender.telefon}</a>}
+                </span>
+              </div>
+            </div>
+          )}
+          {a.nachricht && <p className="lb-nachricht">{a.nachricht}</p>}
+          {a.weitergeleitetVon && <p className="lb-leise">Weitergeleitet von {a.weitergeleitetVon}.</p>}
+          <h1>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
+          <p className="lb-leise">{a.empfaengerName ? `Für ${a.empfaengerName} · ` : ''}{a.teile.length} Teil{a.teile.length === 1 ? '' : 'e'} · {a.richtungen.length} Richtung{a.richtungen.length === 1 ? '' : 'en'} · alle Teile sind bei {a.lieferant} lieferbar</p>
+        </section>
 
-        {a.looks.length > 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Welcher Look passt zu Ihnen?</h2>
-            <div role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {a.looks.map((l) => (
-                <button key={l.id} role="tab" aria-selected={l.id === look} style={knopf(l.id === look)}
-                  onClick={() => { setLook(l.id); ereignis(token, 'richtung_gewaehlt', l.id); }}>{l.name}</button>
+        {a.richtungen.length > 0 && (
+          <section className="lb-schalter lb-nodruck" aria-label="Richtungen">
+            <div role="tablist" className="lb-pillen">
+              {a.richtungen.map((r) => (
+                <button key={r.id} role="tab" aria-selected={r.id === akt} className={`lb-pille${r.id === akt ? ' an' : ''}${r.id === vergleich ? ' vgl' : ''}`} onClick={() => waehle(r.id)}>
+                  <i style={{ background: r.hex ?? '#E8E4DC' }} />{r.name}
+                </button>
               ))}
             </div>
-            {aktLook?.beschreibung && <p style={{ margin: 0, fontSize: 13, color: '#4A4A4A' }}>{aktLook.beschreibung}</p>}
-          </div>
+            {a.richtungen.length > 1 && (
+              <div className="lb-vergleich">
+                <span className="lb-leise">Vergleichen mit</span>
+                {a.richtungen.filter((r) => r.id !== akt).map((r) => (
+                  <button key={r.id} className={`lb-chip${r.id === vergleich ? ' an' : ''}`} aria-pressed={r.id === vergleich} onClick={() => vergleichen(r.id === vergleich ? null : r.id)}>{r.name}</button>
+                ))}
+              </div>
+            )}
+            {aktR?.beschreibung && !vergleich && <p className="lb-leise lb-beschr">{aktR.beschreibung}</p>}
+          </section>
         )}
 
-        <section aria-label="Teile" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <section className="lb-teile" aria-label="Designs">
           {a.teile.map((t) => {
-            const bild = t.renders[look];
-            const auf = !!liste[t.teilId], weg = !!gesendet[t.teilId], mag = !!gefaellt[t.teilId];
+            const k = schluessel(t.teilId, akt), auf = !!liste[k], weg = !!gesendet[k];
             return (
-              <article key={t.posId} style={{ border: auf ? '1.5px solid #1A1A1A' : '1px solid #E7E5E0', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ position: 'relative', aspectRatio: '1 / 1', background: '#F7F6F3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {bild ? <img src={bild} alt={`${t.name} im Look ${aktLook?.name ?? ''}`} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#FFFFFF' }} /> : <span style={{ fontSize: 13, color: '#6B6B6B' }}>Bild folgt</span>}
-                  <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#4A4A4A', background: '#FFFFFF', padding: '4px 8px', borderRadius: 999 }}>KI-Visualisierung</span>
+              <article key={t.posId} className="lb-teil">
+                <div className={`lb-bilder${spalten.length > 1 ? ' zwei' : ''}`}>
+                  {spalten.map((s) => {
+                    const bild = t.renders[s], hk = schluessel(t.teilId, s);
+                    return (
+                      <figure key={s} className="lb-buehne">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {bild ? <img src={bild} alt={`${t.name} in der Richtung ${rName(s)}`} /> : <span className="lb-leise">Für diese Richtung noch kein Design</span>}
+                        {bild && <button className={`lb-herz lb-nodruck${herz[hk] ? ' an' : ''}`} aria-pressed={!!herz[hk]} aria-label={herz[hk] ? 'Gefällt mir entfernen' : 'Gefällt mir'} onClick={() => herzen(t, s)}>{herz[hk] ? '♥' : '♡'}</button>}
+                        <figcaption>{spalten.length > 1 && <b>{rName(s)}</b>}<span>Basiert auf echtem Studiofoto</span></figcaption>
+                      </figure>
+                    );
+                  })}
                 </div>
-                <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>{t.name}</h3>
-                  <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: '8px 14px', fontSize: 13 }}>
-                    {t.material && <div><dt style={{ color: '#4A4A4A' }}>Material</dt><dd style={{ margin: '2px 0 0' }}>{t.material}</dd></div>}
-                    {t.volumen && <div><dt style={{ color: '#4A4A4A' }}>Volumen</dt><dd style={{ margin: '2px 0 0' }}>{t.volumen} ml</dd></div>}
-                    {t.mindestmenge && <div><dt style={{ color: '#4A4A4A' }}>Ab Menge</dt><dd style={{ margin: '2px 0 0' }}>{t.mindestmenge.toLocaleString('de-CH')} Stk.</dd></div>}
-                    {t.deko && <div style={{ gridColumn: 'span 2' }}><dt style={{ color: '#4A4A4A' }}>Möglich</dt><dd style={{ margin: '2px 0 0' }}>{t.deko}</dd></div>}
-                  </dl>
-                  <div style={{ marginTop: 'auto', display: 'flex', gap: 8 }}>
-                    <button aria-pressed={mag} onClick={() => { setGefaellt((g) => ({ ...g, [t.teilId]: !mag })); if (!mag) ereignis(token, 'gefaellt', t.teilId); }}
-                      style={{ minHeight: 44, padding: '0 14px', borderRadius: 10, fontSize: 14, cursor: 'pointer', background: mag ? '#F3F2EE' : '#FFFFFF', border: mag ? '1px solid #1A1A1A' : '1px solid #DAD7D0', color: '#1A1A1A' }}>
-                      {mag ? '♥' : '♡'} Gefällt mir
-                    </button>
-                    {weg ? (
-                      <span style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: '#EEF5EE', color: '#24492A', fontSize: 14, fontWeight: 500 }}>✓ Angefragt</span>
-                    ) : (
-                      <button aria-pressed={auf} onClick={() => setListe((l) => ({ ...l, [t.teilId]: !auf }))}
-                        style={{ flex: 1, minHeight: 44, borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', ...(auf ? { background: '#FFFFFF', color: '#1A1A1A', border: '1.5px solid #1A1A1A' } : { background: '#1A1A1A', color: '#FFFFFF', border: 0 }) }}>
-                        {auf ? 'Auf der Musterliste' : 'Muster anfragen'}
-                      </button>
+                <div className="lb-teil-text">
+                  <div>
+                    <h2>{t.name}</h2>
+                    <p className="lb-leise">{[t.fakten.volumen ? `${t.fakten.volumen} ml` : null, t.fakten.material, t.fakten.verschluss, spalten.length === 1 ? rName(akt) : null].filter(Boolean).join(' · ')}</p>
+                  </div>
+                  <div className="lb-aktionen lb-nodruck">
+                    <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'fakten', t })}>Fakten</button>
+                    {t.renders[akt] && <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'anpassen', t, spalte: akt })}>Anpassen wünschen</button>}
+                    {weg ? <span className="lb-ok">✓ Muster angefragt</span> : t.renders[akt] && (
+                      <button className={`lb-btn${auf ? ' lb-btn--hell an' : ''}`} aria-pressed={auf} onClick={() => setListe((l) => ({ ...l, [k]: !auf }))}>{auf ? 'Auf der Musterliste ✓' : 'Muster anfragen'}</button>
                     )}
                   </div>
+                  <div className="lb-nurdruck"><FaktenListe f={t.fakten} /></div>
                 </div>
               </article>
             );
           })}
         </section>
 
-        <p style={{ fontSize: 12, lineHeight: 1.5, color: '#4A4A4A', maxWidth: 620 }}>
-          Datenschutz: {a.lieferant} sieht, wann Sie diesen Vorschlag öffnen, welchen Look Sie wählen und was Sie anfragen. Keine Werbe-Tracker.
-          Bilder sind KI-Visualisierungen echter Teile, kein finales Design. · <span>made with ulba</span>
+        <p className="lb-fuss">
+          Die Bilder sind Visualisierungen auf Basis echter Studiofotos der lieferbaren Teile, kein finales Design.
+          Datenschutz: {a.lieferant} sieht, wann Sie diesen Vorschlag öffnen, welche Richtung Sie wählen, was Ihnen gefällt und was Sie anfragen. Keine Werbe-Tracker. · made with ulba
         </p>
       </main>
 
-      {gewaehlt.length > 0 && form === 'zu' && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, borderTop: '1px solid #E7E5E0', background: 'rgba(255,255,255,.97)' }}>
-          <div style={{ maxWidth: 1080, margin: '0 auto', padding: '14px 24px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 14, flex: 1 }}><b>{gewaehlt.length} Muster</b> auf Ihrer Liste</span>
-            <button onClick={() => setForm('offen')} style={{ minHeight: 46, padding: '0 22px', borderRadius: 10, border: 0, background: '#1A1A1A', color: '#FFFFFF', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Kostenlose Muster anfragen</button>
+      {gewaehlt.length > 0 && !fenster && (
+        <div className="lb-leiste lb-nodruck">
+          <div className="lb-innen lb-leiste-zeile">
+            <span><b>{gewaehlt.length} Muster</b> auf Ihrer Liste</span>
+            <button className="lb-btn" onClick={() => setFenster({ art: 'muster' })}>Kostenlose Muster anfragen</button>
           </div>
         </div>
       )}
 
-      {form !== 'zu' && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,26,.35)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '12vh 16px 16px', overflowY: 'auto' }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="anfrage-titel" style={{ width: 460, maxWidth: '100%', background: '#FFFFFF', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {form === 'offen' ? (
-              <form action={senden} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <h2 id="anfrage-titel" style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Muster anfragen</h2>
-                <p style={{ margin: 0, fontSize: 14, color: '#4A4A4A' }}>{a.teile.filter((t) => gewaehlt.includes(t.teilId)).map((t) => t.name).join(', ')}{aktLook ? ` im Look «${aktLook.name}»` : ''}</p>
-                <label htmlFor="m-mail" style={{ fontSize: 13, fontWeight: 500 }}>Ihre E-Mail</label>
-                <input id="m-mail" name="email" type="email" autoComplete="email" required style={{ minHeight: 46, padding: '0 12px', fontSize: 15, border: '1px solid #DAD7D0', borderRadius: 10, marginTop: -6 }} />
-                <label htmlFor="m-text" style={{ fontSize: 13, fontWeight: 500 }}>Nachricht <span style={{ fontWeight: 400, color: '#4A4A4A' }}>(optional)</span></label>
-                <textarea id="m-text" name="nachricht" rows={2} placeholder="z. B. geplante Menge, Termin" style={{ padding: 12, fontSize: 15, border: '1px solid #DAD7D0', borderRadius: 10, marginTop: -6, fontFamily: 'inherit' }} />
-                {fehler && <p role="alert" style={{ margin: 0, fontSize: 14, color: '#A3261B' }}>{fehler}</p>}
-                <button type="submit" disabled={laeuft} style={{ minHeight: 46, borderRadius: 10, border: 0, background: '#1A1A1A', color: '#FFFFFF', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>{laeuft ? 'Wird gesendet …' : 'Anfrage senden'}</button>
-                <button type="button" onClick={() => setForm('zu')} style={{ minHeight: 40, border: 0, background: 'none', textDecoration: 'underline', fontSize: 14, cursor: 'pointer', color: '#1A1A1A' }}>Abbrechen</button>
-              </form>
-            ) : (
+      {fenster?.art === 'fakten' && (
+        <div className="lb-schleier lb-nodruck" onClick={zu}>
+          <aside className="lb-schublade" role="dialog" aria-modal="true" aria-labelledby="f-titel" onClick={(ev) => ev.stopPropagation()}>
+            <div className="lb-schublade-kopf"><h2 id="f-titel">{fenster.t.name}</h2><button className="lb-x" onClick={zu} aria-label="Schliessen">×</button></div>
+            {fenster.t.fakten.foto && (
+              <figure className="lb-original">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={fenster.t.fakten.foto} alt={`${fenster.t.name}, Studiofoto`} />
+                <figcaption className="lb-leise">Das echte Teil · Studiofoto</figcaption>
+              </figure>
+            )}
+            <FaktenListe f={fenster.t.fakten} />
+            {fenster.t.fakten.datenblatt && <a className="lb-btn lb-btn--hell" href={fenster.t.fakten.datenblatt} target="_blank" rel="noopener noreferrer">Datenblatt / Produktseite ↗</a>}
+            {a.absender?.email && <a className="lb-link" href={`mailto:${a.absender.email}?subject=${encodeURIComponent(`Frage zu ${fenster.t.name}`)}`}>Frage an {a.absender.name}</a>}
+          </aside>
+        </div>
+      )}
+
+      {fenster && fenster.art !== 'fakten' && (
+        <div className="lb-schleier lb-schleier--mitte lb-nodruck" onClick={zu}>
+          <div className="lb-dialog" role="dialog" aria-modal="true" aria-labelledby="d-titel" onClick={(ev) => ev.stopPropagation()}>
+            {fertig ? (
               <>
-                <h2 id="anfrage-titel" style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Anfrage ist bei {a.lieferant}</h2>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#4A4A4A' }}>{a.lieferant} meldet sich per E-Mail bei Ihnen.</p>
-                <button onClick={() => setForm('zu')} style={{ minHeight: 46, borderRadius: 10, border: 0, background: '#1A1A1A', color: '#FFFFFF', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Fertig</button>
+                <h2 id="d-titel">Danke!</h2>
+                <p className="lb-leise">{fertig}</p>
+                <button className="lb-btn" onClick={zu}>Fertig</button>
               </>
+            ) : fenster.art === 'muster' ? (
+              <form action={musterSenden} className="lb-form">
+                <h2 id="d-titel">Muster anfragen</h2>
+                <ul className="lb-auswahl">{gewaehlt.map((k) => { const [tid, sid] = k.split('|'); return <li key={k}>{teilVon(tid)?.name} <span className="lb-leise">· {rName(sid)}</span></li>; })}</ul>
+                <label htmlFor="m-mail">Ihre E-Mail</label>
+                <input id="m-mail" name="email" type="email" autoComplete="email" required />
+                <label htmlFor="m-text">Nachricht <span className="lb-leise">(optional)</span></label>
+                <textarea id="m-text" name="nachricht" rows={2} placeholder="z. B. geplante Menge, Termin" />
+                {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
+                <button type="submit" className="lb-btn" disabled={laeuft}>{laeuft ? 'Wird gesendet …' : 'Anfrage senden'}</button>
+                <button type="button" className="lb-link" onClick={zu}>Abbrechen</button>
+              </form>
+            ) : fenster.art === 'anpassen' ? (
+              <form action={wunschSenden} className="lb-form">
+                <h2 id="d-titel">Was sollen wir ändern?</h2>
+                <p className="lb-leise">{fenster.t.name} · {rName(fenster.spalte)}</p>
+                <div className="lb-chips" role="group" aria-label="Änderungen">
+                  {CHIPS.map(([key, txt]) => {
+                    const an = chips.includes(key);
+                    return <button key={key} type="button" className={`lb-chip${an ? ' an' : ''}`} aria-pressed={an} onClick={() => setChips((c) => (an ? c.filter((x) => x !== key) : [...c, key]))}>{txt}</button>;
+                  })}
+                </div>
+                <label htmlFor="w-notiz">Oder in eigenen Worten <span className="lb-leise">(optional)</span></label>
+                <textarea id="w-notiz" name="notiz" rows={2} maxLength={300} placeholder="z. B. Verschluss in Gold, Schrift kleiner" />
+                {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
+                <button type="submit" className="lb-btn" disabled={laeuft}>{laeuft ? 'Wird gesendet …' : 'Wunsch senden'}</button>
+                <button type="button" className="lb-link" onClick={zu}>Abbrechen</button>
+              </form>
+            ) : neuLink ? (
+              <div className="lb-form">
+                <h2 id="d-titel">Link ist bereit</h2>
+                <p className="lb-leise">Dieser Link gehört nur Ihrer Kollegin. {a.lieferant} sieht, dass Sie ihn weitergeleitet haben.</p>
+                <input readOnly value={neuLink} aria-label="Neuer Link" onFocus={(ev) => ev.target.select()} />
+                <button className="lb-btn" onClick={() => kopieren(neuLink)}>{kopiert ? 'Kopiert ✓' : 'Link kopieren'}</button>
+                <a className="lb-btn lb-btn--hell" href={`mailto:?subject=${encodeURIComponent(a.marke ? `Ideen für ${a.marke}` : a.titel)}&body=${encodeURIComponent(`Schau dir das mal an:\n${neuLink}`)}`}>Per E-Mail senden</a>
+                <button type="button" className="lb-link" onClick={zu}>Fertig</button>
+              </div>
+            ) : (
+              <form action={weiterSenden} className="lb-form">
+                <h2 id="d-titel">An eine Kollegin weiterleiten</h2>
+                <p className="lb-leise">Sie bekommt einen eigenen Link. Ihr Link bleibt Ihrer.</p>
+                <label htmlFor="k-name">Name</label>
+                <input id="k-name" name="name" required maxLength={120} autoComplete="off" />
+                <label htmlFor="k-mail">E-Mail <span className="lb-leise">(optional)</span></label>
+                <input id="k-mail" name="email" type="email" autoComplete="off" />
+                {fehler && <p role="alert" className="lb-fehler">{fehler}</p>}
+                <button type="submit" className="lb-btn" disabled={laeuft}>{laeuft ? 'Wird erstellt …' : 'Link erstellen'}</button>
+                <button type="button" className="lb-link" onClick={zu}>Abbrechen</button>
+              </form>
             )}
           </div>
         </div>
