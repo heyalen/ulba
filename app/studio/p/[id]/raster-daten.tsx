@@ -6,7 +6,7 @@ import type { WbWelt } from '../../werkbank/werkbank';
 import '../../werkbank/werkbank.css';
 import './raster.css';
 
-export type SpalteRoh = { id: string; richtung_id: string; richtungen: { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null } | null };
+export type SpalteRoh = { id: string; richtung_id: string; wunsch_text?: string | null; richtungen: { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null } | null };
 type TeilZeile = { id: string; status: string; name: string; rolle: string; typ: string | null; material: string | null; volumen_ml: number | null; hals: string | null; verschluss_art: string | null; kollektion: string | null; artikelnummer: string | null; bild_pfad: string | null };
 const zahl = (v: unknown): number | null => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v));
 const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
@@ -43,7 +43,7 @@ export async function RasterDaten({ vid, cols, pos, zellen }: {
     bodyHex: hex(r.felder.Body_Hex), capHex: hex(r.felder.Cap_Hex), akzentHex: hex(r.felder.Akzent_Hex),
     finish: typeof r.felder.Finish_Body === 'string' ? r.felder.Finish_Body : null,
   });
-  const spalten: RSpalte[] = cols.filter((c) => c.richtungen).map((c) => ({ id: c.id, richtung: richtung(c.richtungen!) }));
+  const spalten: RSpalte[] = cols.filter((c) => c.richtungen).map((c) => ({ id: c.id, richtung: richtung(c.richtungen!), wunsch: c.wunsch_text ?? null }));
   const zeilen: RZeile[] = pos.map((p) => ({ id: p.id, teilId: p.teil_id, capId: p.cap_id }));
   const zellenOut: RZelle[] = zellen.map((z) => ({ id: z.id, teilId: z.teil_id, richtungId: z.welt_id, capId: z.cap_id, status: z.status, log: z.log, bild: z.bild_pfad ? renderBild.get(z.bild_pfad) ?? null : null }));
   const imRaster = new Set(spalten.map((s) => s.richtung.id));
