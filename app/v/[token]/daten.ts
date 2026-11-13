@@ -32,7 +32,7 @@ async function signiert(bucket: string, pfade: (string | null | undefined)[]): P
   const liste = Array.from(new Set(pfade.filter((p): p is string => !!p)));
   const m = new Map<string, string>();
   if (!liste.length) return m;
-  const { data } = await supabaseAdmin().storage.from(bucket).createSignedUrls(liste, 6 * 3600);
+  const { data } = await supabaseAdmin().storage.from(bucket).createSignedUrls(liste, 72 * 3600);
   (data ?? []).forEach((x) => { if (x.path && x.signedUrl) m.set(x.path, x.signedUrl); });
   return m;
 }
