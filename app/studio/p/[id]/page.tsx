@@ -10,28 +10,28 @@ import { TitelFeld, KopierFeld } from './felder';
 
 export const maxDuration = 150;
 
-const REITER = [['raster', 'Designs'], ['teilen', 'Link teilen'], ['anfragen', 'Anfragen']] as const;
+const REITER = [['seite', 'Seite'], ['raster', 'Übersicht'], ['teilen', 'Link teilen'], ['anfragen', 'Anfragen']] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
 const feld = { minHeight: 44, padding: '0 12px', border: '1px solid #DAD7D0', borderRadius: 10, fontSize: 14 } as const;
 
 export default async function Projekt({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
   if (!UUID.test(params.id)) notFound();
   const sb = supabaseServer();
-  const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'raster';
+  const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'seite';
   const pid = params.id;
   // Alles in EINER Runde: Vorschlag, Raster, Links, Anfragen — und der Katalog läuft schon parallel los
-  const katalog = tab === 'raster' ? ladeKatalog() : null;
+  const katalog = tab === 'raster' || tab === 'seite' ? ladeKatalog() : null;
   const [{ data: v }, { data: cols }, { data: pos }, { data: d }, { data: empf }, { data: anf }, { data: ev }] = await Promise.all([
-    sb.from('vorschlaege').select('id, titel, status, marken_url, marken ( name )').eq('id', pid).maybeSingle(),
+    sb.from('vorschlaege').select('id, titel, status, marken_url, anlass, einleitung, marken ( name )').eq('id', pid).maybeSingle(),
     sb.from('vorschlag_richtungen').select('id, reihenfolge, richtung_id, wunsch_text, richtungen ( id, name, beschreibung, felder, quelle, bild_pfad )').eq('vorschlag_id', pid).not('richtung_id', 'is', null).order('reihenfolge'),
-    sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge').eq('vorschlag_id', pid).order('reihenfolge'),
+    sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge, verkaufssatz').eq('vorschlag_id', pid).order('reihenfolge'),
     sb.from('studio_renders').select('id, teil_id, cap_id, welt_id, status, log, bild_pfad').eq('projekt_id', pid).eq('welt_art', 'richtung').order('erstellt_am'),
     sb.from('empfaenger').select('id, name, email, token, widerrufen_am, erstellt_am').eq('vorschlag_id', pid).order('erstellt_am', { ascending: false }),
     sb.from('musteranfragen').select('id, email, status, nachricht, erstellt_am, teile:teil_id ( name ), empfaenger!inner ( vorschlag_id, name )').eq('empfaenger.vorschlag_id', pid).order('erstellt_am', { ascending: false }),
     tab === 'teilen' ? sb.from('ereignisse').select('empfaenger_id, art, empfaenger!inner ( vorschlag_id )').eq('empfaenger.vorschlag_id', pid) : Promise.resolve({ data: [] }),
   ]);
   if (!v) notFound();
-  const p = v as unknown as { id: string; titel: string; status: string; marken_url: string | null; marken: { name: string } | null };
+  const p = v as unknown as { id: string; titel: string; status: string; marken_url: string | null; anlass: string | null; einleitung: string | null; marken: { name: string } | null };
   const zellen = new Map<string, { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }>();
   for (const z of (d ?? []) as { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }[]) zellen.set(`${z.teil_id}|${z.welt_id}`, z);
   const fertig = Array.from(zellen.values()).filter((z) => z.status === 'fertig').length;
@@ -40,23 +40,24 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
   const zaehl = (eid: string, art: string) => ((ev ?? []) as { empfaenger_id: string; art: string }[]).filter((x) => x.empfaenger_id === eid && x.art === art).length;
   const h = headers();
   const origin = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
-  const P = (pos ?? []) as { id: string; teil_id: string; cap_id: string | null }[];
-  const anzahl: Record<string, number> = { raster: fertig, teilen: E.filter((x) => !x.widerrufen_am).length, anfragen: A.length };
+  const P = (pos ?? []) as { id: string; teil_id: string; cap_id: string | null; verkaufssatz: string | null }[];
+  const anzahl: Record<string, number> = { seite: 0, raster: fertig, teilen: E.filter((x) => !x.widerrufen_am).length, anfragen: A.length };
 
   return (
     <>
       <div className="pj-kopf">
         <div>
           <TitelFeld key={p.titel} id={p.id} titel={p.titel} />
-          <p className="pj-meta">{P.length} {P.length === 1 ? 'Teil' : 'Teile'} · {(cols ?? []).length} {(cols ?? []).length === 1 ? 'Richtung' : 'Richtungen'} · {fertig} {fertig === 1 ? 'Design' : 'Designs'}</p>
+          <p className="pj-meta">{P.length} {P.length === 1 ? 'Teil' : 'Teile'} · {(cols ?? []).length} {(cols ?? []).length === 1 ? 'Look' : 'Looks'} · {fertig} {fertig === 1 ? 'Design' : 'Designs'}</p>
         </div>
       </div>
 
       <nav className="pj-tabs" aria-label="Vorschlag">
-        {REITER.map(([k, t]) => <Link key={k} href={k === 'raster' ? `/studio/p/${p.id}` : `/studio/p/${p.id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</Link>)}
+        {REITER.map(([k, t]) => <Link key={k} href={k === 'seite' ? `/studio/p/${p.id}` : `/studio/p/${p.id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined}>{t}{anzahl[k] ? <b>{anzahl[k]}</b> : null}</Link>)}
       </nav>
 
-      {tab === 'raster' && katalog && <RasterDaten vid={p.id} katalog={katalog} links={anzahl.teilen} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
+      {(tab === 'raster' || tab === 'seite') && katalog && <RasterDaten vid={p.id} katalog={katalog} links={anzahl.teilen}
+        seiteInfo={{ ansicht: tab === 'raster' ? 'raster' : 'seite', anlass: p.anlass, einleitung: p.einleitung, kopf: p.marken?.name ? `Ideen für ${p.marken.name}` : p.titel, vorschau: E.find((x) => !x.widerrufen_am)?.token ?? null }} cols={(cols ?? []) as unknown as SpalteRoh[]} pos={P} zellen={Array.from(zellen.values())} />}
 
       {tab === 'teilen' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 760 }}>
