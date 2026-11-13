@@ -187,3 +187,19 @@
   .st-app .st-nav.offen .st-nav-inhalt { display:flex; position:fixed; inset:0; z-index:90; background:var(--seite); padding:56px 16px 20px; overflow-y:auto; }
   .st-app .st-inhalt { padding:16px 14px 120px; }
 }
+
+/* ══ v4 · Gerüst beim Laden ══ */
+.st-skel { display:flex; flex-direction:column; gap:16px; }
+.st-skel > div, .st-skel-karte, .st-skel-zelle { background:linear-gradient(90deg,#F3F2EE 25%,#FAFAF8 50%,#F3F2EE 75%); background-size:200% 100%; animation:st-skel 1.2s linear infinite; border-radius:12px; }
+.st-skel-titel { height:34px; width:min(320px,70%); }
+.st-skel-zeile { height:16px; width:220px; }
+.st-skel-leiste { height:86px; border-radius:16px !important; }
+.st-skel-raster, .st-skel-gitter { background:none !important; animation:none !important; display:grid; gap:12px; }
+.st-skel-raster { grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); }
+.st-skel-gitter { grid-template-columns:repeat(4,minmax(0,220px)); }
+.st-skel-karte { aspect-ratio:4/3.6; border-radius:16px; }
+.st-skel-zelle { aspect-ratio:4/5; border-radius:14px; }
+@keyframes st-skel { to { background-position:-200% 0; } }
+@media (max-width:820px) { .st-skel-gitter { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (prefers-reduced-motion:reduce) { .st-skel > div, .st-skel-karte, .st-skel-zelle { animation:none; } }
+.st-nav-neu:disabled, .st-btn[aria-busy='true'] { opacity:.6; cursor:progress; }
