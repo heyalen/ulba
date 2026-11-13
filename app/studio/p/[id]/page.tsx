@@ -21,7 +21,7 @@ export default async function Projekt({ params, searchParams }: { params: { id: 
   const tab = REITER.some(([k]) => k === searchParams.tab) ? searchParams.tab! : 'raster';
 
   const [{ data: cols }, { data: pos }, { data: d }, { data: empf }, { data: anf }] = await Promise.all([
-    sb.from('vorschlag_richtungen').select('id, reihenfolge, richtung_id, richtungen ( id, name, beschreibung, felder, quelle, bild_pfad )').eq('vorschlag_id', p.id).not('richtung_id', 'is', null).order('reihenfolge'),
+    sb.from('vorschlag_richtungen').select('id, reihenfolge, richtung_id, wunsch_text, richtungen ( id, name, beschreibung, felder, quelle, bild_pfad )').eq('vorschlag_id', p.id).not('richtung_id', 'is', null).order('reihenfolge'),
     sb.from('vorschlag_positionen').select('id, teil_id, cap_id, reihenfolge').eq('vorschlag_id', p.id).order('reihenfolge'),
     sb.from('studio_renders').select('id, teil_id, cap_id, welt_id, status, log, bild_pfad').eq('projekt_id', p.id).eq('welt_art', 'richtung').order('erstellt_am'),
     sb.from('empfaenger').select('id, name, email, token, widerrufen_am, erstellt_am').eq('vorschlag_id', p.id).order('erstellt_am', { ascending: false }),
