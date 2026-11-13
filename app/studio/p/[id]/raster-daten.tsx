@@ -11,17 +11,23 @@ type TeilZeile = { id: string; status: string; name: string; rolle: string; typ:
 const zahl = (v: unknown): number | null => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v));
 const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
 
-export async function RasterDaten({ vid, cols, pos, zellen }: {
-  vid: string; cols: SpalteRoh[]; pos: { id: string; teil_id: string; cap_id: string | null }[];
-  zellen: { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }[];
-}) {
+/* Katalog, Welten, Bibliothek — hängt nicht vom Vorschlag ab und startet deshalb parallel zur Seite. */
+export function ladeKatalog() {
   const sb = supabaseServer();
-  const [{ data: t }, { data: tv }, { data: w }, { data: bib }] = await Promise.all([
+  return Promise.all([
     sb.from('teile').select('id, name, rolle, typ, material, volumen_ml, hals, verschluss_art, kollektion, artikelnummer, bild_pfad, status').neq('status', 'verworfen').order('name'),
     sb.from('teil_verschluesse').select('teil_id, verschluss_id'),
     sb.from('design_welten').select('id, name, felder, bild_pfad').eq('aktiv', true),
     sb.from('richtungen').select('id, name, beschreibung, felder, quelle, bild_pfad, version_von').eq('archiviert', false).order('erstellt_am', { ascending: false }).limit(80),
   ]);
+}
+
+export async function RasterDaten({ vid, cols, pos, zellen, katalog, links }: {
+  katalog: ReturnType<typeof ladeKatalog>; links: number;
+  vid: string; cols: SpalteRoh[]; pos: { id: string; teil_id: string; cap_id: string | null }[];
+  zellen: { id: string; teil_id: string; cap_id: string | null; welt_id: string; status: string; log: string | null; bild_pfad: string | null }[];
+}) {
+  const [{ data: t }, { data: tv }, { data: w }, { data: bib }] = await katalog;
   const teileRoh = (t ?? []) as TeilZeile[];
   const welten = (w ?? []) as { id: string; name: string; felder: Record<string, unknown>; bild_pfad: string | null }[];
   const bibAlle = (bib ?? []) as { id: string; name: string; beschreibung: string | null; felder: Felder; quelle: string; bild_pfad: string | null; version_von: string | null }[];
@@ -51,6 +57,6 @@ export async function RasterDaten({ vid, cols, pos, zellen }: {
     register: x.felder.Register ? String(x.felder.Register) : null, laut: zahl(x.felder.Temp_Laut), farbtemp: zahl(x.felder.Farbtemp),
     bodyHex: hex(x.felder.Body_Hex), capHex: hex(x.felder.Cap_Hex), wirkung: String(x.felder.Wirkung_Keywords ?? '') }));
 
-  return <Raster vid={vid} teile={teile} spalten={spalten} zeilen={zeilen} zellen={zellenOut} welten={wl}
+  return <Raster vid={vid} links={links} teile={teile} spalten={spalten} zeilen={zeilen} zellen={zellenOut} welten={wl}
     bibliothek={bibliothek.filter((b) => !imRaster.has(b.id)).map(richtung)} />;
 }
