@@ -128,6 +128,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
           )}
           {a.nachricht && <p className="lb-nachricht">{a.nachricht}</p>}
           {a.weitergeleitetVon && <p className="lb-leise">Weitergeleitet von {a.weitergeleitetVon}.</p>}
+          {a.einleitung && <p className="lb-nachricht">{a.einleitung}</p>}
           <p className="lb-leise lb-zahl">{a.teile.length} Teil{a.teile.length === 1 ? '' : 'e'} · {a.richtungen.length} Richtung{a.richtungen.length === 1 ? '' : 'en'} · alle Teile sind bei {a.lieferant} lieferbar</p>
         </section>
 
@@ -176,6 +177,7 @@ export function VorschlagAnsicht({ token, a }: { token: string; a: Ansicht }) {
                     <span className="lb-klammer">({rName(akt)}{vergleich ? ` / ${rName(vergleich)}` : ''})</span>
                     <h2>{t.name}</h2>
                     <p className="lb-leise">{[t.fakten.volumen ? `${t.fakten.volumen} ml` : null, t.fakten.material, t.fakten.verschluss].filter(Boolean).join(' · ')}</p>
+                    {t.satz && <p className="lb-satz">{t.satz}</p>}
                   </div>
                   <div className="lb-aktionen lb-nodruck">
                     <button className="lb-btn lb-btn--hell" onClick={() => setFenster({ art: 'fakten', t })}>Fakten</button>
