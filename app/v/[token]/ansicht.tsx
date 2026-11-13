@@ -166,7 +166,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
 
       <main className="lb-innen lb-haupt">
         <section className="lb-box lb-intro" data-sek="">
-          <span className="lb-klammer">({a.empfaengerName ? `Vorschlag für ${a.empfaengerName}` : 'Vorschlag'})</span>
+          <span className="lb-klammer">({a.empfaengerName ? `Lookbook für ${a.empfaengerName}` : 'Lookbook'})</span>
           <h1>{a.marke ? `Ideen für ${a.marke}` : a.titel}</h1>
           {a.absender && (
             <div className="lb-absender">
@@ -270,7 +270,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
 
         <p className="lb-fuss">
           Die Bilder sind Visualisierungen auf Basis echter Studiofotos der lieferbaren Teile, kein finales Design.
-          Datenschutz: {a.lieferant} sieht, wann Sie diesen Vorschlag öffnen, welche Richtung Sie wählen, was Ihnen gefällt und was Sie anfragen. Keine Werbe-Tracker. · made with ulba
+          Datenschutz: {a.lieferant} sieht, wann Sie dieses Lookbook öffnen, welche Richtung Sie wählen, was Ihnen gefällt und was Sie anfragen. Keine Werbe-Tracker. · made with ulba
         </p>
       </main>
       </div>
@@ -315,7 +315,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
             ) : fenster.art === 'ich' ? (
               <form action={ichSenden} className="lb-form">
                 <h2 id="d-titel">Wer sind Sie?</h2>
-                <p className="lb-leise">Einmal angeben, dann weiss {a.lieferant}, wem welches Design gefällt. Gilt nur für diesen Vorschlag.</p>
+                <p className="lb-leise">Einmal angeben, dann weiss {a.lieferant}, wem welches Design gefällt. Gilt nur für dieses Lookboog.</p>
                 <label htmlFor="i-name">Name</label>
                 <input id="i-name" name="name" required maxLength={120} autoComplete="name" />
                 <label htmlFor="i-mail">E-Mail</label>
