@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { supabaseServer, bildLinks } from '../../lib/supabase/server';
 import { ladeProjekte } from '../../lib/projekt';
-import { neuesProjekt } from './projekte/actions';
+import { NeuKnopf } from './neu-knopf';
 
 export default async function Studio() {
   const sb = supabaseServer();
@@ -24,13 +24,13 @@ export default async function Studio() {
     <>
       <div className="st-titelzeile">
         <h1>Vorschläge</h1>
-        <form action={neuesProjekt}><button className="st-btn" type="submit">+ Neuer Vorschlag</button></form>
+        <NeuKnopf className="st-btn">+ Neuer Vorschlag</NeuKnopf>
       </div>
       {projekte.length === 0 ? (
         <div className="pj-leer">
           <h2>Dein erster Vorschlag</h2>
-          <p>Wähl Teile aus deinem Katalog und eine oder mehrere Design-Richtungen — zum Beispiel «K-Beauty pastell» oder «Männer minimal». ulba rendert jede Kombination und du teilst alles mit einem Link.</p>
-          <form action={neuesProjekt}><button className="st-btn" type="submit">Vorschlag starten</button></form>
+          <p>In vier Schritten: 1. Teile aus deinem Katalog wählen. 2. Design-Richtungen festlegen, zum Beispiel «K-Beauty pastell». 3. ulba rendert jede Kombination. 4. Du schickst der Marke einen Link.</p>
+          <NeuKnopf className="st-btn">Vorschlag starten</NeuKnopf>
         </div>
       ) : (
         <div className="pj-raster" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
