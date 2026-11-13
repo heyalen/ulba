@@ -351,3 +351,8 @@
 .sx-panel-akt.rot{color:#A3261B!important}
 @media(max-width:820px){.sx-aktion{flex-wrap:wrap;width:100%}.sx-aktion .knopf{flex:1}.sx-panel{width:100%}.sx-lookpop{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;z-index:60}}
 @media(prefers-reduced-motion:reduce){.sx-panel{animation:none}}
+.sx-leer{border:1.5px dashed #C9C5BC;border-radius:20px;padding:48px 24px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.sx-leer h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.sx-leer p{margin:0 0 12px;color:var(--grau);font-size:14.5px;max-width:460px}
+.sx-leer div{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.sx-leer .knopf{min-height:44px;padding:0 20px}
