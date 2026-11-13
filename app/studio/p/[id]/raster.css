@@ -311,3 +311,6 @@
 .sx-anpassen{position:absolute;right:12px;bottom:12px;opacity:0;transition:opacity .15s}
 .sx-buehne.fertig:hover .sx-anpassen,.sx-anpassen:focus-visible{opacity:1}
 @media(hover:none){.sx-anpassen{opacity:1}}
+.kal-laedt{display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0}
+.kal-laedt img{max-height:36vh;max-width:70%;object-fit:contain;opacity:.55}
+.kal-laedt span{font-size:13px;color:var(--grau)}
