@@ -7,7 +7,7 @@ import { VorschlagAnsicht } from './ansicht';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Vorschlag', robots: { index: false, follow: false, nocache: true } };
 
-export default async function Vorschlag({ params }: { params: { token: string } }) {
+export default async function Vorschlag({ params, searchParams }: { params: { token: string }; searchParams: { vorschau?: string } }) {
   const e = await empfaengerPruefen(params.token);
   const a = e ? await ladeAnsicht(e) : null;
   if (!e || !a) {
@@ -17,6 +17,7 @@ export default async function Vorschlag({ params }: { params: { token: string } 
       </main>
     );
   }
-  await supabaseAdmin().from('ereignisse').insert({ empfaenger_id: e.id, art: 'geoeffnet' });
+  // Vorschau aus dem Studio zählt nicht als Öffnen
+  if (searchParams.vorschau !== '1') await supabaseAdmin().from('ereignisse').insert({ empfaenger_id: e.id, art: 'geoeffnet' });
   return <VorschlagAnsicht token={params.token} a={a} />;
 }
