@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { ladeKontext } from '../../lib/supabase/server';
 import { StudioNav } from './nav';
-import { ladeProjekte, aktivesProjektId } from '../../lib/projekt';
+import { ladeProjekte } from '../../lib/projekt';
 import './studio.css';
 
 export const metadata: Metadata = { title: 'ulba Studio', robots: { index: false, follow: false } };
@@ -15,10 +15,9 @@ export default async function StudioLayout({ children }: { children: ReactNode }
   if (!k) redirect('/login');
   if (!k.firma) redirect('/start');
   const projekte = await ladeProjekte();
-  const aktivId = aktivesProjektId(projekte);
   return (
     <div className="st st-app">
-      <StudioNav projekte={projekte} aktivId={aktivId} firma={k.firma.name} />
+      <StudioNav projekte={projekte} firma={k.firma.name} />
       <main className="st-inhalt">{children}</main>
     </div>
   );
