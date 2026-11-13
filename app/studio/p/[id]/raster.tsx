@@ -282,7 +282,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
 
   /* ── Ansicht «Seite»: der Lieferant bearbeitet direkt das Lookbook, das die Marke bekommt ── */
   const aktS = spalten.find((s) => s.id === akt) ?? spalten[0] ?? null;
-  const capsVon = (t: RTeil | undefined) => (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
+  const capsVon = (t: RTeil | undefined) => (t?.rolle === 'system' ? [] : t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
     .sort((a, b) => Number(!!b.bild) - Number(!!a.bild) || a.name.localeCompare(b.name));
   // Jede Karte kann ihren eigenen Look haben; ohne eigene Wahl gilt der oben gewählte
   const lookVon = (z: RZeile) => spalten.find((s) => s.id === kartenLook[z.id]) ?? aktS;
@@ -362,7 +362,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
           </section>
 
           {zeilen.map((z, i) => {
-            const t = teilVon.get(z.teilId), caps = capsVon(t), cap = z.capId ? teilVon.get(z.capId) : null;
+            const t = teilVon.get(z.teilId), caps = capsVon(t), cap = z.capId && t?.rolle !== 'system' ? teilVon.get(z.capId) : null;
             const sL = lookVon(z);
             const c = sL ? zelleVon(z, sL) : undefined;
             const veraltet = !!c && c.status === 'fertig' && (c.capId ?? null) !== (z.capId ?? null);
@@ -401,7 +401,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                     )}
                         </section>
                         <section><h4>Verschluss</h4>
-                          {caps.length === 0 && <p className="sx-panel-hilfe">Für diese Card ist kein Verschluss hinterlegt.</p>}
+                          {caps.length === 0 && <p className="sx-panel-hilfe">{t?.rolle === 'system' ? 'Dieses Teil ist ein System: Der Verschluss ist schon montiert und wird mitgerendert.' : 'Für diese Card ist kein Verschluss hinterlegt.'}</p>}
                     {caps.length > 0 && (() => {
                       const zeig = alleCaps.has(z.id) ? caps : caps.slice(0, 7);
                       return (
@@ -445,7 +445,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                     </div>
                   ) : (
                     <div className="lb-buehne sx-buehne leer">
-                      {t?.bild && (cap?.bild ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
+                      {t?.bild && (cap?.bild && c?.status !== 'laeuft' ? <SitzInline key={`${z.teilId}|${cap.id}`} vid={vid} teilId={z.teilId} capId={cap.id} bodyUrl={t.bild} capUrl={cap.bild} />
                         : <span className="sx-foto"><img src={t.bild} alt="" /></span>)}
                       {!sL ? <button className="knopf haupt" onClick={() => setRichtungOffen(true)}>Look hinzufügen</button>
                         : c?.status === 'laeuft' ? <div className="sx-lauf"><Fortschritt /><span>wird gerendert · etwa 2 Minuten</span></div>
@@ -504,7 +504,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
             {zeilen.map((z) => {
               const t = teilVon.get(z.teilId);
               // Overcaps sind Zubehör, kein eigener Verschluss; mit Foto zuerst, dann nach Art
-              const caps = (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
+              const caps = (t?.rolle === 'system' ? [] : t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
                 .sort((a, b) => Number(!!b.bild) - Number(!!a.bild) || String(a.verschluss || a.typ || '').localeCompare(String(b.verschluss || b.typ || '')) || a.name.localeCompare(b.name));
               const cap = z.capId ? teilVon.get(z.capId) : null;
               return (
