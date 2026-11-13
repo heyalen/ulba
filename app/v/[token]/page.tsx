@@ -5,7 +5,7 @@ import { empfaengerPruefen, ladeAnsicht } from './daten';
 import { VorschlagAnsicht } from './ansicht';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Vorschlag', robots: { index: false, follow: false, nocache: true } };
+export const metadata: Metadata = { title: 'Lookbook', robots: { index: false, follow: false, nocache: true } };
 
 export default async function Vorschlag({ params, searchParams }: { params: { token: string }; searchParams: { vorschau?: string } }) {
   const e = await empfaengerPruefen(params.token);
