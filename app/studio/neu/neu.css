@@ -1,0 +1,40 @@
+/* ulba · Entwurf (en-) */
+.en { display:flex; flex-direction:column; gap:26px; padding-bottom:96px; max-width:1180px; }
+.en-zurueck { font-size:13.5px; color:var(--grau,#5E5D59); text-decoration:none; }
+.en-zurueck:hover { color:var(--tinte); }
+.en h1 { margin:-14px 0 0; font-size:clamp(26px,3.4vw,40px); font-weight:500; letter-spacing:-.03em; line-height:1.1; }
+.en-erkannt { margin:-14px 0 0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13.5px; color:var(--grau,#5E5D59); }
+.en-erkannt span { padding:4px 10px; border-radius:999px; background:var(--nische,#F0F0ED); color:var(--tinte); font-size:13px; }
+.en section { display:flex; flex-direction:column; gap:12px; }
+.en h2 { margin:0; font-size:17px; font-weight:600; display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.en h2 small { font-size:13.5px; font-weight:400; color:var(--grau,#5E5D59); }
+.en-raster { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:10px; }
+.en-card { display:flex; flex-direction:column; gap:3px; text-align:left; padding:8px 8px 12px; border:1.5px solid var(--linie); border-radius:16px; background:#fff; font:inherit; cursor:pointer; transition:border-color .15s, transform .15s; }
+.en-card:hover { border-color:#B9B6AE; transform:translateY(-1px); }
+.en-card.an { border-color:var(--tinte); }
+.en-bild { position:relative; aspect-ratio:1/1; border-radius:11px; background:var(--buehne,#F7F7F5); display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:6px; }
+.en-bild img { width:82%; height:82%; object-fit:contain; mix-blend-mode:multiply; }
+.en-bild i { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%; background:#fff; border:1px solid var(--linie); display:flex; align-items:center; justify-content:center; font-style:normal; font-size:14px; color:var(--grau,#5E5D59); }
+.en-card.an .en-bild i { background:var(--tinte); border-color:var(--tinte); color:#fff; }
+.en-card b { font-size:14px; font-weight:600; padding:0 4px; }
+.en-card > span:last-child { font-size:12px; color:var(--grau,#5E5D59); padding:0 4px; }
+.en-link { align-self:flex-start; background:none; border:0; padding:4px 0; font:inherit; font-size:13.5px; text-decoration:underline; cursor:pointer; color:var(--tinte); }
+.en-suche { min-height:44px; padding:0 16px; border:1px solid var(--linie); border-radius:999px; font:inherit; font-size:14.5px; max-width:460px; outline:none; }
+.en-suche:focus { border-color:var(--tinte); }
+.en-hilfe { margin:0; font-size:13.5px; color:var(--grau,#5E5D59); }
+.en-looks { display:flex; flex-wrap:wrap; gap:8px; }
+.en-look { display:inline-flex; align-items:center; gap:8px; min-height:42px; padding:0 16px; border-radius:999px; border:1.5px solid var(--linie); background:#fff; font:inherit; font-size:14px; cursor:pointer; }
+.en-look i { width:14px; height:14px; border-radius:50%; box-shadow:inset 0 0 0 1px rgba(0,0,0,.18); }
+.en-look b { font-weight:500; }
+.en-look.breit { flex:1 1 100%; flex-direction:column; align-items:flex-start; gap:2px; border-radius:16px; padding:12px 16px; text-align:left; }
+.en-look.breit b { font-weight:600; }
+.en-look.breit span { font-size:13px; color:var(--grau,#5E5D59); }
+.en-look:hover { border-color:#B9B6AE; }
+.en-look.an { border-color:var(--tinte); background:var(--seite,#F9F9F7); }
+.en-fuss { position:fixed; left:288px; right:0; bottom:0; z-index:20; display:flex; align-items:center; gap:14px; padding:14px 32px calc(14px + env(safe-area-inset-bottom)); background:rgba(255,255,255,.96); backdrop-filter:blur(8px); border-top:1px solid var(--linie); }
+.en-fuss > span:first-child { flex:1; font-size:14px; color:var(--grau,#5E5D59); }
+.en-fehler { color:#A3261B; font-size:13.5px; }
+.en-los { min-height:48px; padding:0 26px; border-radius:999px; border:0; background:var(--tinte); color:#fff; font:inherit; font-size:15px; font-weight:600; cursor:pointer; }
+.en-los:disabled { background:#D9D7D1; cursor:default; }
+.en button:focus-visible, .en-los:focus-visible { outline:2px solid var(--tinte); outline-offset:2px; }
+@media (max-width:820px) { .en-fuss { left:0; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); } .en-raster { grid-template-columns:repeat(2,minmax(0,1fr)); } }
