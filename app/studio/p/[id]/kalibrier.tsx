@@ -18,6 +18,86 @@ function CapAusschnitt({ geo, url, breite, style }: { geo: KalGeo; url: string; 
   );
 }
 
+/* Fläche mit Körper + Verschluss: senkrecht ziehen, Ecke = Grösse. Wird im Dialog und direkt auf der Seite benutzt. */
+export function SitzFlaeche({ geo, bodyUrl, capUrl, skala, bottomY, onChange, maxH, aktiv = true }: {
+  geo: KalGeo; bodyUrl: string; capUrl: string; skala: number; bottomY: number; onChange: (skala: number, bottomY: number) => void; maxH: string; aktiv?: boolean;
+}) {
+  const [box, setBox] = useState<{ w: number; h: number; l: number } | null>(null);
+  const bodyRef = useRef<HTMLImageElement | null>(null);
+  const drag = useRef<{ modus: 'move' | 'size'; x: number; y: number; skala: number; bottomY: number } | null>(null);
+  const messe = (el: HTMLImageElement) => { if (el.clientWidth > 0) setBox({ w: el.clientWidth, h: el.clientHeight, l: el.offsetLeft }); };
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => messe(el)); ro.observe(el); return () => ro.disconnect();
+  }, [bodyUrl]);
+  const runter = (modus: 'move' | 'size') => (ev: RPointerEvent) => { if (!aktiv) return; ev.preventDefault(); ev.stopPropagation(); (ev.currentTarget as HTMLElement).setPointerCapture?.(ev.pointerId); drag.current = { modus, x: ev.clientX, y: ev.clientY, skala, bottomY }; };
+  const bewege = (ev: RPointerEvent) => {
+    const d = drag.current, b = box; if (!d || !b) return;
+    const dx = (ev.clientX - d.x) / b.w, dy = (ev.clientY - d.y) / b.h;
+    if (d.modus === 'move') onChange(d.skala, Math.min(geo.body.neckTopPct / 100 + 0.22, Math.max(-0.6, d.bottomY + dy)));
+    else onChange(Math.min(2, Math.max(0.05, d.skala + dx * 2)), d.bottomY);
+  };
+  const capW = box ? skala * box.w : 0;
+  const capH = capW * geo.cap.cropRatio;
+  const kopf = box ? Math.max(Math.round(box.h * 0.12), Math.ceil(capH - bottomY * box.h) + 8) : 0;
+  const mitteX = geo.body.silhouetteBox ? (geo.body.silhouetteBox.x + geo.body.silhouetteBox.w / 2) / 100 : 0.5;
+  return (
+    <div className={`kal-rahmen${aktiv ? '' : ' still'}`} style={box ? { paddingTop: kopf } : undefined} onPointerMove={bewege} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
+      <img ref={bodyRef} className="kal-body" src={bodyUrl} alt="Körper" draggable={false} style={{ maxHeight: maxH }} onLoad={(e) => messe(e.currentTarget)} />
+      {box && (
+        <div className="kal-cap" style={{ width: capW, height: capH, left: box.l + mitteX * box.w - capW / 2, top: kopf + bottomY * box.h - capH }} onPointerDown={runter('move')}>
+          <CapAusschnitt geo={geo} url={capUrl} breite={capW} />
+          {aktiv && <i className="kal-griff" onPointerDown={runter('size')} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Direkt auf der Seite: Verschluss sitzt mit gespeicherten Werten; ziehen und speichern ohne Dialog. */
+export function SitzInline({ vid, teilId, capId, bodyUrl, capUrl }: { vid: string; teilId: string; capId: string; bodyUrl: string; capUrl: string }) {
+  const [geo, setGeo] = useState<KalGeo | null>(null);
+  const [fehler, setFehler] = useState(false);
+  const [wert, setWert] = useState<{ skala: number; bottomY: number } | null>(null);
+  const [basis, setBasis] = useState<{ skala: number; bottomY: number } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    let tot = false; setGeo(null); setFehler(false);
+    geometrieLaden(teilId, capId).then((r) => {
+      if (tot) return;
+      if (!r.geo) { setFehler(true); return; }
+      const w = { skala: r.geo.gespeichert?.skala ?? r.geo.auto.skala, bottomY: (r.geo.gespeichert?.versatzY ?? r.geo.auto.versatzY) / 100 };
+      setGeo(r.geo); setWert(w); setBasis(w);
+    });
+    return () => { tot = true; };
+  }, [teilId, capId]);
+  if (fehler) return <span className="sx-foto"><img className="sx-foto-cap" src={capUrl} alt="" /><img src={bodyUrl} alt="" /></span>;
+  if (!geo || !wert) return <span className="sx-foto laedt"><img src={bodyUrl} alt="" /></span>;
+  const geaendert = !!basis && (Math.abs(wert.skala - basis.skala) > 0.0005 || Math.abs(wert.bottomY - basis.bottomY) > 0.0005);
+  return (
+    <div className="sx-sitz">
+      <SitzFlaeche geo={geo} bodyUrl={bodyUrl} capUrl={capUrl} skala={wert.skala} bottomY={wert.bottomY} maxH="min(46vh,420px)"
+        onChange={(skala, bottomY) => { setOk(false); setWert({ skala, bottomY }); }} />
+      <div className="sx-sitz-leiste">
+        {geaendert ? (
+          <>
+            <button className="sx-mini" disabled={laeuft} onClick={() => setWert(basis)}>Zurück</button>
+            <button className="sx-mini an" disabled={laeuft} onClick={async () => {
+              setLaeuft(true);
+              const r = await kalibrierungSpeichern(vid, teilId, capId, Math.round(wert.skala * 10000) / 10000, Math.round(wert.bottomY * 10000) / 100);
+              setLaeuft(false);
+              if (!r.fehler) { setBasis(wert); setOk(true); }
+            }}>{laeuft ? 'Speichert …' : 'Sitz speichern'}</button>
+          </>
+        ) : <span className="sx-sitz-tipp">{ok ? 'Gespeichert ✓' : 'Verschluss ziehen · Punkt an der Ecke = Grösse'}</span>}
+        <button className="sx-mini" disabled={laeuft} onClick={() => { setOk(false); setWert({ skala: geo.auto.skala, bottomY: geo.auto.versatzY / 100 }); }}>Automatisch</button>
+      </div>
+    </div>
+  );
+}
+
 export function Kalibrierung({ vid, teilId, capId, bodyUrl, capUrl, titel, onZu, onGespeichert }: {
   vid: string; teilId: string; capId: string; bodyUrl: string; capUrl: string; titel: string; onZu: () => void; onGespeichert: (neu: number) => void;
 }) {
@@ -27,57 +107,17 @@ export function Kalibrierung({ vid, teilId, capId, bodyUrl, capUrl, titel, onZu,
   const [bottomY, setBottomY] = useState(0.16);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
-  const [box, setBox] = useState<{ w: number; h: number; l: number } | null>(null);
-  const bodyRef = useRef<HTMLImageElement | null>(null);
-  const drag = useRef<{ modus: 'move' | 'size'; x: number; y: number; skala: number; bottomY: number } | null>(null);
-
-  useEffect(() => {
-    let tot = false;
-    geometrieLaden(teilId, capId).then((r) => {
-      if (tot) return;
-      if (r.fehler || !r.geo) { setGeoFehler(r.fehler || 'Geometrie nicht lesbar'); return; }
-      setGeo(r.geo); setSkala(r.geo.gespeichert?.skala ?? r.geo.auto.skala); setBottomY((r.geo.gespeichert?.versatzY ?? r.geo.auto.versatzY) / 100);
-    });
-    return () => { tot = true; };
-  }, [teilId, capId]);
-  const messe = (el: HTMLImageElement) => { if (el.clientWidth > 0) setBox({ w: el.clientWidth, h: el.clientHeight, l: el.offsetLeft }); };
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => messe(el)); ro.observe(el); return () => ro.disconnect();
-  }, [bodyUrl]);
-  useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !laeuft) onZu(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onZu, laeuft]);
-
-  const runter = (modus: 'move' | 'size') => (ev: RPointerEvent) => { ev.preventDefault(); ev.stopPropagation(); (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId); drag.current = { modus, x: ev.clientX, y: ev.clientY, skala, bottomY }; };
-  const bewege = (ev: RPointerEvent) => {
-    const d = drag.current, b = box; if (!d || !b || !geo) return;
-    const dx = (ev.clientX - d.x) / b.w, dy = (ev.clientY - d.y) / b.h;
-    if (d.modus === 'move') setBottomY(Math.min(geo.body.neckTopPct / 100 + 0.22, Math.max(-0.6, d.bottomY + dy)));
-    else setSkala(Math.min(2, Math.max(0.05, d.skala + dx * 2)));
-  };
-  const capW = box ? skala * box.w : 0;
-  const capH = capW * (geo ? geo.cap.cropRatio : 1);
-  const kopf = box ? Math.max(Math.round(box.h * 0.38), Math.ceil(capH - bottomY * box.h) + 10) : 0;
-  const mitteX = geo?.body.silhouetteBox ? (geo.body.silhouetteBox.x + geo.body.silhouetteBox.w / 2) / 100 : 0.5;
   const zuruecksetzen = () => { if (geo) { setSkala(geo.auto.skala); setBottomY(geo.auto.versatzY / 100); } };
 
   return (
     <div className="rg-ov" role="dialog" aria-label="Sitz des Verschlusses anpassen" onClick={() => !laeuft && onZu()}>
-      <div className="kal-box" onClick={(e) => e.stopPropagation()} onPointerMove={bewege} onPointerUp={() => { drag.current = null; }}>
+      <div className="kal-box" onClick={(e) => e.stopPropagation()}>
         <button className="pn-zu rg-zu" onClick={onZu} disabled={laeuft} aria-label="Schliessen">×</button>
         <h3 className="kal-titel">Sitz anpassen · {titel}</h3>
         <p className="kal-hilfe">Verschluss senkrecht ziehen, mit dem Punkt an der Ecke die Grösse ändern. Gilt ab jetzt für alle Designs mit diesem Teil und Verschluss — fertige Designs werden ohne neuen Render neu zusammengesetzt.{!geo && !geoFehler ? ' Form wird gemessen …' : ''}</p>
         {geoFehler && <p className="pn-fehler">{geoFehler}</p>}
         <div className="kal-flaeche">
-          <div className="kal-rahmen" style={box ? { paddingTop: kopf } : undefined}>
-            <img ref={bodyRef} className="kal-body" src={bodyUrl} alt="Körper" onLoad={(e) => messe(e.currentTarget)} />
-            {box && geo && (
-              <div className="kal-cap" style={{ width: capW, height: capH, left: box.l + mitteX * box.w - capW / 2, top: kopf + bottomY * box.h - capH }} onPointerDown={runter('move')}>
-                <CapAusschnitt geo={geo} url={capUrl} breite={capW} />
-                <i className="kal-griff" onPointerDown={runter('size')} />
-              </div>
-            )}
-          </div>
+          {geo && <SitzFlaeche geo={geo} bodyUrl={bodyUrl} capUrl={capUrl} skala={skala} bottomY={bottomY} maxH="44vh" onChange={(sk, by) => { setSkala(sk); setBottomY(by); }} />}
         </div>
         {fehler && <p className="pn-fehler">{fehler}</p>}
         <div className="kal-aktionen">
