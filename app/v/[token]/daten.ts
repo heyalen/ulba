@@ -20,10 +20,10 @@ export async function empfaengerPruefen(token: string): Promise<Empfaenger | nul
 
 export type Fakten = { material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; deko: string; pcr: number | null; moq: number | null; datenblatt: string | null; foto: string | null };
 export type Ansicht = {
-  lieferant: string; logo: string | null; marke: string | null; titel: string; nachricht: string | null; empfaengerName: string | null; weitergeleitetVon: string | null;
+  lieferant: string; logo: string | null; marke: string | null; titel: string; einleitung: string | null; nachricht: string | null; empfaengerName: string | null; weitergeleitetVon: string | null;
   absender: { name: string; titel: string | null; email: string | null; telefon: string | null; foto: string | null } | null;
   richtungen: { id: string; name: string; beschreibung: string; hex: string | null }[];
-  teile: { posId: string; teilId: string; name: string; fakten: Fakten; renders: Record<string, string> }[];
+  teile: { posId: string; teilId: string; name: string; satz: string | null; fakten: Fakten; renders: Record<string, string> }[];
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -39,20 +39,20 @@ async function signiert(bucket: string, pfade: (string | null | undefined)[]): P
 
 export async function ladeAnsicht(e: Empfaenger): Promise<Ansicht | null> {
   const sb = supabaseAdmin();
-  const { data: v } = await sb.from('vorschlaege').select('id, titel, firma_id, erstellt_von, firmen ( name, logo_pfad ), marken ( name )').eq('id', e.vorschlag_id).single();
+  const { data: v } = await sb.from('vorschlaege').select('id, titel, einleitung, firma_id, erstellt_von, firmen ( name, logo_pfad ), marken ( name )').eq('id', e.vorschlag_id).single();
   if (!v) return null;
-  const vv = v as unknown as { titel: string; firma_id: string; erstellt_von: string | null; firmen: { name: string; logo_pfad: string | null } | null; marken: { name: string } | null };
+  const vv = v as unknown as { titel: string; einleitung: string | null; firma_id: string; erstellt_von: string | null; firmen: { name: string; logo_pfad: string | null } | null; marken: { name: string } | null };
   // Links sind live: neueste Designs des Vorschlags übernehmen
   await projektSync(sb, e.vorschlag_id).catch(() => 0);
   const [{ data: ri }, { data: pos }, { data: rend }, { data: mit }, { data: von }, autor] = await Promise.all([
     sb.from('vorschlag_richtungen').select('id, reihenfolge, hex, richtungen ( name, beschreibung, felder )').eq('vorschlag_id', e.vorschlag_id).not('richtung_id', 'is', null).order('reihenfolge'),
-    sb.from('vorschlag_positionen').select('id, reihenfolge, teil_id, teile:teil_id ( name, material, volumen_ml, hals, mindestmenge, deko_faehigkeiten, pcr_prozent, quelle_url, bild_pfad ), cap:cap_id ( name )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
+    sb.from('vorschlag_positionen').select('id, reihenfolge, teil_id, verkaufssatz, teile:teil_id ( name, material, volumen_ml, hals, mindestmenge, deko_faehigkeiten, pcr_prozent, quelle_url, bild_pfad ), cap:cap_id ( name )').eq('vorschlag_id', e.vorschlag_id).order('reihenfolge'),
     sb.from('renders').select('position_id, richtung_id, bild_pfad').eq('vorschlag_id', e.vorschlag_id).eq('status', 'fertig'),
     vv.erstellt_von ? sb.from('mitglieder').select('anzeigename, titel, telefon, foto_pfad').eq('firma_id', vv.firma_id).eq('user_id', vv.erstellt_von).maybeSingle() : Promise.resolve({ data: null }),
     e.weitergeleitet_von ? sb.from('empfaenger').select('name').eq('id', e.weitergeleitet_von).maybeSingle() : Promise.resolve({ data: null }),
     vv.erstellt_von ? sb.auth.admin.getUserById(vv.erstellt_von).catch(() => null) : Promise.resolve(null),
   ]);
-  type Pos = { id: string; teil_id: string; cap: { name: string } | null; teile: { name: string; material: string | null; volumen_ml: number | null; hals: string | null; mindestmenge: number | null; deko_faehigkeiten: string[] | null; pcr_prozent: number | null; quelle_url: string | null; bild_pfad: string | null } | null };
+  type Pos = { id: string; teil_id: string; verkaufssatz: string | null; cap: { name: string } | null; teile: { name: string; material: string | null; volumen_ml: number | null; hals: string | null; mindestmenge: number | null; deko_faehigkeiten: string[] | null; pcr_prozent: number | null; quelle_url: string | null; bild_pfad: string | null } | null };
   const R = (rend ?? []) as { position_id: string; richtung_id: string; bild_pfad: string }[];
   const P = (pos ?? []) as unknown as Pos[];
   const M = mit as { anzeigename: string | null; titel: string | null; telefon: string | null; foto_pfad: string | null } | null;
@@ -67,7 +67,7 @@ export async function ladeAnsicht(e: Empfaenger): Promise<Ansicht | null> {
 
   return {
     lieferant: vv.firmen?.name ?? 'Lieferant', logo: vv.firmen?.logo_pfad ? logoUrl.get(vv.firmen.logo_pfad) ?? null : null,
-    marke: vv.marken?.name ?? null, titel: vv.titel, nachricht: e.nachricht, empfaengerName: e.name,
+    marke: vv.marken?.name ?? null, titel: vv.titel, einleitung: vv.einleitung ?? null, nachricht: e.nachricht, empfaengerName: e.name,
     weitergeleitetVon: (von as { name: string | null } | null)?.name ?? (e.weitergeleitet_von ? 'einer Kollegin' : null),
     absender: name || email ? { name: name ?? email!, titel: M?.titel ?? null, email, telefon: M?.telefon ?? null, foto: M?.foto_pfad ? logoUrl.get(M.foto_pfad) ?? null : null } : null,
     richtungen: ((ri ?? []) as unknown as { id: string; hex: string | null; richtungen: { name: string; beschreibung: string | null; felder: Record<string, unknown> } | null }[])
@@ -79,7 +79,7 @@ export async function ladeAnsicht(e: Empfaenger): Promise<Ansicht | null> {
     teile: P.filter((p) => R.some((r) => r.position_id === p.id && renderUrl.has(r.bild_pfad))).map((p) => {
       const t = p.teile;
       return {
-        posId: p.id, teilId: p.teil_id, name: t?.name ?? 'Teil',
+        posId: p.id, teilId: p.teil_id, name: t?.name ?? 'Teil', satz: p.verkaufssatz ?? null,
         fakten: {
           material: t?.material ?? null, volumen: t?.volumen_ml ?? null, hals: t?.hals ?? null, verschluss: p.cap?.name ?? null,
           deko: (t?.deko_faehigkeiten ?? []).map((d) => DEKO_TEXT[d] ?? d).join(', '), pcr: t?.pcr_prozent ?? null, moq: t?.mindestmenge ?? null,
