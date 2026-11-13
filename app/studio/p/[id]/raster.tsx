@@ -364,7 +364,7 @@ export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: 
                       <button className="sx-mehr" aria-label={`Optionen für ${t?.name}`} aria-expanded={menueZeile === z.id} onClick={() => setMenueZeile(menueZeile === z.id ? null : z.id)}>···</button>
                       {menueZeile === z.id && (
                         <div className="sx-pop" role="menu" onMouseLeave={() => setMenueZeile(null)}>
-                          {cap?.bild && t?.bild && <button role="menuitem" onClick={() => { setMenueZeile(null); setSitz({ teilId: z.teilId, capId: cap.id }); }}>Sitz des Verschlusses anpassen</button>}
+                          {cap?.bild && t?.bild && c?.status === 'fertig' && c.bild && <button role="menuitem" onClick={() => { setMenueZeile(null); setSitzIn(c.id); }}>Verschluss anpassen</button>}
                           {c?.status === 'fertig' && aktS && <button role="menuitem" onClick={() => { setMenueZeile(null); rendern([{ z, s: aktS }]); }}>Neu rendern</button>}
                           <button role="menuitem" className="rot" onClick={() => { setMenueZeile(null); zeileEntfernen(vid, z.id); }}>Teil entfernen</button>
                         </div>
