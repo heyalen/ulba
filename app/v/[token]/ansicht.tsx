@@ -2,7 +2,7 @@
 /* ulba · Empfängerseite als persönliches Lookbook: Absender, Richtungen als Schalter,
    grosses Bild, Vergleich zweier Richtungen, Fakten-Schublade, ♥, Muster, Anpassen-Wunsch,
    Weiterleiten mit eigenem Unterlink, PDF über den Druckdialog. */
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
 import type { Ansicht, Fakten } from './daten';
 import { CHIPS } from '../../../lib/richtung';
 import { anpassenWuenschen, ereignis, musterAnfragen, teamBeitreten, weiterleiten } from './actions';
@@ -49,6 +49,8 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
     mess(); window.addEventListener('scroll', an, { passive: true }); window.addEventListener('resize', an);
     return () => { window.removeEventListener('scroll', an); window.removeEventListener('resize', an); if (raf) cancelAnimationFrame(raf); };
   }, []);
+  const railRef = useRef<HTMLElement>(null);
+  useEffect(() => { const r = railRef.current, el = r?.querySelector<HTMLElement>('.an'); if (r && el && r.scrollWidth > r.clientWidth) r.scrollTo({ left: el.offsetLeft - 10, behavior: 'smooth' }); }, [sek.i]);
   const springe = (k: number) => document.querySelectorAll<HTMLElement>('[data-sek]')[k]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const [akt, setAkt] = useState(a.richtungen[0]?.id ?? '');
   // Jede Karte zeigt ihren eigenen Look: oben gewählt, sonst der erste, der für dieses Teil gerendert ist
@@ -138,7 +140,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
   return (
     <div className="lb">
      <div className="lb-geruest">
-      <nav className="lb-rail lb-nodruck" aria-label="Inhalt">
+      <nav ref={railRef} className="lb-rail lb-nodruck" aria-label="Inhalt">
         {[
           { nr: '00', txt: a.lieferant, stil: { '--farbe': '#FFFFFF', '--auf': '#0E0E0E' } as React.CSSProperties, logo: true },
           ...a.teile.map((t, k) => ({ nr: String(k + 1).padStart(2, '0'), txt: t.name, stil: farben(a.richtungen.find((r) => r.id === lookVon(t))?.hex), logo: false })),
@@ -216,7 +218,9 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
             const k = schluessel(t.teilId, tl), auf = !!liste[k], weg = !!gesendet[k];
             const eigene = a.richtungen.filter((r) => t.renders[r.id]);
             return (
-              <article key={t.posId} className="lb-box lb-teil" style={farben(tR?.hex)} data-sek="">
+              <Fragment key={t.posId}>
+              <div className="lb-banner lb-nodruck" style={farben(tR?.hex)} aria-hidden="true"><span>Sie sehen jetzt ( {t.name} )</span><b><i />{String(i + 1).padStart(2, '0')} / {String(a.teile.length).padStart(2, '0')}</b></div>
+              <article className="lb-box lb-teil" style={farben(tR?.hex)} data-sek="">
                 <div className={`lb-bilder${sp.length > 1 ? ' zwei' : ''}`}>
                   {sp.map((s) => {
                     const bild = t.renders[s], hk = schluessel(t.teilId, s);
@@ -252,6 +256,7 @@ export function VorschlagAnsicht({ token: linkToken, a }: { token: string; a: An
                   <div className="lb-nurdruck"><FaktenListe f={t.fakten} /></div>
                 </div>
               </article>
+              </Fragment>
             );
           })}
         </section>
