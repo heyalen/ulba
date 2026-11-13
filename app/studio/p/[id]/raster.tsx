@@ -12,13 +12,13 @@ import type { WbWelt } from '../../werkbank/werkbank';
 import { CHIPS, type Chip } from '../../../../lib/richtung';
 import {
   zeileHinzufuegen, zeileCap, zeileEntfernen, spalteAusBibliothek, spalteEntfernen, spalteAusWelt, richtungBeschreiben, entwuerfeUebernehmen,
-  richtungAusReferenz, richtungAusMarke, spalteVerfeinern, richtungUmbenennen, zellenRendern, zellenStand, zelleEntfernen, type Entwurf,
+  richtungAusReferenz, richtungAusMarke, spalteVerfeinern, richtungUmbenennen, zellenRendern, zellenStand, zelleEntfernen, anlassSetzen, seiteTextSpeichern, verkaufssatzSpeichern, type Entwurf,
 } from './raster-actions';
 
 export type RTeil = { id: string; aktiv: boolean; name: string; rolle: string; typ: string | null; material: string | null; volumen: number | null; hals: string | null; verschluss: string | null; kollektion: string | null; artikelnummer: string | null; bild: string | null; caps: string[] };
 export type RRichtung = { id: string; name: string; beschreibung: string; quelle: string; bild: string | null; bodyHex: string | null; capHex: string | null; akzentHex: string | null; finish: string | null };
 export type RSpalte = { id: string; richtung: RRichtung; wunsch?: string | null };
-export type RZeile = { id: string; teilId: string; capId: string | null };
+export type RZeile = { id: string; teilId: string; capId: string | null; verkaufssatz?: string | null };
 export type RZelle = { id: string; teilId: string; richtungId: string; capId: string | null; status: string; log: string | null; bild: string | null };
 
 const QUELLE: Record<string, string> = { beschreibung: 'Beschrieben', welt: 'Welt', referenz: 'Referenz', marke: 'Marke', verfeinert: 'Verfeinert', manuell: 'Eigene' };
@@ -86,8 +86,8 @@ function TeilSchublade({ teile, imRaster, onWahl, onClose }: { teile: RTeil[]; i
 }
 
 /* ── Richtung hinzufügen: fünf Wege, ein Ergebnis ── */
-function RichtungDialog({ vid, bibliothek, onWelten, onClose, onFertig }: { vid: string; bibliothek: RRichtung[]; onWelten: () => void; onClose: () => void; onFertig: () => void }) {
-  const [weg, setWeg] = useState<'beschreiben' | 'referenz' | 'marke' | 'gespeichert'>('beschreiben');
+function RichtungDialog({ vid, bibliothek, start, onWelten, onClose, onFertig }: { vid: string; bibliothek: RRichtung[]; start?: 'beschreiben' | 'marke'; onWelten: () => void; onClose: () => void; onFertig: () => void }) {
+  const [weg, setWeg] = useState<'beschreiben' | 'referenz' | 'marke' | 'gespeichert'>(start ?? 'beschreiben');
   const [text, setText] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
@@ -103,7 +103,7 @@ function RichtungDialog({ vid, bibliothek, onWelten, onClose, onFertig }: { vid:
     <div className="dw-ov" onClick={() => !laeuft && onClose()}>
       <div className="dw-box rz-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Richtung hinzufügen">
         <div className="dw-kopf">
-          <div><h3 className="serif">Neue Design-Richtung</h3><span className="dw-sub">Wie soll die Verpackung aussehen? Wähl einen Weg — das Ergebnis ist immer eine Richtung, die du verfeinern kannst.</span></div>
+          <div><h3 className="serif">Neuer Look</h3><span className="dw-sub">Wie soll die Verpackung aussehen? Wähl einen Weg — das Ergebnis ist immer ein Look, den du danach verfeinern kannst.</span></div>
           <button className="pn-zu" onClick={onClose} disabled={laeuft} aria-label="Schliessen">×</button>
         </div>
         <div className="rz-wege" role="tablist">
@@ -200,8 +200,9 @@ function SpaltenKopf({ vid, s, onVerfeinert, onWeg }: { vid: string; s: RSpalte;
   );
 }
 
-export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen, welten, bibliothek }: {
-  vid: string; links: number; teile: RTeil[]; spalten: RSpalte[]; zeilen: RZeile[]; zellen: RZelle[]; welten: WbWelt[]; bibliothek: RRichtung[];
+export type RSeite = { ansicht: 'seite' | 'raster'; anlass: string | null; einleitung: string | null; kopf: string; vorschau: string | null };
+export function Raster({ vid, links, seiteInfo, teile, spalten, zeilen, zellen: startZellen, welten, bibliothek }: {
+  vid: string; links: number; seiteInfo: RSeite; teile: RTeil[]; spalten: RSpalte[]; zeilen: RZeile[]; zellen: RZelle[]; welten: WbWelt[]; bibliothek: RRichtung[];
 }) {
   const router = useRouter();
   const teilVon = useMemo(() => new Map(teile.map((t) => [t.id, t])), [teile]);
@@ -209,6 +210,10 @@ export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen
   useEffect(() => { setZellen(new Map(startZellen.map((z) => [key(z.teilId, z.richtungId), z]))); }, [startZellen]);
   const [teilOffen, setTeilOffen] = useState(false);
   const [richtungOffen, setRichtungOffen] = useState(false);
+  const [richtungStart, setRichtungStart] = useState<'beschreiben' | 'marke'>('beschreiben');
+  const [akt, setAkt] = useState<string | null>(null);
+  const [menueZeile, setMenueZeile] = useState<string | null>(null);
+  const ansicht = seiteInfo.ansicht;
   const [wandOffen, setWandOffen] = useState(false);
   const [capOffen, setCapOffen] = useState<string | null>(null);
   const [sitz, setSitz] = useState<{ teilId: string; capId: string } | null>(null);
@@ -248,9 +253,140 @@ export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen
   });
 
   const leer = !zeilen.length && !spalten.length;
+
+  /* ── Ansicht «Seite»: der Lieferant bearbeitet direkt das Lookbook, das die Marke bekommt ── */
+  const aktS = spalten.find((s) => s.id === akt) ?? spalten[0] ?? null;
+  const capsVon = (t: RTeil | undefined) => (t?.caps ?? []).map((id) => teilVon.get(id)).filter((c): c is RTeil => !!c && !/over\s?cap/i.test(c.name))
+    .sort((a, b) => Number(!!b.bild) - Number(!!a.bild) || a.name.localeCompare(b.name));
+  const offenAkt = aktS ? offen.filter((x) => x.s.id === aktS.id) : [];
+  const fertigAkt = aktS ? zeilen.filter((z) => { const c = zelleVon(z, aktS); return c?.status === 'fertig' && c.bild; }).length : 0;
+  const farbe = aktS?.richtung.bodyHex ?? '#E9E2D6';
+  const hellF = (() => { const n = parseInt(farbe.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150; })();
+  const kartenStil = { '--farbe': farbe, '--auf': hellF ? '#0E0E0E' : '#F6F1EA' } as React.CSSProperties;
+  const anlassWahl = async (a: 'neuheit' | 'marke' | 'trend') => {
+    anlassSetzen(vid, a);
+    if (a === 'neuheit') setTeilOffen(true);
+    else { setRichtungStart(a === 'marke' ? 'marke' : 'beschreiben'); setRichtungOffen(true); }
+  };
+  const ANLASS = [
+    ['neuheit', 'Neuheit vorstellen', 'Ein neues Teil aus deinem Sortiment, gezeigt in mehreren Looks. Für Messe, Newsletter oder Kundentermin.', 'Teil wählen'],
+    ['marke', 'Für eine Marke', 'Zeig einer Marke, wie ihr Look in deinen Teilen aussieht. ulba liest dazu ihre Website.', 'Website eingeben'],
+    ['trend', 'Trend-Idee', 'Eine Idee für eine neue Linie, zum Beispiel K-Beauty pastell oder Männer minimal, über mehrere Teile.', 'Idee beschreiben'],
+  ] as const;
+
+  const seite = leer ? (
+    <div className="sx-anlass">
+      <h2>Was möchtest du zeigen?</h2>
+      <p>Wähl den Anlass. Danach baust du direkt die Seite, die deine Kundin bekommt.</p>
+      <div className="sx-anlass-raster">
+        {ANLASS.map(([k, t, txt, cta], i) => (
+          <button key={k} className={`sx-anlass-karte${seiteInfo.anlass === k ? ' an' : ''}`} onClick={() => anlassWahl(k)}>
+            <span className="sx-nr">{String(i + 1).padStart(2, '0')}</span>
+            <b>{t}</b><span>{txt}</span><em>{cta} →</em>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className="sx">
+      <div className="sx-leiste">
+        <div className="sx-looks" role="tablist" aria-label="Looks">
+          {spalten.map((s) => (
+            <div key={s.id} role="tab" aria-selected={aktS?.id === s.id} tabIndex={0} className={`sx-look${aktS?.id === s.id ? ' an' : ''}`}
+              onClick={(e) => { if (!(e.target as HTMLElement).closest('button,input')) setAkt(s.id); }} onKeyDown={(e) => { if (e.key === 'Enter') setAkt(s.id); }}>
+              <SpaltenKopf vid={vid} s={s}
+                onVerfeinert={(_sid, rid) => { const sp = { ...s, richtung: { ...s.richtung, id: rid } }; setAkt(s.id); rendern(zeilen.map((z) => ({ z, s: sp }))); }}
+                onWeg={() => { spalteEntfernen(vid, s.id); }} />
+            </div>
+          ))}
+          <button className={`sx-look-neu${spalten.length ? '' : ' gross'}`} onClick={() => setRichtungOffen(true)}>
+            <b>+ Look</b>{!spalten.length && <span>Wie sollen die Teile aussehen? Beschreiben, Welt, Referenzbild oder Marke.</span>}
+          </button>
+        </div>
+        <div className="sx-aktion">
+          <span className="sx-stand">{laufend.length ? `${laufend.length} ${laufend.length === 1 ? 'Bild wird' : 'Bilder werden'} gerendert …` : aktS && zeilen.length ? `${fertigAkt} von ${zeilen.length} Bildern fertig` : ''}</span>
+          {fehler && <span className="pn-fehler">{fehler}</span>}
+          {offen.length > offenAkt.length && <button className="knopf zweit" disabled={startet} onClick={() => rendern(offen)}>Alle Looks rendern · {offen.length}</button>}
+          {offenAkt.length > 0 && <button className="knopf haupt" disabled={startet} onClick={() => rendern(offenAkt)}>{startet ? 'Startet …' : `Look rendern · ${offenAkt.length}`}</button>}
+          {seiteInfo.vorschau && <a className="knopf zweit" href={`/v/${seiteInfo.vorschau}?vorschau=1`} target="_blank" rel="noopener">Vorschau ↗</a>}
+          <Link className={`knopf ${offenAkt.length ? 'zweit' : 'haupt'}`} href={`/studio/p/${vid}?tab=teilen`}>Senden</Link>
+        </div>
+      </div>
+
+      <div className="lb lb-editor">
+        <div className="lb-haupt">
+          <section className="lb-box lb-intro">
+            <span className="lb-klammer">(Vorschlag)</span>
+            <h1>{seiteInfo.kopf}</h1>
+            <textarea className="sx-text sx-einleitung" defaultValue={seiteInfo.einleitung ?? ''} rows={2} maxLength={600} aria-label="Einleitung"
+              placeholder="Einleitung für deine Kundin, zum Beispiel: Wir stellen Ihnen unsere neue Airless-Flasche vor – hier in drei Looks."
+              onBlur={(e) => { if (e.target.value !== (seiteInfo.einleitung ?? '')) seiteTextSpeichern(vid, e.target.value); }} />
+          </section>
+
+          {zeilen.map((z, i) => {
+            const t = teilVon.get(z.teilId), caps = capsVon(t), cap = z.capId ? teilVon.get(z.capId) : null;
+            const c = aktS ? zelleVon(z, aktS) : undefined;
+            const veraltet = !!c && c.status === 'fertig' && (c.capId ?? null) !== (z.capId ?? null);
+            return (
+              <article key={z.id} className="lb-box lb-teil sx-teil" style={kartenStil}>
+                <div className="lb-teil-text">
+                  <div>
+                    <span className="lb-nr" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="lb-klammer">({aktS?.richtung.name ?? 'noch kein Look'})</span>
+                    <h2>{t?.name ?? 'Teil'}</h2>
+                    <p className="lb-leise">{t ? spec(t) : ''}</p>
+                    <textarea className="sx-text sx-satz" defaultValue={z.verkaufssatz ?? ''} rows={2} maxLength={300} aria-label={`Verkaufssatz für ${t?.name}`}
+                      placeholder="Warum dieses Teil? Zum Beispiel: 50 % weniger Material, nachfüllbar."
+                      onBlur={(e) => { if (e.target.value !== (z.verkaufssatz ?? '')) verkaufssatzSpeichern(vid, z.id, e.target.value); }} />
+                  </div>
+                  <div className="sx-teil-unten">
+                    {caps.length > 0 && (
+                      <label className="sx-cap">
+                        <span>Verschluss</span>
+                        <select value={z.capId ?? ''} onChange={(e) => zeileCap(vid, z.id, e.target.value || null)}>
+                          {caps.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                          <option value="">Ohne Verschluss</option>
+                        </select>
+                      </label>
+                    )}
+                    <div className="sx-mehr-wrap">
+                      <button className="sx-mehr" aria-label={`Optionen für ${t?.name}`} aria-expanded={menueZeile === z.id} onClick={() => setMenueZeile(menueZeile === z.id ? null : z.id)}>···</button>
+                      {menueZeile === z.id && (
+                        <div className="sx-pop" role="menu" onMouseLeave={() => setMenueZeile(null)}>
+                          {cap?.bild && t?.bild && <button role="menuitem" onClick={() => { setMenueZeile(null); setSitz({ teilId: z.teilId, capId: cap.id }); }}>Sitz des Verschlusses anpassen</button>}
+                          {c?.status === 'fertig' && aktS && <button role="menuitem" onClick={() => { setMenueZeile(null); rendern([{ z, s: aktS }]); }}>Neu rendern</button>}
+                          <button role="menuitem" className="rot" onClick={() => { setMenueZeile(null); zeileEntfernen(vid, z.id); }}>Teil entfernen</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="lb-bilder">
+                  {c?.status === 'fertig' && c.bild ? (
+                    <button className="lb-buehne sx-buehne" onClick={() => setGross(c.id)} aria-label={`${t?.name} gross ansehen`}>
+                      <img src={c.bild} alt="" />{veraltet && <em className="sx-hinweis">Verschluss geändert – neu rendern</em>}
+                    </button>
+                  ) : (
+                    <div className="lb-buehne sx-buehne leer">
+                      {t?.bild && <span className="sx-foto">{cap?.bild && <img className="sx-foto-cap" src={cap.bild} alt="" />}<img src={t.bild} alt="" /></span>}
+                      {!aktS ? <span className="sx-hinweis">Füg oben einen Look hinzu</span>
+                        : c?.status === 'laeuft' ? <div className="sx-lauf"><Fortschritt /><span>wird gerendert · etwa 2 Minuten</span></div>
+                        : <div className="sx-lauf">{c?.status === 'fehler' && <span className="pn-fehler">Das hat nicht geklappt.</span>}<button className="knopf haupt" disabled={startet} onClick={() => rendern([{ z, s: aktS }])}>{c?.status === 'fehler' ? 'Nochmal rendern' : `In «${aktS.richtung.name}» rendern`}</button></div>}
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+          <button className="lb-box sx-teil-neu" onClick={() => setTeilOffen(true)}><b>+ Teil hinzufügen</b><span>{zeilen.length ? 'Ein weiteres Teil aus deinem Katalog.' : 'Welche Teile möchtest du zeigen?'}</span></button>
+        </div>
+      </div>
+    </div>
+  );
   const schritt = !zeilen.length ? 1 : !spalten.length ? 2 : offen.length || laufend.length ? 3 : 4;
   return (
     <div className="wb rz">
+      {ansicht === 'raster' ? (<>
       <div className="rz-wegweiser">
         <ol className="rz-schritte" aria-label="Fortschritt">
           {['Teile', 'Richtungen', 'Rendern', 'Link teilen'].map((txt, i) => <li key={txt} className={i + 1 < schritt ? 'ok' : i + 1 === schritt ? 'an' : ''} aria-current={i + 1 === schritt ? 'step' : undefined}><i>{i + 1 < schritt ? '✓' : i + 1}</i>{txt}</li>)}
@@ -360,6 +496,7 @@ export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen
           </div>
         </div>
       )}
+      </>) : seite}
 
       {grossX && (
         <div className="dw-ov rz-gross" onClick={() => setGross(null)}>
@@ -393,8 +530,8 @@ export function Raster({ vid, links, teile, spalten, zeilen, zellen: startZellen
       {meldung && <div className="rz-toast" role="status">{meldung}</div>}
       {teilOffen && <TeilSchublade teile={teile} imRaster={new Set(zeilen.map((z) => z.teilId))} onClose={() => setTeilOffen(false)}
         onWahl={async (t) => { const mitBild = t.caps.find((id) => teilVon.get(id)?.bild); await zeileHinzufuegen(vid, t.id, mitBild ?? t.caps[0] ?? null); }} />}
-      {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} onClose={() => setRichtungOffen(false)}
-        onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); router.refresh(); }} />}
+      {richtungOffen && <RichtungDialog vid={vid} bibliothek={bibliothek} start={richtungStart} onClose={() => setRichtungOffen(false)}
+        onWelten={() => { setRichtungOffen(false); setWandOffen(true); }} onFertig={() => { setRichtungOffen(false); setRichtungStart('beschreiben'); router.refresh(); }} />}
       {wandOffen && <DesignWand welten={welten} titel="Welche Welt soll eine Spalte werden?" onClose={() => setWandOffen(false)}
         onWahl={async (w) => { setWandOffen(false); await spalteAusWelt(vid, w.id); }} />}
     </div>
