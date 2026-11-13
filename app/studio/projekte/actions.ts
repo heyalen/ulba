@@ -50,6 +50,21 @@ export async function umbenennen(f: FormData) {
   revalidatePath('/studio', 'layout');
 }
 
+/* Seitenleiste: Vorschlag löschen (= archivieren, Links werden widerrufen) und umbenennen. */
+export async function vorschlagLoeschen(id: string): Promise<boolean> {
+  const sb = supabaseServer();
+  const { data, error } = await sb.from('vorschlaege').update({ status: 'archiviert' }).eq('id', id).select('id');
+  if (error || !data?.length) return false;
+  await sb.from('empfaenger').update({ widerrufen_am: new Date().toISOString() }).eq('vorschlag_id', id).is('widerrufen_am', null);
+  revalidatePath('/studio', 'layout');
+  return true;
+}
+export async function vorschlagUmbenennen(id: string, titel: string) {
+  const t = titel.trim().slice(0, 120);
+  if (t) await supabaseServer().from('vorschlaege').update({ titel: t, aktualisiert_am: new Date().toISOString() }).eq('id', id);
+  revalidatePath('/studio', 'layout');
+}
+
 export async function archivieren(f: FormData) {
   await supabaseServer().from('vorschlaege').update({ status: 'archiviert' }).eq('id', s(f, 'id'));
   revalidatePath('/studio', 'layout');
