@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ProjektKurz } from '../../lib/projekt';
-import { NeuKnopf } from './neu-knopf';
 import { vorschlagLoeschen, vorschlagUmbenennen } from './projekte/actions';
 
 const I = {
@@ -24,8 +23,7 @@ const I = {
 const Ic = ({ d }: { d: string }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>;
 
 const BEREICHE = [
-  { href: '/studio', text: 'Alle Vorschläge', d: I.raster, genau: true },
-  { href: '/studio/richtungen', text: 'Richtungen', d: I.richtung },
+  { href: '/studio/richtungen', text: 'Looks', d: I.richtung },
   { href: '/studio/anfragen', text: 'Anfragen', d: I.anfragen },
   { href: '/studio/datenbank', text: 'Katalog', d: I.datenbank },
   { href: '/studio/einstellungen', text: 'Einstellungen', d: I.einst },
@@ -96,7 +94,7 @@ export function StudioNav({ projekte, firma }: { projekte: ProjektKurz[]; firma:
     const w = q.trim().toLowerCase();
     return projekte.filter((p) => !weg.has(p.id) && (!w || `${p.titel} ${p.marke ?? ''}`.toLowerCase().includes(w)));
   }, [projekte, q, weg]);
-  const hier = pfad === '/studio' ? 'Alle Vorschläge' : projekte.find((p) => pfad.startsWith(`/studio/p/${p.id}`))?.titel ?? BEREICHE.find((b) => !b.genau && pfad.startsWith(b.href))?.text ?? 'Studio';
+  const hier = pfad === '/studio' ? 'Neues Lookbook' : projekte.find((p) => pfad.startsWith(`/studio/p/${p.id}`))?.titel ?? BEREICHE.find((b) => pfad.startsWith(b.href))?.text ?? 'Studio';
 
   const loeschen = async (id: string) => {
     setWeg((s) => new Set(s).add(id));
@@ -110,31 +108,31 @@ export function StudioNav({ projekte, firma }: { projekte: ProjektKurz[]; firma:
       <div className="sb-mobil">
         <button type="button" onClick={() => setOffen(true)} aria-expanded={offen} aria-label="Menü öffnen"><Ic d={I.menue} /></button>
         <span>{hier}</span>
-        <NeuKnopf className="sb-mobil-neu"><Ic d={I.plus} /></NeuKnopf>
+        <Link href="/studio" className="sb-mobil-neu" aria-label="Neues Lookbook"><Ic d={I.plus} /></Link>
       </div>
       <div className="sb-schleier" onClick={zu} />
       <div className="sb-karte">
         <div className="sb-kopf">
-          <Link href="/studio" onClick={zu} className="sb-logo" aria-label="ulba – alle Vorschläge">ulba</Link>
+          <Link href="/studio" onClick={zu} className="sb-logo" aria-label="ulba – Start">ulba</Link>
           <button type="button" className="sb-zu" onClick={zu} aria-label="Menü schliessen"><Ic d={I.zu} /></button>
         </div>
-        <NeuKnopf className="sb-neu" onNav={zu}><Ic d={I.plus} /><span>Neuer Vorschlag</span></NeuKnopf>
+        <Link href="/studio" onClick={zu} className={`sb-neu${pfad === '/studio' ? ' an' : ''}`}><Ic d={I.plus} /><span>Neues Lookbook</span></Link>
 
         <nav className="sb-bereiche">
           {BEREICHE.map((b) => {
-            const an = b.genau ? pfad === b.href : pfad.startsWith(b.href);
+            const an = pfad.startsWith(b.href);
             return <Link key={b.href} href={b.href} onClick={zu} className={`sb-item${an ? ' an' : ''}`} aria-current={an ? 'page' : undefined}><Ic d={b.d} />{b.text}</Link>;
           })}
         </nav>
 
         <div className="sb-trenner" />
-        <div className="sb-lbl">Vorschläge</div>
+        <div className="sb-lbl">Lookbooks</div>
         {projekte.length > 6 && (
-          <label className="sb-suche"><Ic d={I.suche} /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen" aria-label="Vorschläge suchen" /></label>
+          <label className="sb-suche"><Ic d={I.suche} /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen" aria-label="Lookbooks suchen" /></label>
         )}
         <div className="sb-liste">
           {liste.map((p) => <Eintrag key={p.id} p={p} an={pfad.startsWith(`/studio/p/${p.id}`)} onNav={zu} onWeg={loeschen} />)}
-          {!liste.length && <div className="sb-leer">{q ? 'Nichts gefunden' : 'Noch kein Vorschlag'}</div>}
+          {!liste.length && <div className="sb-leer">{q ? 'Nichts gefunden' : 'Noch kein Lookbook'}</div>}
         </div>
 
         <div className="sb-fuss">
